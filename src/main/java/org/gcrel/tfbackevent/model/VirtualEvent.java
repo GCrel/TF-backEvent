@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -18,9 +19,10 @@ public class VirtualEvent extends Event {
     @Column(name = "access_instructions", columnDefinition = "TEXT")
     private String accessInstructions;
 
-    protected VirtualEvent() {}
+    protected VirtualEvent() {
+    }
 
-    public VirtualEvent(String title, String description, LocalDateTime dateTime, Double basePrice, String accessLink, String platform, String accessInstructions) {
+    public VirtualEvent(String title, String description, LocalDateTime dateTime, BigDecimal basePrice, String accessLink, String platform, String accessInstructions) {
         super(title, description, dateTime, basePrice);
         this.accessLink = accessLink;
         this.platform = platform;

@@ -3,6 +3,7 @@ package org.gcrel.tfbackevent.model;
 import jakarta.persistence.*;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -30,11 +31,11 @@ public abstract class Event {
     private EventStatus status;
 
     @Column(name = "base_price", nullable = false)
-    private Double basePrice;
+    private BigDecimal basePrice;
 
     public Event() {}
 
-    public Event(String title, String description, LocalDateTime dateTime, Double basePrice) {
+    public Event(String title, String description, LocalDateTime dateTime, BigDecimal basePrice) {
         this.id = UUID.randomUUID();
         this.title = title;
         this.description = description;
