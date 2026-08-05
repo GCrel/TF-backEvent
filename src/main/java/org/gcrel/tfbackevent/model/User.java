@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -31,6 +32,15 @@ public class User {
     @Column(name = "date_birth", nullable = false)
     private LocalDate dateBirth;
 
+    @Column(name = "is_enabled", nullable = false)
+    private boolean isEnabled;
+
+    @Column(name = "verification_code")
+    private String verificationCode;
+
+    @Column(name = "verification_code_expires_at")
+    private LocalDateTime verificationCodeExpiresAt;
+
 
     public User() {}
 
@@ -38,8 +48,9 @@ public class User {
         this.name = name;
         this.email = email;
         this.password = password;
-        this.systemRole = SystemRole.USER;
+        this.systemRole = SystemRole.USER; // default role
         this.dateBirth = dateBirth;
+        this.isEnabled = false; // default to not enabled until verified
     }
 
     @Override
@@ -52,6 +63,14 @@ public class User {
     @Override
     public int hashCode() {
         return Objects.hash(id, email);
+    }
+
+    public boolean isEnabled() {
+        return isEnabled;
+    }
+
+    public String getVerificationCode() {
+        return verificationCode;
     }
 
     public UUID getId() {
@@ -68,5 +87,21 @@ public class User {
 
     public String getPassword() {
         return password;
+    }
+
+    public LocalDateTime getVerificationCodeExpiresAt() {
+        return verificationCodeExpiresAt;
+    }
+
+    public void setEnabled(boolean enabled) {
+        isEnabled = enabled;
+    }
+
+    public void setVerificationCode(String verificationCode) {
+        this.verificationCode = verificationCode;
+    }
+
+    public void setVerificationCodeExpiresAt(LocalDateTime verificationCodeExpiresAt) {
+        this.verificationCodeExpiresAt = verificationCodeExpiresAt;
     }
 }

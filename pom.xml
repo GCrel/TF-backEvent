@@ -101,6 +101,12 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>0.13.0</version>
         </dependency>
+
+        <!-- Spring Boot Mail dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail-test</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
