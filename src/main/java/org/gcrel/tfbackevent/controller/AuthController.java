@@ -2,13 +2,13 @@ package org.gcrel.tfbackevent.controller;
 
 import org.gcrel.tfbackevent.dto.request.*;
 import org.gcrel.tfbackevent.dto.response.AuthResponse;
+import org.gcrel.tfbackevent.dto.response.UserResponse;
+import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -54,5 +54,12 @@ public class AuthController {
     public ResponseEntity<Void> logout(@RequestBody RefreshTokenRequest request) {
         authService.logout(request);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> me(Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        assert user != null;
+        return ResponseEntity.ok(new UserResponse(user));
     }
 }

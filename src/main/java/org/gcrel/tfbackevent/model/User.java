@@ -2,15 +2,20 @@ package org.gcrel.tfbackevent.model;
 
 import jakarta.persistence.*;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
 @Entity
 @Table(name = "users")
-public class User {
+public class User implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(nullable = false, updatable = false)
@@ -87,6 +92,24 @@ public class User {
 
     public String getPassword() {
         return password;
+    }
+
+    public LocalDate getDateBirth() {
+        return dateBirth;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority("ROLE_" + systemRole.name()));
+    }
+
+    @Override
+    public String getUsername() {
+        return email;
     }
 
     public LocalDateTime getVerificationCodeExpiresAt() {
