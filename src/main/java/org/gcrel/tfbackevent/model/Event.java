@@ -59,4 +59,24 @@ public abstract class Event {
     public UUID getId() {
         return id;
     }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public LocalDateTime getDateTime() {
+        return dateTime;
+    }
+
+    public EventStatus getStatus() {
+        return status;
+    }
+
+    public BigDecimal getBasePrice() {
+        return basePrice;
+    }
 }
