@@ -40,4 +40,16 @@ public class VirtualEvent extends Event {
     public String getAccessInstructions() {
         return accessInstructions;
     }
+
+    public void setAccessLink(String accessLink) {
+        this.accessLink = accessLink;
+    }
+
+    public void setPlatform(String platform) {
+        this.platform = platform;
+    }
+
+    public void setAccessInstructions(String accessInstructions) {
+        this.accessInstructions = accessInstructions;
+    }
 }

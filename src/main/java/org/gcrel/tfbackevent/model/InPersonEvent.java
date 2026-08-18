@@ -47,4 +47,20 @@ public class InPersonEvent extends Event {
     public Integer getCapacity() {
         return capacity;
     }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public void setLatitude(BigDecimal latitude) {
+        this.latitude = latitude;
+    }
+
+    public void setLongitude(BigDecimal longitude) {
+        this.longitude = longitude;
+    }
+
+    public void setCapacity(Integer capacity) {
+        this.capacity = capacity;
+    }
 }

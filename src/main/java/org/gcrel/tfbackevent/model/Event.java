@@ -79,4 +79,24 @@ public abstract class Event {
     public BigDecimal getBasePrice() {
         return basePrice;
     }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setDateTime(LocalDateTime dateTime) {
+        this.dateTime = dateTime;
+    }
+
+    public void setBasePrice(BigDecimal basePrice) {
+        this.basePrice = basePrice;
+    }
+
+    public void setStatus(EventStatus status) {
+        this.status = status;
+    }
 }
