@@ -36,7 +36,6 @@ public abstract class Event {
     public Event() {}
 
     public Event(String title, String description, LocalDateTime dateTime, BigDecimal basePrice) {
-        this.id = UUID.randomUUID();
         this.title = title;
         this.description = description;
         this.dateTime = dateTime;

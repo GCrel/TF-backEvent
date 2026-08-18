@@ -10,5 +10,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface EventParticipationRepository extends JpaRepository<EventParticipation, EventParticipationId> {
-    boolean existsByEventAndUserAndEventRole(Event event, User user, EventRole eventRole);
+    boolean existsByEventAndUserAndId_EventRole(Event event, User user, EventRole eventRole);
 }

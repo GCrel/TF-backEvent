@@ -119,7 +119,7 @@ public class EventService {
 
     private void validateOwnership(Event event, User organizer) {
         boolean isOwner = eventParticipationRepository
-                .existsByEventAndUserAndEventRole(event, organizer, EventRole.ORGANIZER);
+                .existsByEventAndUserAndId_EventRole(event, organizer, EventRole.ORGANIZER);
         if (!isOwner) {
             throw new UnauthorizedEventAccessException();
         }
