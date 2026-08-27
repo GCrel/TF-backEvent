@@ -120,6 +120,25 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail-test</artifactId>
         </dependency>
+
+        <!-- ZXing dependencies for QR code generation -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+
+        <!-- Mercado Pago SDK dependency -->
+        <dependency>
+            <groupId>com.mercadopago</groupId>
+            <artifactId>sdk-java</artifactId>
+            <version>3.6.0</version>
+        </dependency>
     </dependencies>
 
     <build>
