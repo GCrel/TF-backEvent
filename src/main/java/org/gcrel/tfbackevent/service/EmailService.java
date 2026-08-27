@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
@@ -8,6 +9,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class EmailService {
+    @Value("${SMTP_FROM}")
+    private String fromEmail;
+
     private final JavaMailSender mailSender;
 
     @Autowired
@@ -18,6 +22,7 @@ public class EmailService {
     @Async
     public void sendVerificationEmail(String to, String code) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
         message.setTo(to);
         message.setSubject("Verifica tu cuenta");
         message.setText("Tu código de verificación es: " + code + "\nEste código expira en 15 minutos.");
