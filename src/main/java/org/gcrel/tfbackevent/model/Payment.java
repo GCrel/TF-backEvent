@@ -56,4 +56,16 @@ public class Payment {
     public int hashCode() {
         return Objects.hashCode(transactionId);
     }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public PaymentStatus getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(PaymentStatus paymentStatus) {
+        this.paymentStatus = paymentStatus;
+    }
 }

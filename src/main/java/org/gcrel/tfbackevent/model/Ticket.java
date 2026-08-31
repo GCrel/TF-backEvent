@@ -54,4 +54,32 @@ public class Ticket {
     public int hashCode() {
         return Objects.hash(id, qrCode);
     }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public TicketStatus getStatus() {
+        return status;
+    }
+
+    public User getAttendee() {
+        return attendee;
+    }
+
+    public Event getEvent() {
+        return event;
+    }
+
+    public LocalDateTime getBoughtAt() {
+        return boughtAt;
+    }
+
+    public void setStatus(TicketStatus status) {
+        this.status = status;
+    }
+
+    public void setQrCode(String qrCode) {
+        this.qrCode = qrCode;
+    }
 }
