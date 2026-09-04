@@ -1,5 +1,16 @@
 package org.gcrel.tfbackevent.service;
 
+import org.gcrel.tfbackevent.dto.request.WebhookPaymentRequest;
+import org.gcrel.tfbackevent.exception.WebhookValidationException;
+import org.gcrel.tfbackevent.model.Payment;
+import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.enums.PaymentStatus;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.repository.PaymentRepository;
+import org.gcrel.tfbackevent.repository.TicketRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -8,17 +19,6 @@ import java.util.HexFormat;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-
-import org.gcrel.tfbackevent.dto.request.WebhookPaymentRequest;
-import org.gcrel.tfbackevent.exception.WebhookValidationException;
-import org.gcrel.tfbackevent.model.enums.PaymentStatus;
-import org.gcrel.tfbackevent.model.enums.TicketStatus;
-import org.gcrel.tfbackevent.model.Payment;
-import org.gcrel.tfbackevent.model.Ticket;
-import org.gcrel.tfbackevent.repository.PaymentRepository;
-import org.gcrel.tfbackevent.repository.TicketRepository;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 @Service
 public class WebhookService {
@@ -31,8 +31,12 @@ public class WebhookService {
     @Value("${mercadopago.webhook-secret}")
     private String webhookSecret;
 
-    public WebhookService(TicketRepository ticketRepository, PaymentRepository paymentRepository,
-            MercadoPagoService mercadoPagoService, QRService qrService, EmailService emailService) {
+    public WebhookService(
+            TicketRepository ticketRepository,
+            PaymentRepository paymentRepository,
+            MercadoPagoService mercadoPagoService,
+            QRService qrService,
+            EmailService emailService) {
         this.ticketRepository = ticketRepository;
         this.paymentRepository = paymentRepository;
         this.mercadoPagoService = mercadoPagoService;
@@ -40,19 +44,19 @@ public class WebhookService {
         this.emailService = emailService;
     }
 
-    public void processPaymentNotification(WebhookPaymentRequest request, String xSignature, String xRequestId) {
+    public void processPaymentNotification(
+            WebhookPaymentRequest request, String xSignature, String xRequestId) {
         validateSignature(xSignature, xRequestId, request.getData().getId());
 
         if (!request.getAction().startsWith("payment.")) {
             return;
         }
 
-        com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService
-                .getPaymentById(request.getData().getId());
+        com.mercadopago.resources.payment.Payment mpPayment =
+                mercadoPagoService.getPaymentById(request.getData().getId());
 
-        Payment payment = paymentRepository
-                .findByTransactionId(mpPayment.getId().toString())
-                .orElse(null);
+        Payment payment =
+                paymentRepository.findByTransactionId(mpPayment.getId().toString()).orElse(null);
 
         if (payment == null) {
             return;
@@ -68,7 +72,8 @@ public class WebhookService {
         }
     }
 
-    private void handleApproved(Payment payment, com.mercadopago.resources.payment.Payment mpPayment) {
+    private void handleApproved(
+            Payment payment, com.mercadopago.resources.payment.Payment mpPayment) {
         Ticket ticket = payment.getTicket();
 
         ticket.setStatus(TicketStatus.ACTIVE);
@@ -82,7 +87,8 @@ public class WebhookService {
         emailService.sendTicketEmail(ticket.getAttendee().getEmail(), ticket, qrBase64);
     }
 
-    private void handleRejected(Payment payment, com.mercadopago.resources.payment.Payment mpPayment) {
+    private void handleRejected(
+            Payment payment, com.mercadopago.resources.payment.Payment mpPayment) {
         Ticket ticket = payment.getTicket();
 
         ticket.setStatus(TicketStatus.CANCELLED);
@@ -98,7 +104,8 @@ public class WebhookService {
             String message = "id:" + paymentId + ";request-id:" + xRequestId + ";";
 
             Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            SecretKeySpec secretKey =
+                    new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             mac.init(secretKey);
 
             byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));

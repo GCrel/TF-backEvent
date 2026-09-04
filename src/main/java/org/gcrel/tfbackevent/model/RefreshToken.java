@@ -35,7 +35,9 @@ public class RefreshToken {
         this.user = user;
     }
 
-    public boolean isRevoked() { return revoked; }
+    public boolean isRevoked() {
+        return revoked;
+    }
 
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(this.expiresAt);

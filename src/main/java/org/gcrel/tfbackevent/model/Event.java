@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.model;
 
 import jakarta.persistence.*;
+
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 
 import java.math.BigDecimal;

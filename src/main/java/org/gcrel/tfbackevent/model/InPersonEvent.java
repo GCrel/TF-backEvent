@@ -24,7 +24,15 @@ public class InPersonEvent extends Event {
 
     protected InPersonEvent() {}
 
-    public InPersonEvent(String title, String description, LocalDateTime dateTime, BigDecimal basePrice, String address, BigDecimal latitude, BigDecimal longitude, Integer capacity) {
+    public InPersonEvent(
+            String title,
+            String description,
+            LocalDateTime dateTime,
+            BigDecimal basePrice,
+            String address,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            Integer capacity) {
         super(title, description, dateTime, basePrice);
         this.address = address;
         this.latitude = latitude;

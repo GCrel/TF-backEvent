@@ -23,14 +23,18 @@ public class EventController {
     }
 
     @PostMapping
-    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request, Authentication authentication) {
+    public ResponseEntity<EventResponse> createEvent(
+            @RequestBody CreateEventRequest request, Authentication authentication) {
         User organizer = (User) authentication.getPrincipal();
         EventResponse response = eventService.createEvent(request, organizer);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<EventResponse> updateEvent(@PathVariable UUID id, @RequestBody UpdateEventRequest request, Authentication authentication) {
+    public ResponseEntity<EventResponse> updateEvent(
+            @PathVariable UUID id,
+            @RequestBody UpdateEventRequest request,
+            Authentication authentication) {
         User organizer = (User) authentication.getPrincipal();
         EventResponse response = eventService.updateEvent(id, request, organizer);
         return ResponseEntity.ok(response);

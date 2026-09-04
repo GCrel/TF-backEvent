@@ -19,7 +19,10 @@ public class WebhookController {
     }
 
     @PostMapping("/payments")
-    public ResponseEntity<Void> receivePaymentNotification(@RequestBody WebhookPaymentRequest request, @RequestHeader("x-signature") String xSignature, @RequestHeader("x-request-id") String xRequestId) {
+    public ResponseEntity<Void> receivePaymentNotification(
+            @RequestBody WebhookPaymentRequest request,
+            @RequestHeader("x-signature") String xSignature,
+            @RequestHeader("x-request-id") String xRequestId) {
         webhookService.processPaymentNotification(request, xSignature, xRequestId);
         return ResponseEntity.ok().build();
     }

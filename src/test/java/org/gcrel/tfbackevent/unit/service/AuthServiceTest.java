@@ -1,5 +1,10 @@
 package org.gcrel.tfbackevent.unit.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import org.gcrel.tfbackevent.dto.request.RefreshTokenRequest;
 import org.gcrel.tfbackevent.dto.request.RegisterRequest;
 import org.gcrel.tfbackevent.dto.response.AuthResponse;
@@ -24,26 +29,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
 @ExtendWith(MockitoExtension.class)
 public class AuthServiceTest {
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private RefreshTokenRepository refreshTokenRepository;
-    @Mock
-    private JwtService jwtService;
-    @Mock
-    private PasswordEncoder passwordEncoder;
-    @Mock
-    private EmailService emailService;
+    @Mock private UserRepository userRepository;
+    @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private JwtService jwtService;
+    @Mock private PasswordEncoder passwordEncoder;
+    @Mock private EmailService emailService;
 
-    @InjectMocks
-    private AuthService authService;
+    @InjectMocks private AuthService authService;
 
     private User testUser;
     private final String TEST_EMAIL = "test@example.com";
@@ -59,7 +53,9 @@ public class AuthServiceTest {
     // ==========================================
     @Test
     void register_Success() {
-        RegisterRequest request = new RegisterRequest("John Doe", TEST_EMAIL, TEST_PASSWORD, LocalDate.of(1990, 1, 1));
+        RegisterRequest request =
+                new RegisterRequest(
+                        "John Doe", TEST_EMAIL, TEST_PASSWORD, LocalDate.of(1990, 1, 1));
 
         when(userRepository.existsByEmail(TEST_EMAIL)).thenReturn(false);
         when(passwordEncoder.encode(TEST_PASSWORD)).thenReturn("encoded_password");
@@ -78,7 +74,9 @@ public class AuthServiceTest {
 
     @Test
     void register_ThrowsEmailAlreadyExistsException() {
-        RegisterRequest request = new RegisterRequest("John Doe", TEST_EMAIL, TEST_PASSWORD, LocalDate.of(1990, 1, 1));
+        RegisterRequest request =
+                new RegisterRequest(
+                        "John Doe", TEST_EMAIL, TEST_PASSWORD, LocalDate.of(1990, 1, 1));
 
         when(userRepository.existsByEmail(TEST_EMAIL)).thenReturn(true);
 
@@ -117,7 +115,9 @@ public class AuthServiceTest {
 
         when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
 
-        assertThrows(VerificationCodeExpiredException.class, () -> authService.verifyEmail(TEST_EMAIL, "123456"));
+        assertThrows(
+                VerificationCodeExpiredException.class,
+                () -> authService.verifyEmail(TEST_EMAIL, "123456"));
     }
 
     // ==========================================
@@ -136,7 +136,8 @@ public class AuthServiceTest {
 
         assertNotNull(response);
         assertEquals("access_token", response.getAccessToken());
-        verify(refreshTokenRepository).deleteAllByUser(testUser); // Verify that it clears previous tokens
+        verify(refreshTokenRepository)
+                .deleteAllByUser(testUser); // Verify that it clears previous tokens
         verify(refreshTokenRepository).save(any(RefreshToken.class)); // Save the new token
     }
 
@@ -146,7 +147,9 @@ public class AuthServiceTest {
 
         when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
 
-        assertThrows(EmailNotVerifiedException.class, () -> authService.login(TEST_EMAIL, TEST_PASSWORD));
+        assertThrows(
+                EmailNotVerifiedException.class,
+                () -> authService.login(TEST_EMAIL, TEST_PASSWORD));
     }
 
     @Test
@@ -156,7 +159,9 @@ public class AuthServiceTest {
         when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches("wrong_password", testUser.getPassword())).thenReturn(false);
 
-        assertThrows(InvalidCredentialsException.class, () -> authService.login(TEST_EMAIL, "wrong_password"));
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> authService.login(TEST_EMAIL, "wrong_password"));
     }
 
     // ==========================================
@@ -165,9 +170,11 @@ public class AuthServiceTest {
     @Test
     void refresh_Success() {
         RefreshTokenRequest request = new RefreshTokenRequest("old_refresh_token");
-        RefreshToken token = new RefreshToken("old_refresh_token", LocalDateTime.now().plusDays(1), testUser);
+        RefreshToken token =
+                new RefreshToken("old_refresh_token", LocalDateTime.now().plusDays(1), testUser);
 
-        when(refreshTokenRepository.findByToken("old_refresh_token")).thenReturn(Optional.of(token));
+        when(refreshTokenRepository.findByToken("old_refresh_token"))
+                .thenReturn(Optional.of(token));
         when(jwtService.generateAccessToken(testUser)).thenReturn("new_access_token");
 
         AuthResponse response = authService.refresh(request);
@@ -180,9 +187,11 @@ public class AuthServiceTest {
     void refresh_ThrowsInvalidTokenException_WhenExpired() {
         RefreshTokenRequest request = new RefreshTokenRequest("old_refresh_token");
         // Token has expired
-        RefreshToken token = new RefreshToken("old_refresh_token", LocalDateTime.now().minusDays(1), testUser);
+        RefreshToken token =
+                new RefreshToken("old_refresh_token", LocalDateTime.now().minusDays(1), testUser);
 
-        when(refreshTokenRepository.findByToken("old_refresh_token")).thenReturn(Optional.of(token));
+        when(refreshTokenRepository.findByToken("old_refresh_token"))
+                .thenReturn(Optional.of(token));
 
         assertThrows(InvalidTokenException.class, () -> authService.refresh(request));
     }
@@ -193,9 +202,11 @@ public class AuthServiceTest {
     @Test
     void logout_Success() {
         RefreshTokenRequest request = new RefreshTokenRequest("valid_refresh_token");
-        RefreshToken token = new RefreshToken("valid_refresh_token", LocalDateTime.now().plusDays(1), testUser);
+        RefreshToken token =
+                new RefreshToken("valid_refresh_token", LocalDateTime.now().plusDays(1), testUser);
 
-        when(refreshTokenRepository.findByToken("valid_refresh_token")).thenReturn(Optional.of(token));
+        when(refreshTokenRepository.findByToken("valid_refresh_token"))
+                .thenReturn(Optional.of(token));
 
         authService.logout(request);
 

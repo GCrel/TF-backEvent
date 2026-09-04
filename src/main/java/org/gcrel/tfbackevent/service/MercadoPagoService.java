@@ -7,7 +7,9 @@ import com.mercadopago.client.payment.PaymentPayerRequest;
 import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
 import com.mercadopago.resources.payment.Payment;
+
 import jakarta.annotation.PostConstruct;
+
 import org.gcrel.tfbackevent.exception.PaymentRejectedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,19 +26,23 @@ public class MercadoPagoService {
         MercadoPagoConfig.setAccessToken(accessToken);
     }
 
-    public Payment processPayment(String cardToken, BigDecimal amount, Integer installments, String payerEmail, String paymentMethodId) {
+    public Payment processPayment(
+            String cardToken,
+            BigDecimal amount,
+            Integer installments,
+            String payerEmail,
+            String paymentMethodId) {
         try {
             PaymentClient client = new PaymentClient();
 
-            PaymentCreateRequest paymentRequest = PaymentCreateRequest.builder()
-                    .transactionAmount(amount)
-                    .token(cardToken)
-                    .installments(installments)
-                    .paymentMethodId(paymentMethodId)
-                    .payer(PaymentPayerRequest.builder()
-                            .email(payerEmail)
-                            .build())
-                    .build();
+            PaymentCreateRequest paymentRequest =
+                    PaymentCreateRequest.builder()
+                            .transactionAmount(amount)
+                            .token(cardToken)
+                            .installments(installments)
+                            .paymentMethodId(paymentMethodId)
+                            .payer(PaymentPayerRequest.builder().email(payerEmail).build())
+                            .build();
 
             return client.create(paymentRequest);
 

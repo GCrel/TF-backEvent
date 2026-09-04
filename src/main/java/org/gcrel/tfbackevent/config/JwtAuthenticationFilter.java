@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.repository.UserRepository;
 import org.gcrel.tfbackevent.service.JwtService;
@@ -28,7 +29,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
 
@@ -47,9 +50,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtService.isAccessTokenValid(token)) {
                     User user = userRepository.findByEmail(email).orElse(null);
                     if (user != null) {
-                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(user, null, List.of(new SimpleGrantedAuthority("ROLE_" + user.getSystemRole().name())));
+                        UsernamePasswordAuthenticationToken authToken =
+                                new UsernamePasswordAuthenticationToken(
+                                        user,
+                                        null,
+                                        List.of(
+                                                new SimpleGrantedAuthority(
+                                                        "ROLE_" + user.getSystemRole().name())));
 
-                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        authToken.setDetails(
+                                new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authToken);
                     }
                 }

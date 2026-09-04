@@ -22,7 +22,12 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
-    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, JwtService jwtService,  PasswordEncoder passwordEncoder,  EmailService emailService) {
+    public AuthService(
+            UserRepository userRepository,
+            RefreshTokenRepository refreshTokenRepository,
+            JwtService jwtService,
+            PasswordEncoder passwordEncoder,
+            EmailService emailService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.jwtService = jwtService;
@@ -35,19 +40,18 @@ public class AuthService {
             throw new EmailAlreadyExistsException(request.getEmail());
         }
 
-        User user = new User(
-                request.getName(),
-                request.getEmail(),
-                passwordEncoder.encode(request.getPassword()),
-                request.getDateBirth()
-        );
+        User user =
+                new User(
+                        request.getName(),
+                        request.getEmail(),
+                        passwordEncoder.encode(request.getPassword()),
+                        request.getDateBirth());
 
         sendVerificationEmail(user);
     }
 
     public void resendVerificationCode(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(email).orElseThrow(InvalidCredentialsException::new);
 
         if (user.isEnabled()) {
             throw new AccountAlreadyVerifiedException();
@@ -57,8 +61,7 @@ public class AuthService {
     }
 
     public AuthResponse verifyEmail(String email, String code) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(email).orElseThrow(InvalidCredentialsException::new);
 
         if (user.isEnabled()) {
             throw new AccountAlreadyVerifiedException();
@@ -78,8 +81,7 @@ public class AuthService {
     }
 
     public AuthResponse login(String email, String password) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(email).orElseThrow(InvalidCredentialsException::new);
 
         if (!user.isEnabled()) {
             throw new EmailNotVerifiedException();
@@ -94,9 +96,10 @@ public class AuthService {
     }
 
     public AuthResponse refresh(RefreshTokenRequest request) {
-        RefreshToken refreshToken = refreshTokenRepository
-                .findByToken(request.getRefreshToken())
-                .orElseThrow(InvalidTokenException::new);
+        RefreshToken refreshToken =
+                refreshTokenRepository
+                        .findByToken(request.getRefreshToken())
+                        .orElseThrow(InvalidTokenException::new);
 
         if (refreshToken.isRevoked() || refreshToken.isExpired()) {
             throw new InvalidTokenException();
@@ -108,9 +111,10 @@ public class AuthService {
     }
 
     public void logout(RefreshTokenRequest request) {
-        RefreshToken refreshToken = refreshTokenRepository
-                .findByToken(request.getRefreshToken())
-                .orElseThrow(InvalidTokenException::new);
+        RefreshToken refreshToken =
+                refreshTokenRepository
+                        .findByToken(request.getRefreshToken())
+                        .orElseThrow(InvalidTokenException::new);
 
         refreshTokenRepository.delete(refreshToken);
     }
@@ -120,11 +124,8 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(user);
         String rawRefreshToken = jwtService.generateRefreshToken();
 
-        RefreshToken refreshToken = new RefreshToken(
-                rawRefreshToken,
-                jwtService.getRefreshTokenExpiresAt(),
-                user
-        );
+        RefreshToken refreshToken =
+                new RefreshToken(rawRefreshToken, jwtService.getRefreshTokenExpiresAt(), user);
 
         refreshTokenRepository.save(refreshToken);
 

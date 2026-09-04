@@ -1,6 +1,11 @@
 package org.gcrel.tfbackevent.unit.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import io.jsonwebtoken.JwtException;
+
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
 import org.gcrel.tfbackevent.service.JwtService;
@@ -11,17 +16,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 class JwtServiceTest {
 
     private JwtService jwtService;
     private User mockUser;
 
     // Secret key
-    private final String TEST_SECRET = "38296b4ba0ba14cede158bdeb41bd35d3448b9900689481573c7b130b1a0392573548f";
+    private final String TEST_SECRET =
+            "38296b4ba0ba14cede158bdeb41bd35d3448b9900689481573c7b130b1a0392573548f";
     private final long ACCESS_TOKEN_EXPIRATION = 3600000; // 1h in ms
     private final long REFRESH_TOKEN_EXPIRATION = 86400000; // 1d in ms
 
@@ -32,7 +34,8 @@ class JwtServiceTest {
         // Inject Values
         ReflectionTestUtils.setField(jwtService, "secret", TEST_SECRET);
         ReflectionTestUtils.setField(jwtService, "accessTokenExpiration", ACCESS_TOKEN_EXPIRATION);
-        ReflectionTestUtils.setField(jwtService, "refreshTokenExpiration", REFRESH_TOKEN_EXPIRATION);
+        ReflectionTestUtils.setField(
+                jwtService, "refreshTokenExpiration", REFRESH_TOKEN_EXPIRATION);
 
         mockUser = mock(User.class);
         when(mockUser.getEmail()).thenReturn("test@example.com");
@@ -124,8 +127,10 @@ class JwtServiceTest {
 
     @Test
     void getRefreshTokenExpiresAt_ReturnsFutureDate() {
-        LocalDateTime expectedMinTime = LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) - 1);
-        LocalDateTime expectedMaxTime = LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) + 1);
+        LocalDateTime expectedMinTime =
+                LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) - 1);
+        LocalDateTime expectedMaxTime =
+                LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) + 1);
 
         LocalDateTime expiresAt = jwtService.getRefreshTokenExpiresAt();
 

@@ -2,7 +2,9 @@ package org.gcrel.tfbackevent.service;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.gcrel.tfbackevent.model.Ticket;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,7 +37,8 @@ public class EmailService {
         message.setFrom(fromEmail);
         message.setTo(to);
         message.setSubject("Verifica tu cuenta");
-        message.setText("Tu código de verificación es: " + code + "\nEste código expira en 15 minutos.");
+        message.setText(
+                "Tu código de verificación es: " + code + "\nEste código expira en 15 minutos.");
         try {
             mailSender.send(message);
         } catch (MailException e) {
@@ -51,7 +54,8 @@ public class EmailService {
             helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject("Tu entrada para " + ticket.getEvent().getTitle());
-            helper.setText("Adjunto encontrás tu entrada con el código QR para acceder al evento.", true);
+            helper.setText(
+                    "Adjunto encontrás tu entrada con el código QR para acceder al evento.", true);
 
             byte[] qrBytes = Base64.getDecoder().decode(qrBase64);
             helper.addAttachment("entrada-qr.png", new ByteArrayResource(qrBytes));
@@ -64,8 +68,7 @@ public class EmailService {
                     ticket.getId(),
                     ticket.getEvent().getId(),
                     to,
-                    e
-            );
+                    e);
         }
     }
 }

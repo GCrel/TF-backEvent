@@ -11,10 +11,11 @@ import org.gcrel.tfbackevent.model.enums.SystemRole;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.SecretKey;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.UUID;
+
+import javax.crypto.SecretKey;
 
 @Service
 public class JwtService {
@@ -85,5 +86,4 @@ public class JwtService {
         byte[] keyBytes = Decoders.BASE64.decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
-
 }

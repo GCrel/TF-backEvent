@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.model;
 
 import jakarta.persistence.*;
+
 import org.gcrel.tfbackevent.model.enums.EventRole;
 
 import java.util.Objects;
@@ -9,8 +10,7 @@ import java.util.Objects;
 @Table(name = "event_participations")
 public class EventParticipation {
 
-    @EmbeddedId
-    private EventParticipationId id;
+    @EmbeddedId private EventParticipationId id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("userId")

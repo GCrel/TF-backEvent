@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.model;
 
 import jakarta.persistence.*;
+
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 
 import java.math.BigDecimal;
@@ -34,10 +35,13 @@ public class Payment {
     @JoinColumn(name = "ticket_id", nullable = false)
     private Ticket ticket;
 
-    protected Payment() {
-    }
+    protected Payment() {}
 
-    public Payment(String transactionId, BigDecimal totalAmount, LocalDateTime paymentDate, Ticket ticket) {
+    public Payment(
+            String transactionId,
+            BigDecimal totalAmount,
+            LocalDateTime paymentDate,
+            Ticket ticket) {
         this.transactionId = transactionId;
         this.totalAmount = totalAmount;
         this.paymentDate = paymentDate;

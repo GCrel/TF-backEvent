@@ -2,6 +2,7 @@ package org.gcrel.tfbackevent.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 

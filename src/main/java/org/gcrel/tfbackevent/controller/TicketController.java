@@ -23,7 +23,8 @@ public class TicketController {
     }
 
     @PostMapping("/purchase")
-    public ResponseEntity<PurchaseResponse> purchase(@RequestBody PurchaseTicketRequest request, Authentication authentication) {
+    public ResponseEntity<PurchaseResponse> purchase(
+            @RequestBody PurchaseTicketRequest request, Authentication authentication) {
         User attendee = (User) authentication.getPrincipal();
         PurchaseResponse response = ticketService.purchase(request, attendee);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -37,7 +38,8 @@ public class TicketController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TicketResponse> getTicket(@PathVariable UUID id, Authentication authentication) {
+    public ResponseEntity<TicketResponse> getTicket(
+            @PathVariable UUID id, Authentication authentication) {
         User attendee = (User) authentication.getPrincipal();
         TicketResponse response = ticketService.getTicket(id, attendee);
         return ResponseEntity.ok(response);

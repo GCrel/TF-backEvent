@@ -23,7 +23,9 @@ public class AuthController {
     public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
         authService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body("Usuario registrado con éxito. Por favor revisa tu correo para verificar tu cuenta.");
+                .body(
+                        "Usuario registrado con éxito. Por favor revisa tu correo para verificar tu"
+                            + " cuenta.");
     }
 
     @PostMapping("/verify")
@@ -33,7 +35,8 @@ public class AuthController {
     }
 
     @PostMapping("/resend-verification")
-    public ResponseEntity<Void> resendVerificationCode(@RequestBody ResendVerificationRequest request) {
+    public ResponseEntity<Void> resendVerificationCode(
+            @RequestBody ResendVerificationRequest request) {
         authService.resendVerificationCode(request.getEmail());
         return ResponseEntity.noContent().build();
     }

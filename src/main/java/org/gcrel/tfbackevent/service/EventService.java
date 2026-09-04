@@ -22,7 +22,9 @@ public class EventService {
     private final EventRepository eventRepository;
     private final EventParticipationRepository eventParticipationRepository;
 
-    public EventService(EventRepository eventRepository, EventParticipationRepository eventParticipationRepository) {
+    public EventService(
+            EventRepository eventRepository,
+            EventParticipationRepository eventParticipationRepository) {
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
     }
@@ -31,7 +33,8 @@ public class EventService {
         Event event = buildEvent(request);
         eventRepository.save(event);
 
-        EventParticipation participation = new EventParticipation(organizer, event, EventRole.ORGANIZER);
+        EventParticipation participation =
+                new EventParticipation(organizer, event, EventRole.ORGANIZER);
         eventParticipationRepository.save(participation);
 
         return toResponse(event);
@@ -67,10 +70,7 @@ public class EventService {
     }
 
     public List<EventResponse> getAllEvents() {
-        return eventRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return eventRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     public void cancelEvent(UUID id, User organizer) {
@@ -85,25 +85,25 @@ public class EventService {
     // private helper methods
     private Event buildEvent(CreateEventRequest request) {
         return switch (request.getEventType()) {
-            case "IN_PERSON" -> new InPersonEvent(
-                    request.getTitle(),
-                    request.getDescription(),
-                    request.getDateTime(),
-                    request.getBasePrice(),
-                    request.getAddress(),
-                    request.getLatitude(),
-                    request.getLongitude(),
-                    request.getCapacity()
-            );
-            case "VIRTUAL" -> new VirtualEvent(
-                    request.getTitle(),
-                    request.getDescription(),
-                    request.getDateTime(),
-                    request.getBasePrice(),
-                    request.getAccessLink(),
-                    request.getPlatform(),
-                    request.getAccessInstructions()
-            );
+            case "IN_PERSON" ->
+                    new InPersonEvent(
+                            request.getTitle(),
+                            request.getDescription(),
+                            request.getDateTime(),
+                            request.getBasePrice(),
+                            request.getAddress(),
+                            request.getLatitude(),
+                            request.getLongitude(),
+                            request.getCapacity());
+            case "VIRTUAL" ->
+                    new VirtualEvent(
+                            request.getTitle(),
+                            request.getDescription(),
+                            request.getDateTime(),
+                            request.getBasePrice(),
+                            request.getAccessLink(),
+                            request.getPlatform(),
+                            request.getAccessInstructions());
             default -> throw new InvalidEventTypeException();
         };
     }
@@ -118,22 +118,22 @@ public class EventService {
     }
 
     private void validateOwnership(Event event, User organizer) {
-        boolean isOwner = eventParticipationRepository
-                .existsByEventAndUserAndId_EventRole(event, organizer, EventRole.ORGANIZER);
+        boolean isOwner =
+                eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                        event, organizer, EventRole.ORGANIZER);
         if (!isOwner) {
             throw new UnauthorizedEventAccessException();
         }
     }
 
     private void validateModifiable(Event event) {
-        if (event.getStatus() == EventStatus.CANCELLED ||
-                event.getStatus() == EventStatus.FINISHED) {
+        if (event.getStatus() == EventStatus.CANCELLED
+                || event.getStatus() == EventStatus.FINISHED) {
             throw new EventNotModifiableException();
         }
     }
 
     private Event findEventById(UUID id) {
-        return eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException(id));
+        return eventRepository.findById(id).orElseThrow(() -> new EventNotFoundException(id));
     }
 }

@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.model;
 
 import jakarta.persistence.*;
+
 import org.gcrel.tfbackevent.model.enums.SystemRole;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -45,7 +46,6 @@ public class User implements UserDetails {
 
     @Column(name = "verification_code_expires_at")
     private LocalDateTime verificationCodeExpiresAt;
-
 
     public User() {}
 

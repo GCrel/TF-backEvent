@@ -1,5 +1,9 @@
 package org.gcrel.tfbackevent.unit.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verify;
+
 import org.gcrel.tfbackevent.service.EmailService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,17 +16,11 @@ import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.Objects;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.verify;
-
 @ExtendWith(MockitoExtension.class)
 public class EmailServiceTest {
-    @Mock
-    private JavaMailSender mailSender;
+    @Mock private JavaMailSender mailSender;
 
-    @InjectMocks
-    private EmailService emailService;
+    @InjectMocks private EmailService emailService;
 
     @Test
     void sendVerificationEmail_Success() {
@@ -31,7 +29,8 @@ public class EmailServiceTest {
 
         emailService.sendVerificationEmail(to, code);
 
-        ArgumentCaptor<SimpleMailMessage> messageCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        ArgumentCaptor<SimpleMailMessage> messageCaptor =
+                ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(messageCaptor.capture());
 
         SimpleMailMessage capturedMessage = messageCaptor.getValue();

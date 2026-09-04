@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+
 import org.gcrel.tfbackevent.model.enums.EventRole;
 
 import java.io.Serializable;
@@ -35,9 +36,9 @@ public class EventParticipationId implements Serializable {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         EventParticipationId that = (EventParticipationId) o;
-        return Objects.equals(userId, that.userId) &&
-                Objects.equals(eventId, that.eventId) &&
-                Objects.equals(eventRole, that.eventRole);
+        return Objects.equals(userId, that.userId)
+                && Objects.equals(eventId, that.eventId)
+                && Objects.equals(eventRole, that.eventRole);
     }
 
     @Override

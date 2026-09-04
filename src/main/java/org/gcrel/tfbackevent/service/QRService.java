@@ -5,15 +5,17 @@ import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
+
 import org.gcrel.tfbackevent.exception.QRGenerationException;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.UUID;
+
+import javax.imageio.ImageIO;
 
 @Service
 public class QRService {
@@ -25,12 +27,8 @@ public class QRService {
             String content = ticketId.toString();
 
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            BitMatrix bitMatrix = qrCodeWriter.encode(
-                    content,
-                    BarcodeFormat.QR_CODE,
-                    QR_WIDTH,
-                    QR_HEIGHT
-            );
+            BitMatrix bitMatrix =
+                    qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, QR_WIDTH, QR_HEIGHT);
 
             BufferedImage image = MatrixToImageWriter.toBufferedImage(bitMatrix);
 

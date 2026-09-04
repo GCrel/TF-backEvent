@@ -1,5 +1,9 @@
 package org.gcrel.tfbackevent.unit.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 import org.gcrel.tfbackevent.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.dto.response.EventResponse;
@@ -31,46 +35,44 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
 @ExtendWith(MockitoExtension.class)
 public class EventServiceTest {
 
-    @Mock
-    private EventRepository eventRepository;
+    @Mock private EventRepository eventRepository;
 
-    @Mock
-    private EventParticipationRepository eventParticipationRepository;
+    @Mock private EventParticipationRepository eventParticipationRepository;
 
-    @InjectMocks
-    private EventService eventService;
+    @InjectMocks private EventService eventService;
 
     private User organizer;
     private final LocalDateTime eventDateTime = LocalDateTime.of(2026, 9, 30, 19, 30);
 
     @BeforeEach
     void setUp() {
-        organizer = new User("John Doe", "test@example.com", "encoded_password", LocalDate.of(1990, 1, 1));
+        organizer =
+                new User(
+                        "John Doe",
+                        "test@example.com",
+                        "encoded_password",
+                        LocalDate.of(1990, 1, 1));
     }
 
     @Test
     void createEvent_InPerson_ShouldPersistEventAndOrganizerParticipation() {
-        CreateEventRequest request = new CreateEventRequest(
-                "Tech Meetup",
-                "Evento de tecnología",
-                eventDateTime,
-                new BigDecimal("150.00"),
-                "IN_PERSON",
-                "Av. Siempre Viva 123",
-                new BigDecimal("-34.6037"),
-                new BigDecimal("-58.3816"),
-                200,
-                null,
-                null,
-                null
-        );
+        CreateEventRequest request =
+                new CreateEventRequest(
+                        "Tech Meetup",
+                        "Evento de tecnología",
+                        eventDateTime,
+                        new BigDecimal("150.00"),
+                        "IN_PERSON",
+                        "Av. Siempre Viva 123",
+                        new BigDecimal("-34.6037"),
+                        new BigDecimal("-58.3816"),
+                        200,
+                        null,
+                        null,
+                        null);
 
         EventResponse response = eventService.createEvent(request, organizer);
 
@@ -88,20 +90,20 @@ public class EventServiceTest {
 
     @Test
     void createEvent_Virtual_ShouldPersistVirtualEvent() {
-        CreateEventRequest request = new CreateEventRequest(
-                "Webinar",
-                "Sesión online",
-                eventDateTime,
-                new BigDecimal("50.00"),
-                "VIRTUAL",
-                null,
-                null,
-                null,
-                null,
-                "https://meet.example.com/link",
-                "Zoom",
-                "Ingresá usando el link"
-        );
+        CreateEventRequest request =
+                new CreateEventRequest(
+                        "Webinar",
+                        "Sesión online",
+                        eventDateTime,
+                        new BigDecimal("50.00"),
+                        "VIRTUAL",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "https://meet.example.com/link",
+                        "Zoom",
+                        "Ingresá usando el link");
 
         EventResponse response = eventService.createEvent(request, organizer);
 
@@ -118,34 +120,36 @@ public class EventServiceTest {
     @Test
     void updateEvent_WhenOrganizerAndEditable_ShouldUpdateValues() {
         UUID eventId = UUID.randomUUID();
-        InPersonEvent existingEvent = new InPersonEvent(
-                "Event old",
-                "Old description",
-                eventDateTime,
-                new BigDecimal("100.00"),
-                "Old address",
-                new BigDecimal("-34.60"),
-                new BigDecimal("-58.38"),
-                50
-        );
+        InPersonEvent existingEvent =
+                new InPersonEvent(
+                        "Event old",
+                        "Old description",
+                        eventDateTime,
+                        new BigDecimal("100.00"),
+                        "Old address",
+                        new BigDecimal("-34.60"),
+                        new BigDecimal("-58.38"),
+                        50);
         existingEvent.setStatus(EventStatus.DRAFT);
 
-        UpdateEventRequest request = new UpdateEventRequest(
-                "Event updated",
-                "Updated description",
-                eventDateTime.plusHours(2),
-                new BigDecimal("180.00"),
-                "New address",
-                new BigDecimal("-34.61"),
-                new BigDecimal("-58.39"),
-                120,
-                null,
-                null,
-                null
-        );
+        UpdateEventRequest request =
+                new UpdateEventRequest(
+                        "Event updated",
+                        "Updated description",
+                        eventDateTime.plusHours(2),
+                        new BigDecimal("180.00"),
+                        "New address",
+                        new BigDecimal("-34.61"),
+                        new BigDecimal("-58.39"),
+                        120,
+                        null,
+                        null,
+                        null);
 
         when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
-        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                        existingEvent, organizer, EventRole.ORGANIZER))
+                .thenReturn(true);
 
         EventResponse response = eventService.updateEvent(eventId, request, organizer);
 
@@ -160,54 +164,60 @@ public class EventServiceTest {
     @Test
     void updateEvent_WhenUserIsNotOrganizer_ShouldThrowUnauthorizedEventAccessException() {
         UUID eventId = UUID.randomUUID();
-        InPersonEvent existingEvent = new InPersonEvent(
-                "Event old",
-                "Old description",
-                eventDateTime,
-                new BigDecimal("100.00"),
-                "Old address",
-                new BigDecimal("-34.60"),
-                new BigDecimal("-58.38"),
-                50
-        );
+        InPersonEvent existingEvent =
+                new InPersonEvent(
+                        "Event old",
+                        "Old description",
+                        eventDateTime,
+                        new BigDecimal("100.00"),
+                        "Old address",
+                        new BigDecimal("-34.60"),
+                        new BigDecimal("-58.38"),
+                        50);
 
-        UpdateEventRequest request = new UpdateEventRequest(
-                "Event updated",
-                "Updated description",
-                eventDateTime,
-                new BigDecimal("180.00"),
-                "New address",
-                new BigDecimal("-34.61"),
-                new BigDecimal("-58.39"),
-                120,
-                null,
-                null,
-                null
-        );
+        UpdateEventRequest request =
+                new UpdateEventRequest(
+                        "Event updated",
+                        "Updated description",
+                        eventDateTime,
+                        new BigDecimal("180.00"),
+                        "New address",
+                        new BigDecimal("-34.61"),
+                        new BigDecimal("-58.39"),
+                        120,
+                        null,
+                        null,
+                        null);
 
         when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
-        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(false);
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                        existingEvent, organizer, EventRole.ORGANIZER))
+                .thenReturn(false);
 
-        assertThrows(UnauthorizedEventAccessException.class, () -> eventService.updateEvent(eventId, request, organizer));
+        assertThrows(
+                UnauthorizedEventAccessException.class,
+                () -> eventService.updateEvent(eventId, request, organizer));
     }
 
     @Test
     void cancelEvent_WhenOrganizerAndModifiable_ShouldSetCancelledStatus() {
         UUID eventId = UUID.randomUUID();
-        InPersonEvent existingEvent = new InPersonEvent(
-                "Event to cancel",
-                "Description",
-                eventDateTime,
-                new BigDecimal("90.00"),
-                "Venue",
-                new BigDecimal("-34.60"),
-                new BigDecimal("-58.38"),
-                30
-        );
+        InPersonEvent existingEvent =
+                new InPersonEvent(
+                        "Event to cancel",
+                        "Description",
+                        eventDateTime,
+                        new BigDecimal("90.00"),
+                        "Venue",
+                        new BigDecimal("-34.60"),
+                        new BigDecimal("-58.38"),
+                        30);
         existingEvent.setStatus(EventStatus.PUBLISHED);
 
         when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
-        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                        existingEvent, organizer, EventRole.ORGANIZER))
+                .thenReturn(true);
 
         eventService.cancelEvent(eventId, organizer);
 
@@ -218,45 +228,49 @@ public class EventServiceTest {
     @Test
     void cancelEvent_WhenEventIsFinished_ShouldThrowEventNotModifiableException() {
         UUID eventId = UUID.randomUUID();
-        InPersonEvent existingEvent = new InPersonEvent(
-                "Finished event",
-                "Description",
-                eventDateTime,
-                new BigDecimal("90.00"),
-                "Venue",
-                new BigDecimal("-34.60"),
-                new BigDecimal("-58.38"),
-                30
-        );
+        InPersonEvent existingEvent =
+                new InPersonEvent(
+                        "Finished event",
+                        "Description",
+                        eventDateTime,
+                        new BigDecimal("90.00"),
+                        "Venue",
+                        new BigDecimal("-34.60"),
+                        new BigDecimal("-58.38"),
+                        30);
         existingEvent.setStatus(EventStatus.FINISHED);
 
         when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
-        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                        existingEvent, organizer, EventRole.ORGANIZER))
+                .thenReturn(true);
 
-        assertThrows(EventNotModifiableException.class, () -> eventService.cancelEvent(eventId, organizer));
+        assertThrows(
+                EventNotModifiableException.class,
+                () -> eventService.cancelEvent(eventId, organizer));
     }
 
     @Test
     void getAllEvents_ShouldReturnMappedResponses() {
-        InPersonEvent inPersonEvent = new InPersonEvent(
-                "In-person event",
-                "Conference",
-                eventDateTime,
-                new BigDecimal("120.00"),
-                "Calle 123",
-                new BigDecimal("-34.60"),
-                new BigDecimal("-58.38"),
-                100
-        );
-        VirtualEvent virtualEvent = new VirtualEvent(
-                "Webinar",
-                "Online session",
-                eventDateTime.plusHours(1),
-                new BigDecimal("30.00"),
-                "https://zoom.example.com",
-                "Zoom",
-                "Use the link"
-        );
+        InPersonEvent inPersonEvent =
+                new InPersonEvent(
+                        "In-person event",
+                        "Conference",
+                        eventDateTime,
+                        new BigDecimal("120.00"),
+                        "Calle 123",
+                        new BigDecimal("-34.60"),
+                        new BigDecimal("-58.38"),
+                        100);
+        VirtualEvent virtualEvent =
+                new VirtualEvent(
+                        "Webinar",
+                        "Online session",
+                        eventDateTime.plusHours(1),
+                        new BigDecimal("30.00"),
+                        "https://zoom.example.com",
+                        "Zoom",
+                        "Use the link");
 
         when(eventRepository.findAll()).thenReturn(List.of(inPersonEvent, virtualEvent));
 
