@@ -39,46 +39,39 @@ public class TicketService {
         this.emailService = emailService;
     }
 
-    // -------------------------
-    // Compra de entrada
-    // -------------------------
-
     @Transactional
     public PurchaseResponse purchase(PurchaseTicketRequest request, User attendee) {
-        // 1. Buscar y validar el evento
-        Event event = eventRepository.findById(request.getEventId()).orElseThrow(() -> new EventNotFoundException(request.getEventId()));
+        Event event = eventRepository.findById(request.getEventId())
+                .orElseThrow(() -> new EventNotFoundException(request.getEventId()));
 
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new EventNotAvailableException();
         }
 
-        // 2. Crear ticket en estado PENDING
-        Ticket ticket = new Ticket(null, LocalDateTime.now(), event, attendee);
+        Ticket ticket = new Ticket(LocalDateTime.now(), event, attendee);
         ticketRepository.save(ticket);
 
-        // 3. Procesar pago con MercadoPago
         com.mercadopago.resources.payment.Payment mpPayment;
         try {
-            mpPayment = mercadoPagoService.processPayment(request.getCardToken(), event.getBasePrice().doubleValue(), request.getInstallments(), request.getPayerEmail());
+            mpPayment = mercadoPagoService.processPayment(
+                    request.getCardToken(),
+                    event.getBasePrice(),
+                    request.getInstallments(),
+                    request.getPayerEmail(),
+                    request.getPaymentMethodId()
+            );
         } catch (PaymentRejectedException e) {
             ticket.setStatus(TicketStatus.CANCELLED);
             ticketRepository.save(ticket);
             throw e;
         }
 
-        // 4. Procesar resultado
-        String mpStatus = mpPayment.getStatus();
-
-        if ("approved".equals(mpStatus)) {
-            return handleApproved(ticket, mpPayment, attendee);
-        } else {
-            return handleRejected(ticket, mpPayment);
-        }
+        return switch (mpPayment.getStatus()) {
+            case "approved"             -> handleApproved(ticket, mpPayment, attendee);
+            case "rejected", "cancelled"-> handleRejected(ticket, mpPayment);
+            default                     -> handlePending(ticket, mpPayment);
+        };
     }
-
-    // -------------------------
-    // Mis entradas
-    // -------------------------
 
     public List<TicketResponse> getMyTickets(User attendee) {
         return ticketRepository.findByAttendee(attendee).stream().map(ticket -> {
@@ -86,10 +79,6 @@ public class TicketService {
             return new TicketResponse(ticket, qr);
         }).toList();
     }
-
-    // -------------------------
-    // Detalle de entrada
-    // -------------------------
 
     public TicketResponse getTicket(UUID id, User attendee) {
         Ticket ticket = ticketRepository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
@@ -103,26 +92,29 @@ public class TicketService {
         return new TicketResponse(ticket, qr);
     }
 
-    // -------------------------
-    // Métodos privados
-    // -------------------------
-
     private PurchaseResponse handleApproved(Ticket ticket, com.mercadopago.resources.payment.Payment mpPayment, User attendee) {
-        // Activar ticket y generar QR
-        String qrBase64 = qrService.generateQRBase64(ticket.getId());
-        ticket.setQrCode(qrBase64);
         ticket.setStatus(TicketStatus.ACTIVE);
         ticketRepository.save(ticket);
 
-        // Registrar pago
-        Payment payment = new Payment(mpPayment.getId().toString(), mpPayment.getTransactionAmount(), LocalDateTime.now(), ticket);
+        Payment payment = new Payment(
+                mpPayment.getId().toString(),
+                mpPayment.getTransactionAmount(),
+                LocalDateTime.now(),
+                ticket
+        );
         payment.setPaymentStatus(PaymentStatus.APPROVED);
         paymentRepository.save(payment);
 
-        // Enviar email con QR
+        String qrBase64 = qrService.generateQRBase64(ticket.getId());
+
         emailService.sendTicketEmail(attendee.getEmail(), ticket, qrBase64);
 
-        return new PurchaseResponse(ticket.getId(), "approved", "Pago aprobado. Tu entrada fue enviada por email.", qrBase64);
+        return new PurchaseResponse(
+                ticket.getId(),
+                "approved",
+                "Pago aprobado. Tu entrada fue enviada por email.",
+                qrBase64
+        );
     }
 
     private PurchaseResponse handleRejected(Ticket ticket, com.mercadopago.resources.payment.Payment mpPayment) {
@@ -134,5 +126,23 @@ public class TicketService {
         paymentRepository.save(payment);
 
         return new PurchaseResponse(ticket.getId(), "rejected", "El pago fue rechazado. Intentá con otro medio de pago.", null);
+    }
+
+    private PurchaseResponse handlePending(Ticket ticket, com.mercadopago.resources.payment.Payment mpPayment) {
+        Payment payment = new Payment(
+                mpPayment.getId().toString(),
+                mpPayment.getTransactionAmount(),
+                LocalDateTime.now(),
+                ticket
+        );
+        payment.setPaymentStatus(PaymentStatus.PENDING);
+        paymentRepository.save(payment);
+
+        return new PurchaseResponse(
+                ticket.getId(),
+                "pending",
+                "Tu pago está siendo procesado. Te avisaremos por email cuando se confirme.",
+                null
+        );
     }
 }

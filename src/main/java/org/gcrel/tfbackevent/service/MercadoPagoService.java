@@ -24,16 +24,15 @@ public class MercadoPagoService {
         MercadoPagoConfig.setAccessToken(accessToken);
     }
 
-    public Payment processPayment(String cardToken, Double amount,
-                                  Integer installments, String payerEmail) {
+    public Payment processPayment(String cardToken, BigDecimal amount, Integer installments, String payerEmail, String paymentMethodId) {
         try {
             PaymentClient client = new PaymentClient();
 
             PaymentCreateRequest paymentRequest = PaymentCreateRequest.builder()
-                    .transactionAmount(new BigDecimal(amount))
+                    .transactionAmount(amount)
                     .token(cardToken)
                     .installments(installments)
-                    .paymentMethodId("visa")
+                    .paymentMethodId(paymentMethodId)
                     .payer(PaymentPayerRequest.builder()
                             .email(payerEmail)
                             .build())
@@ -41,6 +40,15 @@ public class MercadoPagoService {
 
             return client.create(paymentRequest);
 
+        } catch (MPException | MPApiException e) {
+            throw new PaymentRejectedException(e.getMessage());
+        }
+    }
+
+    public com.mercadopago.resources.payment.Payment getPaymentById(String paymentId) {
+        try {
+            PaymentClient client = new PaymentClient();
+            return client.get(Long.parseLong(paymentId));
         } catch (MPException | MPApiException e) {
             throw new PaymentRejectedException(e.getMessage());
         }

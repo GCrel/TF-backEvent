@@ -15,9 +15,6 @@ public class Ticket {
     @Column(nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "qr_code", nullable = false, unique = true)
-    private String qrCode;
-
     @Column(name = "bought_at", nullable = false)
     private LocalDateTime boughtAt;
 
@@ -35,8 +32,7 @@ public class Ticket {
 
     protected Ticket() {}
 
-    public Ticket(String qrCode, LocalDateTime boughtAt, Event event, User attendee) {
-        this.qrCode = qrCode;
+    public Ticket(LocalDateTime boughtAt, Event event, User attendee) {
         this.boughtAt = boughtAt;
         this.status = TicketStatus.ACTIVE;
         this.event = event;
@@ -47,12 +43,12 @@ public class Ticket {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Ticket ticket = (Ticket) o;
-        return Objects.equals(id, ticket.id) && Objects.equals(qrCode, ticket.qrCode);
+        return Objects.equals(id, ticket.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, qrCode);
+        return Objects.hash(id);
     }
 
     public UUID getId() {
@@ -77,9 +73,5 @@ public class Ticket {
 
     public void setStatus(TicketStatus status) {
         this.status = status;
-    }
-
-    public void setQrCode(String qrCode) {
-        this.qrCode = qrCode;
     }
 }

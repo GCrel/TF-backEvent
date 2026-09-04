@@ -12,4 +12,5 @@ public class PurchaseTicketRequest {
     private String cardToken;
     private Integer installments;
     private String payerEmail;
+    private String paymentMethodId;
 }

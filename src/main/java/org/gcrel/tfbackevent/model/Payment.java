@@ -65,7 +65,15 @@ public class Payment {
         return paymentStatus;
     }
 
+    public Ticket getTicket() {
+        return ticket;
+    }
+
     public void setPaymentStatus(PaymentStatus paymentStatus) {
         this.paymentStatus = paymentStatus;
+    }
+
+    public void setPaymentDate(LocalDateTime date) {
+        this.paymentDate = date;
     }
 }
