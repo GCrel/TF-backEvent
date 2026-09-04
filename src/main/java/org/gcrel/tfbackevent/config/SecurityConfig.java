@@ -35,6 +35,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         // public
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh", "/api/v1/auth/verify", "/api/v1/auth/resend-verification").permitAll()
+                        // webhooks
+                        .requestMatchers("/api/v1/webhooks/**").permitAll()
                         // admin
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         // requires authentication

@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
                 .body(Map.of("Error:", ex.getMessage()));
     }
 
-    @ExceptionHandler({InvalidTokenException.class, InvalidCredentialsException.class})
+    @ExceptionHandler({InvalidTokenException.class, InvalidCredentialsException.class, WebhookValidationException.class})
     public ResponseEntity<Map<String, String>> handleUnauthorizedRequest(RuntimeException ex) {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
