@@ -55,10 +55,12 @@ public class EmailService {
             helper.setTo(to);
             helper.setSubject("Tu entrada para " + ticket.getEvent().getTitle());
             helper.setText(
-                    "Adjunto encontrás tu entrada con el código QR para acceder al evento.", true);
-
+                    "<h3>¡Gracias por tu compra!</h3>"
+                            + "<p>Presentá este código QR en la puerta del evento:</p><br>"
+                            + "<img src='cid:qrImage' style='width: 250px; border-radius: 8px;'>",
+                    true);
             byte[] qrBytes = Base64.getDecoder().decode(qrBase64);
-            helper.addAttachment("entrada-qr.png", new ByteArrayResource(qrBytes));
+            helper.addInline("qrImage", new ByteArrayResource(qrBytes), "image/png");
 
             mailSender.send(message);
         } catch (MessagingException e) {
