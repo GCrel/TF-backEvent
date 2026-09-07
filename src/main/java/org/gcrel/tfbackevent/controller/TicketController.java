@@ -37,6 +37,13 @@ public class TicketController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{id}/resend-email")
+    public ResponseEntity<Void> resendEmail(@PathVariable UUID id, Authentication authentication) {
+        User attendee = (User) authentication.getPrincipal();
+        ticketService.resendTicketEmail(id, attendee);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<TicketResponse> getTicket(
             @PathVariable UUID id, Authentication authentication) {

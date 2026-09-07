@@ -94,6 +94,22 @@ public class TicketService {
                 .toList();
     }
 
+    public void resendTicketEmail(UUID id, User attendee) {
+        Ticket ticket =
+                ticketRepository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
+
+        if (!ticket.getAttendee().getId().equals(attendee.getId())) {
+            throw new UnauthorizedTicketAccessException();
+        }
+
+        if (ticket.getStatus() != TicketStatus.ACTIVE) {
+            throw new TicketNotActiveException();
+        }
+
+        String qrBase64 = qrService.generateQRBase64(ticket.getId());
+        emailService.sendTicketEmail(attendee.getEmail(), ticket, qrBase64);
+    }
+
     public TicketResponse getTicket(UUID id, User attendee) {
         Ticket ticket =
                 ticketRepository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
