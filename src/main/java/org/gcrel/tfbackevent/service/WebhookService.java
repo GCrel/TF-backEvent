@@ -15,7 +15,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.Map;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -28,7 +30,7 @@ public class WebhookService {
     private final QRService qrService;
     private final EmailService emailService;
 
-    @Value("${mercadopago.webhook-secret}")
+    @Value("${MERCADO_PAGO_WEBHOOK_SECRET}")
     private String webhookSecret;
 
     public WebhookService(
@@ -48,7 +50,7 @@ public class WebhookService {
             WebhookPaymentRequest request, String xSignature, String xRequestId) {
         validateSignature(xSignature, xRequestId, request.getData().getId());
 
-        if (!request.getAction().startsWith("payment.")) {
+        if (!"payment".equals(request.getType())) {
             return;
         }
 
@@ -101,7 +103,15 @@ public class WebhookService {
 
     private void validateSignature(String xSignature, String xRequestId, String paymentId) {
         try {
-            String message = "id:" + paymentId + ";request-id:" + xRequestId + ";";
+            Map<String, String> signatureParts = extractSignatureData(xSignature);
+            String ts = signatureParts.get("ts");
+            String receivedSignature = signatureParts.get("v1");
+
+            if (ts == null || receivedSignature == null) {
+                throw new WebhookValidationException();
+            }
+
+            String message = "id:" + paymentId + ";request-id:" + xRequestId + ";ts:" + ts + ";";
 
             Mac mac = Mac.getInstance("HmacSHA256");
             SecretKeySpec secretKey =
@@ -111,24 +121,22 @@ public class WebhookService {
             byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
             String computedSignature = HexFormat.of().formatHex(hash);
 
-            String receivedSignature = extractSignatureValue(xSignature);
-
             if (!computedSignature.equals(receivedSignature)) {
                 throw new WebhookValidationException();
             }
-
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new WebhookValidationException();
         }
     }
 
-    private String extractSignatureValue(String xSignature) {
-        // Formato: "ts=1704067200,v1=abc123..."
+    private Map<String, String> extractSignatureData(String xSignature) {
+        Map<String, String> data = new HashMap<>();
         for (String part : xSignature.split(",")) {
-            if (part.startsWith("v1=")) {
-                return part.substring(3);
+            String[] keyValue = part.split("=", 2);
+            if (keyValue.length == 2) {
+                data.put(keyValue[0].trim(), keyValue[1].trim());
             }
         }
-        throw new WebhookValidationException();
+        return data;
     }
 }

@@ -7,15 +7,8 @@ import lombok.Data;
 @Data
 public class WebhookPaymentRequest {
     private String action;
+    private String type;
     private Data data;
-
-    public String getAction() {
-        return action;
-    }
-
-    public Data getData() {
-        return data;
-    }
 
     @AllArgsConstructor
     @lombok.Data
