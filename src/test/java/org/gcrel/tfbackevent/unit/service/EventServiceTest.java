@@ -288,4 +288,30 @@ public class EventServiceTest {
 
         assertThrows(EventNotFoundException.class, () -> eventService.getEvent(eventId));
     }
+
+    @Test
+    void publishEvent_WhenOrganizerAndDraft_ShouldSetPublishedStatusAndReturnResponse() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent =
+                new InPersonEvent(
+                        "Event to publish",
+                        "Description",
+                        eventDateTime,
+                        new BigDecimal("90.00"),
+                        "Venue",
+                        new BigDecimal("-34.60"),
+                        new BigDecimal("-58.38"),
+                        30);
+        // default status is DRAFT in Event constructor
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                        existingEvent, organizer, EventRole.ORGANIZER))
+                .thenReturn(true);
+
+        EventResponse response = eventService.publishEvent(eventId, organizer);
+
+        assertEquals("PUBLISHED", response.getStatus());
+        verify(eventRepository).save(existingEvent);
+    }
 }

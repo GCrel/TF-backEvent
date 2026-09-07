@@ -228,6 +228,53 @@ public class EventControllerTest {
     }
 
     @Test
+    void publishEvent_Success_Returns200AndBody() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        EventResponse response =
+                new EventResponse(
+                        eventId,
+                        "Publishable Event",
+                        "To be published",
+                        LocalDateTime.of(2026, 12, 1, 20, 0),
+                        "PUBLISHED",
+                        new BigDecimal("40.00"),
+                        "IN_PERSON",
+                        "Lugar",
+                        new BigDecimal("-34.6"),
+                        new BigDecimal("-58.38"),
+                        100,
+                        null,
+                        null,
+                        null);
+
+        when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
+
+        mockMvc.perform(
+                        put("/api/v1/events/{id}/publish", eventId)
+                                .with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(eventId.toString()))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+    }
+
+    @Test
+    void publishEvent_Unauthorized_Returns403() throws Exception {
+        UUID eventId = UUID.randomUUID();
+
+        doThrow(new UnauthorizedEventAccessException())
+                .when(eventService)
+                .publishEvent(eq(eventId), any(User.class));
+
+        mockMvc.perform(
+                        put("/api/v1/events/{id}/publish", eventId)
+                                .with(authentication(authentication)))
+                .andExpect(status().isForbidden())
+                .andExpect(
+                        jsonPath("$['Error:']")
+                                .value("No tenés permisos para modificar este evento."));
+    }
+
+    @Test
     void getEvent_Success_Returns200AndBody() throws Exception {
         UUID eventId = UUID.randomUUID();
         EventResponse response =
