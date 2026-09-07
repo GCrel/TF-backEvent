@@ -40,6 +40,21 @@ public class EventService {
         return toResponse(event);
     }
 
+    public EventResponse publishEvent(UUID id, User organizer) {
+        Event event = findEventById(id);
+        validateOwnership(event, organizer);
+        validateModifiable(event);
+
+        if (event.getStatus() == EventStatus.PUBLISHED) {
+            throw new IllegalStateException("El evento ya está publicado.");
+        }
+
+        event.setStatus(EventStatus.PUBLISHED);
+        eventRepository.save(event);
+
+        return toResponse(event);
+    }
+
     public EventResponse updateEvent(UUID id, UpdateEventRequest request, User organizer) {
         Event event = findEventById(id);
         validateOwnership(event, organizer);

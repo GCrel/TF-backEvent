@@ -30,6 +30,14 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PutMapping("/{id}/publish")
+    public ResponseEntity<EventResponse> publishEvent(
+            @PathVariable UUID id, Authentication authentication) {
+        User organizer = (User) authentication.getPrincipal();
+        EventResponse response = eventService.publishEvent(id, organizer);
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<EventResponse> updateEvent(
             @PathVariable UUID id,
