@@ -76,6 +76,10 @@ public abstract class Event {
         return status;
     }
 
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
     public BigDecimal getBasePrice() {
         return basePrice;
     }

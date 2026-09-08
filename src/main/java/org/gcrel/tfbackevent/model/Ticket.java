@@ -72,6 +72,10 @@ public class Ticket {
         return boughtAt;
     }
 
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
     public void setStatus(TicketStatus status) {
         this.status = status;
     }

@@ -116,6 +116,14 @@ public class User implements UserDetails {
         return verificationCodeExpiresAt;
     }
 
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public void setEnabled(boolean enabled) {
         isEnabled = enabled;
     }
