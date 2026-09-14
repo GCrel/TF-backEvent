@@ -25,7 +25,7 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(
                         "Usuario registrado con éxito. Por favor revisa tu correo para verificar tu"
-                            + " cuenta.");
+                                + " cuenta.");
     }
 
     @PostMapping("/verify")

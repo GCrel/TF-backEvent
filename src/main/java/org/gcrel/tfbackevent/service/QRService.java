@@ -27,8 +27,7 @@ public class QRService {
             String content = ticketId.toString();
 
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            BitMatrix bitMatrix =
-                    qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, QR_WIDTH, QR_HEIGHT);
+            BitMatrix bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, QR_WIDTH, QR_HEIGHT);
 
             BufferedImage image = MatrixToImageWriter.toBufferedImage(bitMatrix);
 

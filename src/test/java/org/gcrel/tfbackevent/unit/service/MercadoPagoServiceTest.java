@@ -25,7 +25,8 @@ import java.math.BigDecimal;
 
 @ExtendWith(MockitoExtension.class)
 public class MercadoPagoServiceTest {
-    @InjectMocks private MercadoPagoService mercadoPagoService;
+    @InjectMocks
+    private MercadoPagoService mercadoPagoService;
 
     @BeforeEach
     void setUp() {
@@ -42,17 +43,15 @@ public class MercadoPagoServiceTest {
     void processPayment_WhenSuccessful_ReturnsPayment() throws Exception {
         Payment expectedPayment = mock(Payment.class);
 
-        try (MockedConstruction<PaymentClient> mockedClient =
-                mockConstruction(
-                        PaymentClient.class,
-                        (mock, context) -> {
-                            when(mock.create(any(PaymentCreateRequest.class)))
-                                    .thenReturn(expectedPayment);
-                        })) {
+        try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
+                PaymentClient.class,
+                (mock, context) -> {
+                    when(mock.create(any(PaymentCreateRequest.class)))
+                            .thenReturn(expectedPayment);
+                })) {
 
-            Payment result =
-                    mercadoPagoService.processPayment(
-                            "card_token", new BigDecimal("1500.00"), 1, "payer@email.com", "visa");
+            Payment result = mercadoPagoService.processPayment(
+                    "card_token", new BigDecimal("1500.00"), 1, "payer@email.com", "visa");
 
             assertNotNull(result);
             assertEquals(expectedPayment, result);
@@ -65,24 +64,21 @@ public class MercadoPagoServiceTest {
 
     @Test
     void processPayment_WhenMPExceptionThrown_ThrowsPaymentRejectedException() throws Exception {
-        try (MockedConstruction<PaymentClient> mockedClient =
-                mockConstruction(
-                        PaymentClient.class,
-                        (mock, context) -> {
-                            when(mock.create(any(PaymentCreateRequest.class)))
-                                    .thenThrow(new MPException("MP Error"));
-                        })) {
+        try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
+                PaymentClient.class,
+                (mock, context) -> {
+                    when(mock.create(any(PaymentCreateRequest.class)))
+                            .thenThrow(new MPException("MP Error"));
+                })) {
 
-            PaymentRejectedException exception =
-                    assertThrows(
-                            PaymentRejectedException.class,
-                            () ->
-                                    mercadoPagoService.processPayment(
-                                            "card_token",
-                                            new BigDecimal("1500.00"),
-                                            1,
-                                            "payer@email.com",
-                                            "visa"));
+            PaymentRejectedException exception = assertThrows(
+                    PaymentRejectedException.class,
+                    () -> mercadoPagoService.processPayment(
+                            "card_token",
+                            new BigDecimal("1500.00"),
+                            1,
+                            "payer@email.com",
+                            "visa"));
 
             assertTrue(exception.getMessage().contains("MP Error"));
         }
@@ -93,12 +89,11 @@ public class MercadoPagoServiceTest {
         Payment expectedPayment = mock(Payment.class);
         String paymentId = "123456789";
 
-        try (MockedConstruction<PaymentClient> mockedClient =
-                mockConstruction(
-                        PaymentClient.class,
-                        (mock, context) -> {
-                            when(mock.get(anyLong())).thenReturn(expectedPayment);
-                        })) {
+        try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
+                PaymentClient.class,
+                (mock, context) -> {
+                    when(mock.get(anyLong())).thenReturn(expectedPayment);
+                })) {
 
             Payment result = mercadoPagoService.getPaymentById(paymentId);
 
@@ -113,17 +108,15 @@ public class MercadoPagoServiceTest {
     void getPaymentById_WhenMPApiExceptionThrown_ThrowsPaymentRejectedException() throws Exception {
         String paymentId = "123456789";
 
-        try (MockedConstruction<PaymentClient> mockedClient =
-                mockConstruction(
-                        PaymentClient.class,
-                        (mock, context) -> {
-                            when(mock.get(anyLong())).thenThrow(new MPException("API Error"));
-                        })) {
+        try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
+                PaymentClient.class,
+                (mock, context) -> {
+                    when(mock.get(anyLong())).thenThrow(new MPException("API Error"));
+                })) {
 
-            PaymentRejectedException exception =
-                    assertThrows(
-                            PaymentRejectedException.class,
-                            () -> mercadoPagoService.getPaymentById(paymentId));
+            PaymentRejectedException exception = assertThrows(
+                    PaymentRejectedException.class,
+                    () -> mercadoPagoService.getPaymentById(paymentId));
 
             assertTrue(exception.getMessage().contains("API Error"));
         }

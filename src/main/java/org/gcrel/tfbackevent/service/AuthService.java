@@ -40,12 +40,11 @@ public class AuthService {
             throw new EmailAlreadyExistsException(request.getEmail());
         }
 
-        User user =
-                new User(
-                        request.getName(),
-                        request.getEmail(),
-                        passwordEncoder.encode(request.getPassword()),
-                        request.getDateBirth());
+        User user = new User(
+                request.getName(),
+                request.getEmail(),
+                passwordEncoder.encode(request.getPassword()),
+                request.getDateBirth());
 
         sendVerificationEmail(user);
     }
@@ -96,10 +95,9 @@ public class AuthService {
     }
 
     public AuthResponse refresh(RefreshTokenRequest request) {
-        RefreshToken refreshToken =
-                refreshTokenRepository
-                        .findByToken(request.getRefreshToken())
-                        .orElseThrow(InvalidTokenException::new);
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByToken(request.getRefreshToken())
+                .orElseThrow(InvalidTokenException::new);
 
         if (refreshToken.isRevoked() || refreshToken.isExpired()) {
             throw new InvalidTokenException();
@@ -111,10 +109,9 @@ public class AuthService {
     }
 
     public void logout(RefreshTokenRequest request) {
-        RefreshToken refreshToken =
-                refreshTokenRepository
-                        .findByToken(request.getRefreshToken())
-                        .orElseThrow(InvalidTokenException::new);
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByToken(request.getRefreshToken())
+                .orElseThrow(InvalidTokenException::new);
 
         refreshTokenRepository.delete(refreshToken);
     }
@@ -124,8 +121,7 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(user);
         String rawRefreshToken = jwtService.generateRefreshToken();
 
-        RefreshToken refreshToken =
-                new RefreshToken(rawRefreshToken, jwtService.getRefreshTokenExpiresAt(), user);
+        RefreshToken refreshToken = new RefreshToken(rawRefreshToken, jwtService.getRefreshTokenExpiresAt(), user);
 
         refreshTokenRepository.save(refreshToken);
 

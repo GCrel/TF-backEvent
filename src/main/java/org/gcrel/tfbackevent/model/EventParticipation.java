@@ -10,7 +10,8 @@ import java.util.Objects;
 @Table(name = "event_participations")
 public class EventParticipation {
 
-    @EmbeddedId private EventParticipationId id;
+    @EmbeddedId
+    private EventParticipationId id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("userId")
@@ -22,7 +23,8 @@ public class EventParticipation {
     @JoinColumn(name = "event_id")
     private Event event;
 
-    protected EventParticipation() {}
+    protected EventParticipation() {
+    }
 
     public EventParticipation(User user, Event event, EventRole eventRole) {
         this.id = new EventParticipationId(user.getId(), event.getId(), eventRole);
@@ -32,7 +34,8 @@ public class EventParticipation {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         EventParticipation that = (EventParticipation) o;
         return Objects.equals(id, that.id);
     }

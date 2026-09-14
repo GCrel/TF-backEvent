@@ -35,14 +35,13 @@ public class MercadoPagoService {
         try {
             PaymentClient client = new PaymentClient();
 
-            PaymentCreateRequest paymentRequest =
-                    PaymentCreateRequest.builder()
-                            .transactionAmount(amount)
-                            .token(cardToken)
-                            .installments(installments)
-                            .paymentMethodId(paymentMethodId)
-                            .payer(PaymentPayerRequest.builder().email(payerEmail).build())
-                            .build();
+            PaymentCreateRequest paymentRequest = PaymentCreateRequest.builder()
+                    .transactionAmount(amount)
+                    .token(cardToken)
+                    .installments(installments)
+                    .paymentMethodId(paymentMethodId)
+                    .payer(PaymentPayerRequest.builder().email(payerEmail).build())
+                    .build();
 
             return client.create(paymentRequest);
 

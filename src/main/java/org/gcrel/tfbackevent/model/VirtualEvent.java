@@ -19,7 +19,8 @@ public class VirtualEvent extends Event {
     @Column(name = "access_instructions", columnDefinition = "TEXT")
     private String accessInstructions;
 
-    protected VirtualEvent() {}
+    protected VirtualEvent() {
+    }
 
     public VirtualEvent(
             String title,

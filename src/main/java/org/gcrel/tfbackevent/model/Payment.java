@@ -35,7 +35,8 @@ public class Payment {
     @JoinColumn(name = "ticket_id", nullable = false)
     private Ticket ticket;
 
-    protected Payment() {}
+    protected Payment() {
+    }
 
     public Payment(
             String transactionId,
@@ -51,7 +52,8 @@ public class Payment {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Payment payment = (Payment) o;
         return Objects.equals(transactionId, payment.transactionId);
     }

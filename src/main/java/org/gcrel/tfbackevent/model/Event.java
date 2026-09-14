@@ -34,7 +34,8 @@ public abstract class Event {
     @Column(name = "base_price", nullable = false)
     private BigDecimal basePrice;
 
-    public Event() {}
+    public Event() {
+    }
 
     public Event(String title, String description, LocalDateTime dateTime, BigDecimal basePrice) {
         this.title = title;
@@ -46,7 +47,8 @@ public abstract class Event {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Event event = (Event) o;
         return Objects.equals(id, event.id);
     }

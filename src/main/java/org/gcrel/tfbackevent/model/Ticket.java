@@ -31,7 +31,8 @@ public class Ticket {
     @JoinColumn(name = "attendee_id", nullable = false)
     private User attendee;
 
-    protected Ticket() {}
+    protected Ticket() {
+    }
 
     public Ticket(LocalDateTime boughtAt, Event event, User attendee) {
         this.boughtAt = boughtAt;
@@ -42,7 +43,8 @@ public class Ticket {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Ticket ticket = (Ticket) o;
         return Objects.equals(id, ticket.id);
     }

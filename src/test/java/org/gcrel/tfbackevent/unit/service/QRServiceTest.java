@@ -51,13 +51,12 @@ public class QRServiceTest {
     void generateQRBase64_WhenWriterExceptionOcurs_ThrowsQRGenerationException() {
         UUID ticketId = UUID.randomUUID();
 
-        try (MockedConstruction<QRCodeWriter> mockedWriter =
-                mockConstruction(
-                        QRCodeWriter.class,
-                        (mock, context) -> {
-                            when(mock.encode(anyString(), any(), anyInt(), anyInt()))
-                                    .thenThrow(new WriterException("Error simulado al generar QR"));
-                        })) {
+        try (MockedConstruction<QRCodeWriter> mockedWriter = mockConstruction(
+                QRCodeWriter.class,
+                (mock, context) -> {
+                    when(mock.encode(anyString(), any(), anyInt(), anyInt()))
+                            .thenThrow(new WriterException("Error simulado al generar QR"));
+                })) {
 
             assertThrows(QRGenerationException.class, () -> qrService.generateQRBase64(ticketId));
         }

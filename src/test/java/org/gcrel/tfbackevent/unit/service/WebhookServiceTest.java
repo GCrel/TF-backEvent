@@ -40,13 +40,19 @@ import javax.crypto.spec.SecretKeySpec;
 
 @ExtendWith(MockitoExtension.class)
 public class WebhookServiceTest {
-    @Mock private TicketRepository ticketRepository;
-    @Mock private PaymentRepository paymentRepository;
-    @Mock private MercadoPagoService mercadoPagoService;
-    @Mock private QRService qrService;
-    @Mock private EmailService emailService;
+    @Mock
+    private TicketRepository ticketRepository;
+    @Mock
+    private PaymentRepository paymentRepository;
+    @Mock
+    private MercadoPagoService mercadoPagoService;
+    @Mock
+    private QRService qrService;
+    @Mock
+    private EmailService emailService;
 
-    @InjectMocks private WebhookService webhookService;
+    @InjectMocks
+    private WebhookService webhookService;
 
     private static final String SECRET = "test-secret-key";
     private static final String REQUEST_ID = "req-12345";
@@ -68,20 +74,19 @@ public class WebhookServiceTest {
 
         attendee = new User();
         attendee.setEmail("test@webhook.com");
-        Event event =
-                new Event(
-                        "Test Event",
-                        "Description",
-                        LocalDateTime.now().plusDays(1),
-                        new BigDecimal("1000.00")) {};
+        Event event = new Event(
+                "Test Event",
+                "Description",
+                LocalDateTime.now().plusDays(1),
+                new BigDecimal("1000.00")) {
+        };
 
         ticket = new Ticket(LocalDateTime.now(), event, attendee);
         ticket.setId(UUID.randomUUID());
         ticket.setStatus(TicketStatus.ACTIVE);
 
-        localPayment =
-                new org.gcrel.tfbackevent.model.Payment(
-                        PAYMENT_ID, new BigDecimal("1000.00"), LocalDateTime.now(), ticket);
+        localPayment = new org.gcrel.tfbackevent.model.Payment(
+                PAYMENT_ID, new BigDecimal("1000.00"), LocalDateTime.now(), ticket);
 
         mpPaymentMock = mock(Payment.class);
     }
@@ -90,8 +95,7 @@ public class WebhookServiceTest {
             throws Exception {
         String message = "id:" + paymentId + ";request-id:" + requestId + ";ts:" + ts + ";";
         Mac mac = Mac.getInstance("HmacSHA256");
-        SecretKeySpec secretKey =
-                new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        SecretKeySpec secretKey = new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         mac.init(secretKey);
         byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
         String hexHash = HexFormat.of().formatHex(hash);
@@ -104,9 +108,8 @@ public class WebhookServiceTest {
 
         assertThrows(
                 WebhookValidationException.class,
-                () ->
-                        webhookService.processPaymentNotification(
-                                request, invalidSignature, REQUEST_ID));
+                () -> webhookService.processPaymentNotification(
+                        request, invalidSignature, REQUEST_ID));
 
         verify(mercadoPagoService, never()).getPaymentById(anyString());
     }

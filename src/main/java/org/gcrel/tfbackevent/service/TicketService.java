@@ -47,10 +47,9 @@ public class TicketService {
 
     @Transactional
     public PurchaseResponse purchase(PurchaseTicketRequest request, User attendee) {
-        Event event =
-                eventRepository
-                        .findById(request.getEventId())
-                        .orElseThrow(() -> new EventNotFoundException(request.getEventId()));
+        Event event = eventRepository
+                .findById(request.getEventId())
+                .orElseThrow(() -> new EventNotFoundException(request.getEventId()));
 
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new EventNotAvailableException();
@@ -61,13 +60,12 @@ public class TicketService {
 
         com.mercadopago.resources.payment.Payment mpPayment;
         try {
-            mpPayment =
-                    mercadoPagoService.processPayment(
-                            request.getCardToken(),
-                            event.getBasePrice(),
-                            request.getInstallments(),
-                            request.getPayerEmail(),
-                            request.getPaymentMethodId());
+            mpPayment = mercadoPagoService.processPayment(
+                    request.getCardToken(),
+                    event.getBasePrice(),
+                    request.getInstallments(),
+                    request.getPayerEmail(),
+                    request.getPaymentMethodId());
         } catch (PaymentRejectedException e) {
             ticket.setStatus(TicketStatus.CANCELLED);
             ticketRepository.save(ticket);
@@ -85,18 +83,16 @@ public class TicketService {
         return ticketRepository.findByAttendee(attendee).stream()
                 .map(
                         ticket -> {
-                            String qr =
-                                    ticket.getStatus() == TicketStatus.ACTIVE
-                                            ? qrService.generateQRBase64(ticket.getId())
-                                            : null;
+                            String qr = ticket.getStatus() == TicketStatus.ACTIVE
+                                    ? qrService.generateQRBase64(ticket.getId())
+                                    : null;
                             return new TicketResponse(ticket, qr);
                         })
                 .toList();
     }
 
     public void resendTicketEmail(UUID id, User attendee) {
-        Ticket ticket =
-                ticketRepository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
+        Ticket ticket = ticketRepository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
 
         if (!ticket.getAttendee().getId().equals(attendee.getId())) {
             throw new UnauthorizedTicketAccessException();
@@ -111,17 +107,15 @@ public class TicketService {
     }
 
     public TicketResponse getTicket(UUID id, User attendee) {
-        Ticket ticket =
-                ticketRepository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
+        Ticket ticket = ticketRepository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
 
         if (!ticket.getAttendee().getId().equals(attendee.getId())) {
             throw new UnauthorizedTicketAccessException();
         }
 
-        String qr =
-                ticket.getStatus() == TicketStatus.ACTIVE
-                        ? qrService.generateQRBase64(ticket.getId())
-                        : null;
+        String qr = ticket.getStatus() == TicketStatus.ACTIVE
+                ? qrService.generateQRBase64(ticket.getId())
+                : null;
 
         return new TicketResponse(ticket, qr);
     }
@@ -131,12 +125,11 @@ public class TicketService {
         ticket.setStatus(TicketStatus.ACTIVE);
         ticketRepository.save(ticket);
 
-        Payment payment =
-                new Payment(
-                        mpPayment.getId().toString(),
-                        mpPayment.getTransactionAmount(),
-                        LocalDateTime.now(),
-                        ticket);
+        Payment payment = new Payment(
+                mpPayment.getId().toString(),
+                mpPayment.getTransactionAmount(),
+                LocalDateTime.now(),
+                ticket);
         payment.setPaymentStatus(PaymentStatus.APPROVED);
         paymentRepository.save(payment);
 
@@ -156,12 +149,11 @@ public class TicketService {
         ticket.setStatus(TicketStatus.CANCELLED);
         ticketRepository.save(ticket);
 
-        Payment payment =
-                new Payment(
-                        mpPayment.getId().toString(),
-                        mpPayment.getTransactionAmount(),
-                        LocalDateTime.now(),
-                        ticket);
+        Payment payment = new Payment(
+                mpPayment.getId().toString(),
+                mpPayment.getTransactionAmount(),
+                LocalDateTime.now(),
+                ticket);
         payment.setPaymentStatus(PaymentStatus.REJECTED);
         paymentRepository.save(payment);
 
@@ -174,12 +166,11 @@ public class TicketService {
 
     private PurchaseResponse handlePending(
             Ticket ticket, com.mercadopago.resources.payment.Payment mpPayment) {
-        Payment payment =
-                new Payment(
-                        mpPayment.getId().toString(),
-                        mpPayment.getTransactionAmount(),
-                        LocalDateTime.now(),
-                        ticket);
+        Payment payment = new Payment(
+                mpPayment.getId().toString(),
+                mpPayment.getTransactionAmount(),
+                LocalDateTime.now(),
+                ticket);
         payment.setPaymentStatus(PaymentStatus.PENDING);
         paymentRepository.save(payment);
 

@@ -28,21 +28,26 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = WebhookController.class)
-@Import({GlobalExceptionHandler.class, SecurityConfig.class})
+@Import({ GlobalExceptionHandler.class, SecurityConfig.class })
 @AutoConfigureMockMvc
 public class WebhookControllerTest {
 
-    @Autowired private MockMvc mockMvc;
+    @Autowired
+    private MockMvc mockMvc;
 
     private ObjectMapper objectMapper;
 
-    @MockitoBean private WebhookService webhookService;
+    @MockitoBean
+    private WebhookService webhookService;
 
-    @MockitoBean private JwtService jwtService;
+    @MockitoBean
+    private JwtService jwtService;
 
-    @MockitoBean private UserDetailsService userDetailsService;
+    @MockitoBean
+    private UserDetailsService userDetailsService;
 
-    @MockitoBean private UserRepository userRepository;
+    @MockitoBean
+    private UserRepository userRepository;
 
     @BeforeEach
     void setUp() {
@@ -60,11 +65,11 @@ public class WebhookControllerTest {
                         any(WebhookPaymentRequest.class), eq("sig"), eq("req-1"));
 
         mockMvc.perform(
-                        post("/api/v1/webhooks/payments")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .header("x-signature", "sig")
-                                .header("x-request-id", "req-1")
-                                .content(objectMapper.writeValueAsString(request)))
+                post("/api/v1/webhooks/payments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("x-signature", "sig")
+                        .header("x-request-id", "req-1")
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
         verify(webhookService)

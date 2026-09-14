@@ -47,7 +47,8 @@ public class User implements UserDetails {
     @Column(name = "verification_code_expires_at")
     private LocalDateTime verificationCodeExpiresAt;
 
-    public User() {}
+    public User() {
+    }
 
     public User(String name, String email, String password, LocalDate dateBirth) {
         this.name = name;
@@ -60,7 +61,8 @@ public class User implements UserDetails {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         User user = (User) o;
         return Objects.equals(id, user.id) && Objects.equals(email, user.email);
     }

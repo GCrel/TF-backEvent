@@ -22,8 +22,7 @@ class JwtServiceTest {
     private User mockUser;
 
     // Secret key
-    private final String TEST_SECRET =
-            "38296b4ba0ba14cede158bdeb41bd35d3448b9900689481573c7b130b1a0392573548f";
+    private final String TEST_SECRET = "38296b4ba0ba14cede158bdeb41bd35d3448b9900689481573c7b130b1a0392573548f";
     private final long ACCESS_TOKEN_EXPIRATION = 3600000; // 1h in ms
     private final long REFRESH_TOKEN_EXPIRATION = 86400000; // 1d in ms
 
@@ -127,10 +126,8 @@ class JwtServiceTest {
 
     @Test
     void getRefreshTokenExpiresAt_ReturnsFutureDate() {
-        LocalDateTime expectedMinTime =
-                LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) - 1);
-        LocalDateTime expectedMaxTime =
-                LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) + 1);
+        LocalDateTime expectedMinTime = LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) - 1);
+        LocalDateTime expectedMaxTime = LocalDateTime.now().plusSeconds((REFRESH_TOKEN_EXPIRATION / 1000) + 1);
 
         LocalDateTime expiresAt = jwtService.getRefreshTokenExpiresAt();
 

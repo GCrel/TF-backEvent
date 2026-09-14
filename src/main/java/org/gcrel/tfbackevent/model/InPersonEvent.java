@@ -22,7 +22,8 @@ public class InPersonEvent extends Event {
     @Column(nullable = false)
     private Integer capacity;
 
-    protected InPersonEvent() {}
+    protected InPersonEvent() {
+    }
 
     public InPersonEvent(
             String title,

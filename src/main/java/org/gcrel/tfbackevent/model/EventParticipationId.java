@@ -24,7 +24,8 @@ public class EventParticipationId implements Serializable {
     @Column(name = "event_role")
     private EventRole eventRole;
 
-    protected EventParticipationId() {}
+    protected EventParticipationId() {
+    }
 
     public EventParticipationId(UUID userId, UUID eventId, EventRole eventRole) {
         this.userId = userId;
@@ -34,7 +35,8 @@ public class EventParticipationId implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         EventParticipationId that = (EventParticipationId) o;
         return Objects.equals(userId, that.userId)
                 && Objects.equals(eventId, that.eventId)

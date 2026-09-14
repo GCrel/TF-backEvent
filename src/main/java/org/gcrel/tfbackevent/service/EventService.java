@@ -33,8 +33,7 @@ public class EventService {
         Event event = buildEvent(request);
         eventRepository.save(event);
 
-        EventParticipation participation =
-                new EventParticipation(organizer, event, EventRole.ORGANIZER);
+        EventParticipation participation = new EventParticipation(organizer, event, EventRole.ORGANIZER);
         eventParticipationRepository.save(participation);
 
         return toResponse(event);
@@ -101,24 +100,24 @@ public class EventService {
     private Event buildEvent(CreateEventRequest request) {
         return switch (request.getEventType()) {
             case "IN_PERSON" ->
-                    new InPersonEvent(
-                            request.getTitle(),
-                            request.getDescription(),
-                            request.getDateTime(),
-                            request.getBasePrice(),
-                            request.getAddress(),
-                            request.getLatitude(),
-                            request.getLongitude(),
-                            request.getCapacity());
+                new InPersonEvent(
+                        request.getTitle(),
+                        request.getDescription(),
+                        request.getDateTime(),
+                        request.getBasePrice(),
+                        request.getAddress(),
+                        request.getLatitude(),
+                        request.getLongitude(),
+                        request.getCapacity());
             case "VIRTUAL" ->
-                    new VirtualEvent(
-                            request.getTitle(),
-                            request.getDescription(),
-                            request.getDateTime(),
-                            request.getBasePrice(),
-                            request.getAccessLink(),
-                            request.getPlatform(),
-                            request.getAccessInstructions());
+                new VirtualEvent(
+                        request.getTitle(),
+                        request.getDescription(),
+                        request.getDateTime(),
+                        request.getBasePrice(),
+                        request.getAccessLink(),
+                        request.getPlatform(),
+                        request.getAccessInstructions());
             default -> throw new InvalidEventTypeException();
         };
     }
@@ -133,9 +132,8 @@ public class EventService {
     }
 
     private void validateOwnership(Event event, User organizer) {
-        boolean isOwner =
-                eventParticipationRepository.existsByEventAndUserAndId_EventRole(
-                        event, organizer, EventRole.ORGANIZER);
+        boolean isOwner = eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                event, organizer, EventRole.ORGANIZER);
         if (!isOwner) {
             throw new UnauthorizedEventAccessException();
         }

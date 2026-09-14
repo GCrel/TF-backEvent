@@ -36,14 +36,21 @@ import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 public class TicketServiceTest {
-    @Mock private TicketRepository ticketRepository;
-    @Mock private PaymentRepository paymentRepository;
-    @Mock private EventRepository eventRepository;
-    @Mock private MercadoPagoService mercadoPagoService;
-    @Mock private QRService qrService;
-    @Mock private EmailService emailService;
+    @Mock
+    private TicketRepository ticketRepository;
+    @Mock
+    private PaymentRepository paymentRepository;
+    @Mock
+    private EventRepository eventRepository;
+    @Mock
+    private MercadoPagoService mercadoPagoService;
+    @Mock
+    private QRService qrService;
+    @Mock
+    private EmailService emailService;
 
-    @InjectMocks private TicketService ticketService;
+    @InjectMocks
+    private TicketService ticketService;
 
     private User attendee;
     private Event event;
@@ -57,18 +64,17 @@ public class TicketServiceTest {
         attendee.setId(UUID.randomUUID());
         attendee.setEmail("test@test.com");
 
-        event =
-                new Event(
-                        "Test Event",
-                        "Description",
-                        LocalDateTime.now().plusDays(1),
-                        new BigDecimal("1000.00")) {};
+        event = new Event(
+                "Test Event",
+                "Description",
+                LocalDateTime.now().plusDays(1),
+                new BigDecimal("1000.00")) {
+        };
         event.setId(UUID.randomUUID());
         event.setStatus(EventStatus.PUBLISHED);
 
-        purchaseRequest =
-                new PurchaseTicketRequest(
-                        UUID.randomUUID(), "token123", 1, "test@test.com", "visa");
+        purchaseRequest = new PurchaseTicketRequest(
+                UUID.randomUUID(), "token123", 1, "test@test.com", "visa");
 
         mpPaymentMock = mock(Payment.class);
 
@@ -125,9 +131,8 @@ public class TicketServiceTest {
         verify(ticketRepository, times(2))
                 .save(
                         argThat(
-                                t ->
-                                        t.getStatus() == TicketStatus.CANCELLED
-                                                || t.getStatus() == null));
+                                t -> t.getStatus() == TicketStatus.CANCELLED
+                                        || t.getStatus() == null));
     }
 
     @Test

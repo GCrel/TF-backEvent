@@ -11,29 +11,29 @@ import java.util.Map;
 @ControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler({
-        AccountAlreadyVerifiedException.class,
-        EmailAlreadyExistsException.class,
-        EventNotModifiableException.class,
-        EventNotAvailableException.class,
-        TicketNotActiveException.class,
+            AccountAlreadyVerifiedException.class,
+            EmailAlreadyExistsException.class,
+            EventNotModifiableException.class,
+            EventNotAvailableException.class,
+            TicketNotActiveException.class,
     })
     public ResponseEntity<Map<String, String>> handleConflictRequest(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("Error:", ex.getMessage()));
     }
 
     @ExceptionHandler({
-        EmailNotVerifiedException.class,
-        UnauthorizedEventAccessException.class,
-        UnauthorizedTicketAccessException.class
+            EmailNotVerifiedException.class,
+            UnauthorizedEventAccessException.class,
+            UnauthorizedTicketAccessException.class
     })
     public ResponseEntity<Map<String, String>> handleForbiddenRequest(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("Error:", ex.getMessage()));
     }
 
     @ExceptionHandler({
-        InvalidTokenException.class,
-        InvalidCredentialsException.class,
-        WebhookValidationException.class
+            InvalidTokenException.class,
+            InvalidCredentialsException.class,
+            WebhookValidationException.class
     })
     public ResponseEntity<Map<String, String>> handleUnauthorizedRequest(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -41,18 +41,17 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({
-        InvalidVerificationCodeException.class,
-        VerificationCodeExpiredException.class,
-        InvalidEventTypeException.class
+            InvalidVerificationCodeException.class,
+            VerificationCodeExpiredException.class,
+            InvalidEventTypeException.class
     })
     public ResponseEntity<Map<String, String>> handleBadRequest(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("Error:", ex.getMessage()));
     }
 
-    @ExceptionHandler({EventNotFoundException.class, TicketNotFoundException.class})
+    @ExceptionHandler({ EventNotFoundException.class, TicketNotFoundException.class })
     public ResponseEntity<Map<String, String>> handleNotFoundRequest(EventNotFoundException e) {
-
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("Error:", e.getMessage()));
     }
 
@@ -62,7 +61,7 @@ public class GlobalExceptionHandler {
                 .body(Map.of("Error:", e.getMessage()));
     }
 
-    @ExceptionHandler({Exception.class, QRGenerationException.class})
+    @ExceptionHandler({ Exception.class, QRGenerationException.class })
     public ResponseEntity<Map<String, String>> handleException(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("Error:", ex.getMessage()));

@@ -54,11 +54,10 @@ public class WebhookService {
             return;
         }
 
-        com.mercadopago.resources.payment.Payment mpPayment =
-                mercadoPagoService.getPaymentById(request.getData().getId());
+        com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService
+                .getPaymentById(request.getData().getId());
 
-        Payment payment =
-                paymentRepository.findByTransactionId(mpPayment.getId().toString()).orElse(null);
+        Payment payment = paymentRepository.findByTransactionId(mpPayment.getId().toString()).orElse(null);
 
         if (payment == null) {
             return;
@@ -114,8 +113,7 @@ public class WebhookService {
             String message = "id:" + paymentId + ";request-id:" + xRequestId + ";ts:" + ts + ";";
 
             Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey =
-                    new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            SecretKeySpec secretKey = new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             mac.init(secretKey);
 
             byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));

@@ -29,38 +29,37 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.cors(cors -> cors.configurationSource(corsConfigurationSource))
+        http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .exceptionHandling(
-                        exception ->
-                                exception.authenticationEntryPoint(
-                                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                        exception -> exception
+                                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(
-                        auth ->
-                                auth
-                                        // Swagger / OpenAPI
-                                        .requestMatchers(
-                                                "/swagger-ui/**",
-                                                "/swagger-ui.html",
-                                                "/v3/api-docs/**")
-                                        .permitAll()
-                                        // public
-                                        .requestMatchers(
-                                                "/api/v1/auth/login",
-                                                "/api/v1/auth/register",
-                                                "/api/v1/auth/refresh",
-                                                "/api/v1/auth/verify",
-                                                "/api/v1/auth/resend-verification")
-                                        .permitAll()
-                                        // webhooks
-                                        .requestMatchers("/api/v1/webhooks/**")
-                                        .permitAll()
-                                        // admin
-                                        .requestMatchers("/api/v1/admin/**")
-                                        .hasRole("ADMIN")
-                                        // requires authentication
-                                        .anyRequest()
-                                        .authenticated())
+                        auth -> auth
+                                // Swagger / OpenAPI
+                                .requestMatchers(
+                                        "/swagger-ui/**",
+                                        "/swagger-ui.html",
+                                        "/v3/api-docs/**")
+                                .permitAll()
+                                // public
+                                .requestMatchers(
+                                        "/api/v1/auth/login",
+                                        "/api/v1/auth/register",
+                                        "/api/v1/auth/refresh",
+                                        "/api/v1/auth/verify",
+                                        "/api/v1/auth/resend-verification")
+                                .permitAll()
+                                // webhooks
+                                .requestMatchers("/api/v1/webhooks/**")
+                                .permitAll()
+                                // admin
+                                .requestMatchers("/api/v1/admin/**")
+                                .hasRole("ADMIN")
+                                // requires authentication
+                                .anyRequest()
+                                .authenticated())
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(

@@ -42,51 +42,53 @@ import java.util.List;
 import java.util.UUID;
 
 @WebMvcTest(controllers = TicketController.class)
-@Import({GlobalExceptionHandler.class, SecurityConfig.class})
+@Import({ GlobalExceptionHandler.class, SecurityConfig.class })
 @AutoConfigureMockMvc
 public class TicketControllerTest {
-    @Autowired private MockMvc mockMvc;
+    @Autowired
+    private MockMvc mockMvc;
 
     private ObjectMapper objectMapper;
 
-    @MockitoBean private TicketService ticketService;
+    @MockitoBean
+    private TicketService ticketService;
 
-    @MockitoBean private JwtService jwtService;
+    @MockitoBean
+    private JwtService jwtService;
 
-    @MockitoBean private UserDetailsService userDetailsService;
+    @MockitoBean
+    private UserDetailsService userDetailsService;
 
     private User testUser;
     private Authentication authentication;
 
-    @MockitoBean private UserRepository userRepository;
+    @MockitoBean
+    private UserRepository userRepository;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         testUser = new User("Jane Doe", "jane@example.com", "password", LocalDate.of(1992, 2, 2));
-        authentication =
-                new UsernamePasswordAuthenticationToken(testUser, null, testUser.getAuthorities());
+        authentication = new UsernamePasswordAuthenticationToken(testUser, null, testUser.getAuthorities());
     }
 
     @Test
     void purchase_Success_Returns201AndBody() throws Exception {
         UUID eventId = UUID.randomUUID();
-        PurchaseTicketRequest request =
-                new PurchaseTicketRequest(eventId, "card_tok", 1, "payer@example.com", "visa");
+        PurchaseTicketRequest request = new PurchaseTicketRequest(eventId, "card_tok", 1, "payer@example.com", "visa");
 
         UUID ticketId = UUID.randomUUID();
-        PurchaseResponse response =
-                new PurchaseResponse(ticketId, "SUCCESS", "Compra aceptada", "dGVzdA==");
+        PurchaseResponse response = new PurchaseResponse(ticketId, "SUCCESS", "Compra aceptada", "dGVzdA==");
 
         when(ticketService.purchase(any(PurchaseTicketRequest.class), any(User.class)))
                 .thenReturn(response);
 
         mockMvc.perform(
-                        post("/api/v1/tickets/purchase")
-                                .with(authentication(authentication))
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(request)))
+                post("/api/v1/tickets/purchase")
+                        .with(authentication(authentication))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ticketId").value(ticketId.toString()))
                 .andExpect(jsonPath("$.status").value("SUCCESS"));
@@ -94,22 +96,20 @@ public class TicketControllerTest {
 
     @Test
     void getMyTickets_Success_Returns200AndList() throws Exception {
-        TicketResponse first =
-                new TicketResponse(
-                        UUID.randomUUID(),
-                        UUID.randomUUID(),
-                        "Evento 1",
-                        "ACTIVE",
-                        LocalDateTime.now(),
-                        "qr1");
-        TicketResponse second =
-                new TicketResponse(
-                        UUID.randomUUID(),
-                        UUID.randomUUID(),
-                        "Evento 2",
-                        "ACTIVE",
-                        LocalDateTime.now(),
-                        "qr2");
+        TicketResponse first = new TicketResponse(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Evento 1",
+                "ACTIVE",
+                LocalDateTime.now(),
+                "qr1");
+        TicketResponse second = new TicketResponse(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Evento 2",
+                "ACTIVE",
+                LocalDateTime.now(),
+                "qr2");
 
         when(ticketService.getMyTickets(any(User.class))).thenReturn(List.of(first, second));
 
@@ -125,22 +125,21 @@ public class TicketControllerTest {
         doNothing().when(ticketService).resendTicketEmail(eq(ticketId), any(User.class));
 
         mockMvc.perform(
-                        post("/api/v1/tickets/{id}/resend-email", ticketId)
-                                .with(authentication(authentication)))
+                post("/api/v1/tickets/{id}/resend-email", ticketId)
+                        .with(authentication(authentication)))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void getTicket_Success_Returns200AndBody() throws Exception {
         UUID ticketId = UUID.randomUUID();
-        TicketResponse response =
-                new TicketResponse(
-                        ticketId,
-                        UUID.randomUUID(),
-                        "Evento X",
-                        "ACTIVE",
-                        LocalDateTime.now(),
-                        "qrcode");
+        TicketResponse response = new TicketResponse(
+                ticketId,
+                UUID.randomUUID(),
+                "Evento X",
+                "ACTIVE",
+                LocalDateTime.now(),
+                "qrcode");
 
         when(ticketService.getTicket(eq(ticketId), any(User.class))).thenReturn(response);
 

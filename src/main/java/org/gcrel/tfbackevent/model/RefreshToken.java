@@ -27,7 +27,8 @@ public class RefreshToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    protected RefreshToken() {}
+    protected RefreshToken() {
+    }
 
     public RefreshToken(String token, LocalDateTime expiresAt, User user) {
         this.token = token;
@@ -53,7 +54,8 @@ public class RefreshToken {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         RefreshToken that = (RefreshToken) o;
         return Objects.equals(token, that.token);
     }
