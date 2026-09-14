@@ -10,6 +10,7 @@ import java.util.UUID;
 public class PurchaseResponse {
     private UUID ticketId;
     private String status;
+    private String statusDetail;
     private String message;
     private String qrCodeBase64;
 }

@@ -140,6 +140,7 @@ public class TicketService {
         return new PurchaseResponse(
                 ticket.getId(),
                 "approved",
+                mpPayment.getStatusDetail(),
                 "Pago aprobado. Tu entrada fue enviada por email.",
                 qrBase64);
     }
@@ -160,6 +161,7 @@ public class TicketService {
         return new PurchaseResponse(
                 ticket.getId(),
                 "rejected",
+                mpPayment.getStatusDetail(),
                 "El pago fue rechazado. Intentá con otro medio de pago.",
                 null);
     }
@@ -177,6 +179,7 @@ public class TicketService {
         return new PurchaseResponse(
                 ticket.getId(),
                 "pending",
+                mpPayment.getStatusDetail(),
                 "Tu pago está siendo procesado. Te avisaremos por email cuando se confirme.",
                 null);
     }

@@ -79,7 +79,8 @@ public class TicketControllerTest {
         PurchaseTicketRequest request = new PurchaseTicketRequest(eventId, "card_tok", 1, "payer@example.com", "visa");
 
         UUID ticketId = UUID.randomUUID();
-        PurchaseResponse response = new PurchaseResponse(ticketId, "SUCCESS", "Compra aceptada", "dGVzdA==");
+        PurchaseResponse response = new PurchaseResponse(ticketId, "approved", "accredited", "Compra aceptada",
+                "dGVzdA==");
 
         when(ticketService.purchase(any(PurchaseTicketRequest.class), any(User.class)))
                 .thenReturn(response);
@@ -91,7 +92,9 @@ public class TicketControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ticketId").value(ticketId.toString()))
-                .andExpect(jsonPath("$.status").value("SUCCESS"));
+                .andExpect(jsonPath("$.status").value("approved"))
+                // 2. AÑADIDO: Verificamos que el nuevo campo llegue al cliente
+                .andExpect(jsonPath("$.statusDetail").value("accredited"));
     }
 
     @Test
