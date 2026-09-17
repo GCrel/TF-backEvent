@@ -16,6 +16,7 @@ public class GlobalExceptionHandler {
             EventNotModifiableException.class,
             EventNotAvailableException.class,
             TicketNotActiveException.class,
+            EventAlreadyPublishedException.class,
     })
     public ResponseEntity<Map<String, String>> handleConflictRequest(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("Error:", ex.getMessage()));

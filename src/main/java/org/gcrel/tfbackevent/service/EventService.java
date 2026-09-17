@@ -3,15 +3,18 @@ package org.gcrel.tfbackevent.service;
 import org.gcrel.tfbackevent.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.dto.response.EventResponse;
+import org.gcrel.tfbackevent.exception.EventAlreadyPublishedException;
 import org.gcrel.tfbackevent.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.exception.EventNotModifiableException;
 import org.gcrel.tfbackevent.exception.InvalidEventTypeException;
+import org.gcrel.tfbackevent.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.model.*;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.repository.EventRepository;
+import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,12 +24,13 @@ import java.util.UUID;
 public class EventService {
     private final EventRepository eventRepository;
     private final EventParticipationRepository eventParticipationRepository;
+    private final OrganizerMpAccountRepository mpAccountRepository;
 
-    public EventService(
-            EventRepository eventRepository,
-            EventParticipationRepository eventParticipationRepository) {
+    public EventService(EventRepository eventRepository, EventParticipationRepository eventParticipationRepository,
+            OrganizerMpAccountRepository mpAccountRepository) {
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
+        this.mpAccountRepository = mpAccountRepository;
     }
 
     public EventResponse createEvent(CreateEventRequest request, User organizer) {
@@ -45,9 +49,12 @@ public class EventService {
         validateModifiable(event);
 
         if (event.getStatus() == EventStatus.PUBLISHED) {
-            throw new IllegalStateException("El evento ya está publicado.");
+            throw new EventAlreadyPublishedException();
         }
 
+        if (!mpAccountRepository.existsByUser(organizer)) {
+            throw new MpAccountNotLinkedException();
+        }
         event.setStatus(EventStatus.PUBLISHED);
         eventRepository.save(event);
 
