@@ -52,14 +52,13 @@ public class SecurityConfig {
                                         "/api/v1/auth/resend-verification")
                                 .permitAll()
                                 // webhooks
-                                .requestMatchers("/api/v1/webhooks/**")
-                                .permitAll()
+                                .requestMatchers("/api/v1/webhooks/**").permitAll()
+                                // MercadoPago OAuth callback
+                                .requestMatchers("/api/v1/mp/callback").permitAll()
                                 // admin
-                                .requestMatchers("/api/v1/admin/**")
-                                .hasRole("ADMIN")
+                                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                                 // requires authentication
-                                .anyRequest()
-                                .authenticated())
+                                .anyRequest().authenticated())
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(
