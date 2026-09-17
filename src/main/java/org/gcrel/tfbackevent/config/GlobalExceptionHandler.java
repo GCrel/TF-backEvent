@@ -67,4 +67,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("Error:", ex.getMessage()));
     }
+
+    @ExceptionHandler(MpAccountNotLinkedException.class)
+    public ResponseEntity<String> handleMpAccountNotLinked(MpAccountNotLinkedException e) {
+        return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED)
+                .body(e.getMessage());
+    }
+
+    @ExceptionHandler(MpOAuthException.class)
+    public ResponseEntity<String> handleMpOAuth(MpOAuthException e) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(e.getMessage());
+    }
 }
