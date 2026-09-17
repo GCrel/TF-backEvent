@@ -44,4 +44,8 @@ public class EventParticipation {
     public int hashCode() {
         return Objects.hashCode(id);
     }
+
+    public User getUser() {
+        return this.user;
+    }
 }

@@ -5,13 +5,17 @@ import org.gcrel.tfbackevent.dto.response.PurchaseResponse;
 import org.gcrel.tfbackevent.dto.response.TicketResponse;
 import org.gcrel.tfbackevent.exception.*;
 import org.gcrel.tfbackevent.model.Event;
+import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.Payment;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.repository.EventRepository;
+import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.repository.PaymentRepository;
 import org.gcrel.tfbackevent.repository.TicketRepository;
 import org.springframework.stereotype.Service;
@@ -29,6 +33,9 @@ public class TicketService {
     private final MercadoPagoService mercadoPagoService;
     private final QRService qrService;
     private final EmailService emailService;
+    private final EventParticipationRepository eventParticipationRepository;
+    private final OrganizerMpAccountRepository mpAccountRepository;
+    private final MpOAuthService mpOAuthService;
 
     public TicketService(
             TicketRepository ticketRepository,
@@ -36,28 +43,44 @@ public class TicketService {
             EventRepository eventRepository,
             MercadoPagoService mercadoPagoService,
             QRService qrService,
-            EmailService emailService) {
+            EmailService emailService,
+            EventParticipationRepository eventParticipationRepository,
+            OrganizerMpAccountRepository mpAccountRepository,
+            MpOAuthService mpOAuthService) {
         this.ticketRepository = ticketRepository;
         this.paymentRepository = paymentRepository;
         this.eventRepository = eventRepository;
         this.mercadoPagoService = mercadoPagoService;
         this.qrService = qrService;
         this.emailService = emailService;
+        this.eventParticipationRepository = eventParticipationRepository;
+        this.mpAccountRepository = mpAccountRepository;
+        this.mpOAuthService = mpOAuthService;
     }
 
     @Transactional
     public PurchaseResponse purchase(PurchaseTicketRequest request, User attendee) {
-        Event event = eventRepository
-                .findById(request.getEventId())
+        Event event = eventRepository.findById(request.getEventId())
                 .orElseThrow(() -> new EventNotFoundException(request.getEventId()));
 
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new EventNotAvailableException();
         }
 
+        // Obtener organizador del evento
+        EventParticipation organizerParticipation = eventParticipationRepository
+                .findByEventAndEventRole(event, EventRole.ORGANIZER)
+                .orElseThrow(MpAccountNotLinkedException::new);
+
+        if (!mpAccountRepository.existsByUser(organizerParticipation.getUser())) {
+            throw new MpAccountNotLinkedException();
+        }
+
+        // Crear ticket en estado PENDING
         Ticket ticket = new Ticket(LocalDateTime.now(), event, attendee);
         ticketRepository.save(ticket);
 
+        // Procesar pago con token del organizador
         com.mercadopago.resources.payment.Payment mpPayment;
         try {
             mpPayment = mercadoPagoService.processPayment(
@@ -65,7 +88,8 @@ public class TicketService {
                     event.getBasePrice(),
                     request.getInstallments(),
                     request.getPayerEmail(),
-                    request.getPaymentMethodId());
+                    request.getPaymentMethodId(),
+                    mpOAuthService.getValidAccessToken(organizerParticipation.getUser()));
         } catch (PaymentRejectedException e) {
             ticket.setStatus(TicketStatus.CANCELLED);
             ticketRepository.save(ticket);

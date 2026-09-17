@@ -79,6 +79,10 @@ public class Payment {
         return ticket;
     }
 
+    public String getTransactionId() {
+        return transactionId;
+    }
+
     public void setTicket(Ticket ticket) {
         this.ticket = ticket;
     }
