@@ -19,6 +19,7 @@ import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.repository.EventRepository;
+import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.service.EventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,9 @@ public class EventServiceTest {
 
     @Mock
     private EventParticipationRepository eventParticipationRepository;
+
+    @Mock
+    private OrganizerMpAccountRepository mpAccountRepository;
 
     @InjectMocks
     private EventService eventService;
@@ -299,6 +303,7 @@ public class EventServiceTest {
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER))
                 .thenReturn(true);
+        when(mpAccountRepository.existsByUser(organizer)).thenReturn(true);
 
         EventResponse response = eventService.publishEvent(eventId, organizer);
 

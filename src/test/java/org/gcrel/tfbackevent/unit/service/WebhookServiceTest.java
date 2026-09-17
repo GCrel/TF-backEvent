@@ -10,14 +10,18 @@ import com.mercadopago.resources.payment.Payment;
 import org.gcrel.tfbackevent.dto.request.WebhookPaymentRequest;
 import org.gcrel.tfbackevent.exception.WebhookValidationException;
 import org.gcrel.tfbackevent.model.Event;
+import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.repository.PaymentRepository;
 import org.gcrel.tfbackevent.repository.TicketRepository;
 import org.gcrel.tfbackevent.service.EmailService;
 import org.gcrel.tfbackevent.service.MercadoPagoService;
+import org.gcrel.tfbackevent.service.MpOAuthService;
 import org.gcrel.tfbackevent.service.QRService;
 import org.gcrel.tfbackevent.service.WebhookService;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +49,10 @@ public class WebhookServiceTest {
     @Mock
     private PaymentRepository paymentRepository;
     @Mock
+    private OrganizerMpAccountRepository mpAccountRepository;
+    @Mock
+    private MpOAuthService mpOAuthService;
+    @Mock
     private MercadoPagoService mercadoPagoService;
     @Mock
     private QRService qrService;
@@ -57,12 +65,14 @@ public class WebhookServiceTest {
     private static final String SECRET = "test-secret-key";
     private static final String REQUEST_ID = "req-12345";
     private static final String PAYMENT_ID = "987654321";
+    private static final String ORGANIZER_TOKEN = "ORGANIZER-TOKEN-123";
 
     private WebhookPaymentRequest request;
     private Payment mpPaymentMock;
     private org.gcrel.tfbackevent.model.Payment localPayment;
     private Ticket ticket;
     private User attendee;
+    private OrganizerMpAccount organizerAccount;
 
     @BeforeEach
     void setUp() {
@@ -80,6 +90,17 @@ public class WebhookServiceTest {
                 LocalDateTime.now().plusDays(1),
                 new BigDecimal("1000.00")) {
         };
+
+        User organizer = new User();
+        organizer.setEmail("organizer@webhook.com");
+
+        organizerAccount = new OrganizerMpAccount(
+                organizer,
+                ORGANIZER_TOKEN,
+                "refresh-token",
+                "12345",
+                "organizer@webhook.com",
+                LocalDateTime.now().plusDays(1));
 
         ticket = new Ticket(LocalDateTime.now(), event, attendee);
         ticket.setId(UUID.randomUUID());
@@ -111,7 +132,7 @@ public class WebhookServiceTest {
                 () -> webhookService.processPaymentNotification(
                         request, invalidSignature, REQUEST_ID));
 
-        verify(mercadoPagoService, never()).getPaymentById(anyString());
+        verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
     }
 
     @Test
@@ -121,15 +142,19 @@ public class WebhookServiceTest {
 
         webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
 
-        verify(mercadoPagoService, never()).getPaymentById(anyString());
+        verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
     }
 
     @Test
     void processPaymentNotification_WhenPaymentIsApproved_UpdatesAndSendsEmail() throws Exception {
         String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
 
-        when(mercadoPagoService.getPaymentById(PAYMENT_ID)).thenReturn(mpPaymentMock);
-        when(mpPaymentMock.getId()).thenReturn(Long.parseLong(PAYMENT_ID));
+        when(mpAccountRepository.findByPaymentTransactionId(PAYMENT_ID, EventRole.ORGANIZER))
+                .thenReturn(Optional.of(organizerAccount));
+        when(mpOAuthService.getValidAccessToken(organizerAccount)).thenReturn(ORGANIZER_TOKEN);
+
+        when(mercadoPagoService.getPaymentById(PAYMENT_ID, ORGANIZER_TOKEN))
+                .thenReturn(mpPaymentMock);
         when(mpPaymentMock.getStatus()).thenReturn("approved");
 
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
@@ -152,8 +177,12 @@ public class WebhookServiceTest {
     void processPaymentNotification_WhenPaymentIsRejected_UpdatesStatusOnly() throws Exception {
         String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
 
-        when(mercadoPagoService.getPaymentById(PAYMENT_ID)).thenReturn(mpPaymentMock);
-        when(mpPaymentMock.getId()).thenReturn(Long.parseLong(PAYMENT_ID));
+        when(mpAccountRepository.findByPaymentTransactionId(PAYMENT_ID, EventRole.ORGANIZER))
+                .thenReturn(Optional.of(organizerAccount));
+        when(mpOAuthService.getValidAccessToken(organizerAccount)).thenReturn(ORGANIZER_TOKEN);
+
+        when(mercadoPagoService.getPaymentById(PAYMENT_ID, ORGANIZER_TOKEN))
+                .thenReturn(mpPaymentMock);
         when(mpPaymentMock.getStatus()).thenReturn("rejected"); // Podría ser "cancelled" también
 
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
@@ -174,12 +203,11 @@ public class WebhookServiceTest {
     void processPaymentNotification_WhenLocalPaymentNotFound_ReturnsEarly() throws Exception {
         String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
 
-        when(mercadoPagoService.getPaymentById(PAYMENT_ID)).thenReturn(mpPaymentMock);
-        when(mpPaymentMock.getId()).thenReturn(Long.parseLong(PAYMENT_ID));
         when(paymentRepository.findByTransactionId(PAYMENT_ID)).thenReturn(Optional.empty());
 
         webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
 
+        verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
         verify(ticketRepository, never()).save(any());
         verify(paymentRepository, never()).save(any());
     }
@@ -190,13 +218,13 @@ public class WebhookServiceTest {
 
         localPayment.setPaymentStatus(PaymentStatus.APPROVED);
 
-        when(mercadoPagoService.getPaymentById(PAYMENT_ID)).thenReturn(mpPaymentMock);
-        when(mpPaymentMock.getId()).thenReturn(Long.parseLong(PAYMENT_ID));
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
                 .thenReturn(Optional.of(localPayment));
 
         webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
 
+        verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
+        verify(mpAccountRepository, never()).findByPaymentTransactionId(anyString(), any());
         verify(ticketRepository, never()).save(any());
         verify(mpPaymentMock, never()).getStatus();
     }
