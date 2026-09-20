@@ -5,20 +5,16 @@ import org.gcrel.tfbackevent.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.exception.WebhookValidationException;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.Payment;
-import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
-import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.repository.PaymentRepository;
-import org.gcrel.tfbackevent.repository.TicketRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
@@ -28,36 +24,26 @@ import javax.crypto.spec.SecretKeySpec;
 
 @Service
 public class WebhookService {
-    private final TicketRepository ticketRepository;
     private final PaymentRepository paymentRepository;
     private final MercadoPagoService mercadoPagoService;
-    private final QRService qrService;
-    private final EmailService emailService;
     private final OrganizerMpAccountRepository mpAccountRepository;
     private final MpOAuthService mpOAuthService;
+    private final PaymentService paymentService;
 
     @Value("${MERCADO_PAGO_WEBHOOK_SECRET}")
     private String webhookSecret;
 
-    public WebhookService(
-            TicketRepository ticketRepository,
-            PaymentRepository paymentRepository,
-            MercadoPagoService mercadoPagoService,
-            QRService qrService,
-            EmailService emailService,
-            OrganizerMpAccountRepository mpAccountRepository,
-            MpOAuthService mpOAuthService) {
-        this.ticketRepository = ticketRepository;
+    public WebhookService(PaymentRepository paymentRepository, MercadoPagoService mercadoPagoService,
+            OrganizerMpAccountRepository mpAccountRepository, MpOAuthService mpOAuthService,
+            PaymentService paymentService) {
         this.paymentRepository = paymentRepository;
         this.mercadoPagoService = mercadoPagoService;
-        this.qrService = qrService;
-        this.emailService = emailService;
         this.mpAccountRepository = mpAccountRepository;
         this.mpOAuthService = mpOAuthService;
+        this.paymentService = paymentService;
     }
 
-    public void processPaymentNotification(
-            WebhookPaymentRequest request, String xSignature, String xRequestId) {
+    public void processPaymentNotification(WebhookPaymentRequest request, String xSignature, String xRequestId) {
 
         validateSignature(xSignature, xRequestId, request.getData().getId());
 
@@ -69,11 +55,7 @@ public class WebhookService {
                 .findByTransactionId(request.getData().getId())
                 .orElse(null);
 
-        if (payment == null) {
-            return;
-        }
-
-        if (payment.getPaymentStatus() != PaymentStatus.PENDING) {
+        if (payment == null || payment.getPaymentStatus() != PaymentStatus.PENDING) {
             return;
         }
 
@@ -82,10 +64,7 @@ public class WebhookService {
         com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService
                 .getPaymentById(request.getData().getId(), organizerAccessToken);
 
-        switch (mpPayment.getStatus()) {
-            case "approved" -> handleApproved(payment, mpPayment);
-            case "rejected", "cancelled" -> handleRejected(payment, mpPayment);
-        }
+        paymentService.handleExistingPayment(payment, mpPayment);
     }
 
     private String getOrganizerToken(Payment payment) {
@@ -94,33 +73,6 @@ public class WebhookService {
                 .orElseThrow(MpAccountNotLinkedException::new);
 
         return mpOAuthService.getValidAccessToken(account);
-    }
-
-    private void handleApproved(
-            Payment payment, com.mercadopago.resources.payment.Payment mpPayment) {
-        Ticket ticket = payment.getTicket();
-
-        ticket.setStatus(TicketStatus.ACTIVE);
-        ticketRepository.save(ticket);
-
-        payment.setPaymentStatus(PaymentStatus.APPROVED);
-        payment.setPaymentDate(LocalDateTime.now());
-        paymentRepository.save(payment);
-
-        String qrBase64 = qrService.generateQRBase64(ticket.getId());
-        emailService.sendTicketEmail(ticket.getAttendee().getEmail(), ticket, qrBase64);
-    }
-
-    private void handleRejected(
-            Payment payment, com.mercadopago.resources.payment.Payment mpPayment) {
-        Ticket ticket = payment.getTicket();
-
-        ticket.setStatus(TicketStatus.CANCELLED);
-        ticketRepository.save(ticket);
-
-        payment.setPaymentStatus(PaymentStatus.REJECTED);
-        payment.setPaymentDate(LocalDateTime.now());
-        paymentRepository.save(payment);
     }
 
     private void validateSignature(String xSignature, String xRequestId, String paymentId) {

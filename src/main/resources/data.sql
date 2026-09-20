@@ -65,12 +65,13 @@ VALUES
 -- ---------------------------------------------------------------------
 -- 5) PAYMENTS (OneToOne con tickets)
 -- ---------------------------------------------------------------------
-INSERT INTO payments (id, transaction_id, total_amount, payment_date, payment_status, ticket_id)
+INSERT INTO payments (id, transaction_id, total_amount, payment_date, payment_status,
+                      delivery_status, delivery_attempts, version, ticket_id)
 VALUES
-    ('dddddddd-0000-0000-0000-000000000001', 'TXN-2026-000001', 150.00, TIMESTAMP '2026-07-01 10:16:30', 'APPROVED', 'cccccccc-0000-0000-0000-000000000001'),
-    ('dddddddd-0000-0000-0000-000000000002', 'TXN-2026-000002',  25.50, TIMESTAMP '2026-07-03 16:42:10', 'APPROVED', 'cccccccc-0000-0000-0000-000000000002'),
-    ('dddddddd-0000-0000-0000-000000000003', 'TXN-2026-000003',   40.00, TIMESTAMP '2026-07-10 21:06:00', 'PENDING',  'cccccccc-0000-0000-0000-000000000003'),
-    ('dddddddd-0000-0000-0000-000000000004', 'TXN-2026-000004',  150.00, TIMESTAMP '2026-06-25 08:01:45', 'REJECTED', 'cccccccc-0000-0000-0000-000000000004');
+    ('dddddddd-0000-0000-0000-000000000001', 'TXN-2026-000001', 150.00, TIMESTAMP '2026-07-01 10:16:30', 'APPROVED', 'SENT',         1, 0, 'cccccccc-0000-0000-0000-000000000001'),
+    ('dddddddd-0000-0000-0000-000000000002', 'TXN-2026-000002',  25.50, TIMESTAMP '2026-07-03 16:42:10', 'APPROVED', 'SENT',         1, 0, 'cccccccc-0000-0000-0000-000000000002'),
+    ('dddddddd-0000-0000-0000-000000000003', 'TXN-2026-000003',   40.00, TIMESTAMP '2026-07-10 21:06:00', 'PENDING',  'NOT_REQUIRED', 0, 0, 'cccccccc-0000-0000-0000-000000000003'),
+    ('dddddddd-0000-0000-0000-000000000004', 'TXN-2026-000004',  150.00, TIMESTAMP '2026-06-25 08:01:45', 'REJECTED', 'NOT_REQUIRED', 0, 0, 'cccccccc-0000-0000-0000-000000000004');
 
 -- ---------------------------------------------------------------------
 -- 6) REFRESH_TOKEN (depende de users)

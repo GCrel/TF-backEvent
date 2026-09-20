@@ -36,7 +36,7 @@ public class Ticket {
 
     public Ticket(LocalDateTime boughtAt, Event event, User attendee) {
         this.boughtAt = boughtAt;
-        this.status = TicketStatus.ACTIVE;
+        this.status = TicketStatus.PENDING;
         this.event = event;
         this.attendee = attendee;
     }

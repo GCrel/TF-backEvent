@@ -3,6 +3,7 @@ package org.gcrel.tfbackevent.model;
 import jakarta.persistence.*;
 
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
+import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -31,6 +32,29 @@ public class Payment {
     @Column(name = "payment_status", nullable = false)
     private PaymentStatus paymentStatus;
 
+    @Column(name = "mp_status")
+    private String mercadoPagoStatus;
+
+    @Column(name = "status_detail")
+    private String statusDetail;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_status", nullable = false)
+    private DeliveryStatus deliveryStatus;
+
+    @Column(name = "delivery_attempts", nullable = false)
+    private int deliveryAttempts;
+
+    @Column(name = "next_delivery_attempt_at")
+    private LocalDateTime nextDeliveryAttemptAt;
+
+    @Column(name = "last_delivery_error")
+    private String lastDeliveryError;
+
+    @Column(nullable = false)
+    @Version
+    private long version;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ticket_id", nullable = false)
     private Ticket ticket;
@@ -47,6 +71,8 @@ public class Payment {
         this.totalAmount = totalAmount;
         this.paymentDate = paymentDate;
         this.paymentStatus = PaymentStatus.PENDING;
+        this.deliveryStatus = DeliveryStatus.NOT_REQUIRED;
+        this.deliveryAttempts = 0;
         this.ticket = ticket;
     }
 
@@ -93,5 +119,53 @@ public class Payment {
 
     public void setPaymentDate(LocalDateTime date) {
         this.paymentDate = date;
+    }
+
+    public String getMercadoPagoStatus() {
+        return mercadoPagoStatus;
+    }
+
+    public String getStatusDetail() {
+        return statusDetail;
+    }
+
+    public DeliveryStatus getDeliveryStatus() {
+        return deliveryStatus;
+    }
+
+    public int getDeliveryAttempts() {
+        return deliveryAttempts;
+    }
+
+    public LocalDateTime getNextDeliveryAttemptAt() {
+        return nextDeliveryAttemptAt;
+    }
+
+    public String getLastDeliveryError() {
+        return lastDeliveryError;
+    }
+
+    public void setMercadoPagoStatus(String mercadoPagoStatus) {
+        this.mercadoPagoStatus = mercadoPagoStatus;
+    }
+
+    public void setStatusDetail(String statusDetail) {
+        this.statusDetail = statusDetail;
+    }
+
+    public void setDeliveryStatus(DeliveryStatus deliveryStatus) {
+        this.deliveryStatus = deliveryStatus;
+    }
+
+    public void setDeliveryAttempts(int deliveryAttempts) {
+        this.deliveryAttempts = deliveryAttempts;
+    }
+
+    public void setNextDeliveryAttemptAt(LocalDateTime nextDeliveryAttemptAt) {
+        this.nextDeliveryAttemptAt = nextDeliveryAttemptAt;
+    }
+
+    public void setLastDeliveryError(String lastDeliveryError) {
+        this.lastDeliveryError = lastDeliveryError;
     }
 }
