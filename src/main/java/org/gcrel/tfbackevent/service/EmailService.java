@@ -6,6 +6,7 @@ import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.exception.TicketDeliveryException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -46,7 +47,6 @@ public class EmailService {
         }
     }
 
-    @Async
     public void sendTicketEmail(String to, Ticket ticket, String qrBase64) {
         MimeMessage message = mailSender.createMimeMessage();
         try {
@@ -63,14 +63,9 @@ public class EmailService {
             helper.addInline("qrImage", new ByteArrayResource(qrBytes), "image/png");
 
             mailSender.send(message);
-        } catch (MessagingException e) {
-            // Log del error pero no interrumpimos el flujo de compra
-            log.error(
-                    "No se pudo enviar el email de entrada. ticketId={}, eventId={}, to={}",
-                    ticket.getId(),
-                    ticket.getEvent().getId(),
-                    to,
-                    e);
+        } catch (MessagingException | MailException e) {
+            throw new TicketDeliveryException(
+                    "No se pudo enviar el email de entrada para el ticket " + ticket.getId(), e);
         }
     }
 }
