@@ -1,7 +1,5 @@
 package org.gcrel.tfbackevent.unit.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
@@ -22,6 +20,7 @@ import org.gcrel.tfbackevent.repository.TicketRepository;
 import org.gcrel.tfbackevent.service.EmailService;
 import org.gcrel.tfbackevent.service.MercadoPagoService;
 import org.gcrel.tfbackevent.service.MpOAuthService;
+import org.gcrel.tfbackevent.service.PaymentService;
 import org.gcrel.tfbackevent.service.QRService;
 import org.gcrel.tfbackevent.service.WebhookService;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +57,8 @@ public class WebhookServiceTest {
     private QRService qrService;
     @Mock
     private EmailService emailService;
+    @Mock
+    private PaymentService paymentService;
 
     @InjectMocks
     private WebhookService webhookService;
@@ -155,22 +156,11 @@ public class WebhookServiceTest {
 
         when(mercadoPagoService.getPaymentById(PAYMENT_ID, ORGANIZER_TOKEN))
                 .thenReturn(mpPaymentMock);
-        when(mpPaymentMock.getStatus()).thenReturn("approved");
-
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
                 .thenReturn(Optional.of(localPayment));
-        when(qrService.generateQRBase64(ticket.getId())).thenReturn("qr_base64_string");
-
         webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
 
-        assertEquals(TicketStatus.ACTIVE, ticket.getStatus());
-        assertEquals(PaymentStatus.APPROVED, localPayment.getPaymentStatus());
-        assertNotNull(localPayment.getPaymentDate());
-
-        verify(ticketRepository).save(ticket);
-        verify(paymentRepository).save(localPayment);
-        verify(emailService)
-                .sendTicketEmail(eq(attendee.getEmail()), eq(ticket), eq("qr_base64_string"));
+        verify(paymentService).handleExistingPayment(localPayment, mpPaymentMock);
     }
 
     @Test
@@ -183,20 +173,12 @@ public class WebhookServiceTest {
 
         when(mercadoPagoService.getPaymentById(PAYMENT_ID, ORGANIZER_TOKEN))
                 .thenReturn(mpPaymentMock);
-        when(mpPaymentMock.getStatus()).thenReturn("rejected"); // Podría ser "cancelled" también
-
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
                 .thenReturn(Optional.of(localPayment));
 
         webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
 
-        assertEquals(TicketStatus.CANCELLED, ticket.getStatus());
-        assertEquals(PaymentStatus.REJECTED, localPayment.getPaymentStatus());
-
-        verify(ticketRepository).save(ticket);
-        verify(paymentRepository).save(localPayment);
-        verify(qrService, never()).generateQRBase64(any());
-        verify(emailService, never()).sendTicketEmail(anyString(), any(), anyString());
+        verify(paymentService).handleExistingPayment(localPayment, mpPaymentMock);
     }
 
     @Test

@@ -25,6 +25,7 @@ import org.gcrel.tfbackevent.repository.TicketRepository;
 import org.gcrel.tfbackevent.service.EmailService;
 import org.gcrel.tfbackevent.service.MercadoPagoService;
 import org.gcrel.tfbackevent.service.MpOAuthService;
+import org.gcrel.tfbackevent.service.PaymentService;
 import org.gcrel.tfbackevent.service.QRService;
 import org.gcrel.tfbackevent.service.TicketService;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +60,8 @@ public class TicketServiceTest {
     private QRService qrService;
     @Mock
     private EmailService emailService;
+    @Mock
+    private PaymentService paymentService;
 
     @InjectMocks
     private TicketService ticketService;
@@ -107,26 +110,20 @@ public class TicketServiceTest {
         when(eventRepository.findById(purchaseRequest.getEventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
-        when(mpAccountRepository.existsByUser(organizer)).thenReturn(true);
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
-        when(mpPaymentMock.getStatus()).thenReturn("approved");
-        when(mpPaymentMock.getId()).thenReturn(123456789L);
-        when(mpPaymentMock.getTransactionAmount()).thenReturn(new BigDecimal("1000.00"));
 
         when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any()))
                 .thenReturn(mpPaymentMock);
-        when(qrService.generateQRBase64(any())).thenReturn("qr_base64_string");
+        PurchaseResponse expected = new PurchaseResponse(
+                ticket.getId(), "approved", null, "approved", "qr_base64_string");
+        when(paymentService.handleNewPayment(any(), eq(mpPaymentMock), eq(attendee))).thenReturn(expected);
 
         PurchaseResponse response = ticketService.purchase(purchaseRequest, attendee);
 
         assertEquals("approved", response.getStatus());
         assertEquals("qr_base64_string", response.getQrCodeBase64());
 
-        verify(ticketRepository, times(2)).save(any(Ticket.class));
-        verify(paymentRepository, times(1)).save(any());
-        verify(emailService, times(1))
-                .sendTicketEmail(
-                        eq(attendee.getEmail()), any(Ticket.class), eq("qr_base64_string"));
+        verify(paymentService).handleNewPayment(any(Ticket.class), eq(mpPaymentMock), eq(attendee));
     }
 
     @Test
@@ -146,7 +143,6 @@ public class TicketServiceTest {
         when(eventRepository.findById(purchaseRequest.getEventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
-        when(mpAccountRepository.existsByUser(organizer)).thenReturn(true);
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
         when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any()))
                 .thenThrow(new PaymentRejectedException("Rejected"));
@@ -165,11 +161,9 @@ public class TicketServiceTest {
     @Test
     void resendTicketEmail_WhenValid_SendsEmail() {
         when(ticketRepository.findById(ticket.getId())).thenReturn(Optional.of(ticket));
-        when(qrService.generateQRBase64(ticket.getId())).thenReturn("qr_base64");
-
         ticketService.resendTicketEmail(ticket.getId(), attendee);
 
-        verify(emailService, times(1)).sendTicketEmail(attendee.getEmail(), ticket, "qr_base64");
+        verify(paymentService).requestDelivery(ticket);
     }
 
     @Test
