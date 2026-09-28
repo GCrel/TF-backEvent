@@ -1,9 +1,26 @@
 package org.gcrel.tfbackevent.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+
+import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
+import org.gcrel.tfbackevent.payment.service.MercadoPagoService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.MockedConstruction;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.mercadopago.MercadoPagoConfig;
 import com.mercadopago.client.payment.PaymentClient;
@@ -11,16 +28,6 @@ import com.mercadopago.client.payment.PaymentCreateRequest;
 import com.mercadopago.core.MPRequestOptions;
 import com.mercadopago.exceptions.MPException;
 import com.mercadopago.resources.payment.Payment;
-
-import org.gcrel.tfbackevent.exception.PaymentRejectedException;
-import org.gcrel.tfbackevent.service.MercadoPagoService;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.MockedConstruction;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
 
 @ExtendWith(MockitoExtension.class)
 public class MercadoPagoServiceTest {

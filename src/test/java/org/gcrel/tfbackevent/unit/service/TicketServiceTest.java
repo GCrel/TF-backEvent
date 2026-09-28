@@ -1,15 +1,27 @@
 package org.gcrel.tfbackevent.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import com.mercadopago.resources.payment.Payment;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
 
-import org.gcrel.tfbackevent.dto.request.PurchaseTicketRequest;
-import org.gcrel.tfbackevent.dto.response.PurchaseResponse;
-import org.gcrel.tfbackevent.exception.*;
+import org.gcrel.tfbackevent.auth.service.EmailService;
+import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
+import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
+import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.Ticket;
@@ -17,17 +29,19 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
-import org.gcrel.tfbackevent.repository.EventParticipationRepository;
-import org.gcrel.tfbackevent.repository.EventRepository;
-import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
-import org.gcrel.tfbackevent.repository.PaymentRepository;
-import org.gcrel.tfbackevent.repository.TicketRepository;
-import org.gcrel.tfbackevent.service.EmailService;
-import org.gcrel.tfbackevent.service.MercadoPagoService;
-import org.gcrel.tfbackevent.service.MpOAuthService;
-import org.gcrel.tfbackevent.service.PaymentService;
-import org.gcrel.tfbackevent.service.QRService;
-import org.gcrel.tfbackevent.service.TicketService;
+import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
+import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
+import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
+import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
+import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException;
+import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.service.MercadoPagoService;
+import org.gcrel.tfbackevent.payment.service.MpOAuthService;
+import org.gcrel.tfbackevent.payment.service.PaymentService;
+import org.gcrel.tfbackevent.payment.service.QRService;
+import org.gcrel.tfbackevent.payment.service.TicketService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,10 +49,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.Optional;
-import java.util.UUID;
+import com.mercadopago.resources.payment.Payment;
 
 @ExtendWith(MockitoExtension.class)
 public class TicketServiceTest {

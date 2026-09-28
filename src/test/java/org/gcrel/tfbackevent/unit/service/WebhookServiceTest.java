@@ -1,35 +1,12 @@
 package org.gcrel.tfbackevent.unit.service;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.*;
-
-import com.mercadopago.resources.payment.Payment;
-
-import org.gcrel.tfbackevent.dto.request.WebhookPaymentRequest;
-import org.gcrel.tfbackevent.exception.WebhookValidationException;
-import org.gcrel.tfbackevent.model.Event;
-import org.gcrel.tfbackevent.model.OrganizerMpAccount;
-import org.gcrel.tfbackevent.model.Ticket;
-import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.model.enums.EventRole;
-import org.gcrel.tfbackevent.model.enums.PaymentStatus;
-import org.gcrel.tfbackevent.model.enums.TicketStatus;
-import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
-import org.gcrel.tfbackevent.repository.PaymentRepository;
-import org.gcrel.tfbackevent.repository.TicketRepository;
-import org.gcrel.tfbackevent.service.EmailService;
-import org.gcrel.tfbackevent.service.MercadoPagoService;
-import org.gcrel.tfbackevent.service.MpOAuthService;
-import org.gcrel.tfbackevent.service.PaymentService;
-import org.gcrel.tfbackevent.service.QRService;
-import org.gcrel.tfbackevent.service.WebhookService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +17,34 @@ import java.util.UUID;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+
+import org.gcrel.tfbackevent.auth.service.EmailService;
+import org.gcrel.tfbackevent.model.Event;
+import org.gcrel.tfbackevent.model.OrganizerMpAccount;
+import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventRole;
+import org.gcrel.tfbackevent.model.enums.PaymentStatus;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.dto.request.WebhookPaymentRequest;
+import org.gcrel.tfbackevent.payment.exception.WebhookValidationException;
+import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.service.MercadoPagoService;
+import org.gcrel.tfbackevent.payment.service.MpOAuthService;
+import org.gcrel.tfbackevent.payment.service.PaymentService;
+import org.gcrel.tfbackevent.payment.service.QRService;
+import org.gcrel.tfbackevent.payment.service.WebhookService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import com.mercadopago.resources.payment.Payment;
 
 @ExtendWith(MockitoExtension.class)
 public class WebhookServiceTest {

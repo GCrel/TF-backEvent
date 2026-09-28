@@ -1,21 +1,36 @@
 package org.gcrel.tfbackevent.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import org.gcrel.tfbackevent.dto.request.RefreshTokenRequest;
-import org.gcrel.tfbackevent.dto.request.RegisterRequest;
-import org.gcrel.tfbackevent.dto.response.AuthResponse;
-import org.gcrel.tfbackevent.exception.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+import org.gcrel.tfbackevent.auth.dto.request.RefreshTokenRequest;
+import org.gcrel.tfbackevent.auth.dto.request.RegisterRequest;
+import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
+import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
+import org.gcrel.tfbackevent.auth.exception.EmailNotVerifiedException;
+import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
+import org.gcrel.tfbackevent.auth.exception.InvalidTokenException;
+import org.gcrel.tfbackevent.auth.exception.VerificationCodeExpiredException;
+import org.gcrel.tfbackevent.auth.repository.RefreshTokenRepository;
+import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.auth.service.AuthService;
+import org.gcrel.tfbackevent.auth.service.EmailService;
+import org.gcrel.tfbackevent.auth.service.JwtService;
 import org.gcrel.tfbackevent.model.RefreshToken;
 import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.repository.RefreshTokenRepository;
-import org.gcrel.tfbackevent.repository.UserRepository;
-import org.gcrel.tfbackevent.service.AuthService;
-import org.gcrel.tfbackevent.service.EmailService;
-import org.gcrel.tfbackevent.service.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,10 +39,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 public class AuthServiceTest {

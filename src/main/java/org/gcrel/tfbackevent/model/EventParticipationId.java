@@ -1,15 +1,15 @@
 package org.gcrel.tfbackevent.model;
 
+import java.io.Serializable;
+import java.util.Objects;
+import java.util.UUID;
+
+import org.gcrel.tfbackevent.model.enums.EventRole;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-
-import org.gcrel.tfbackevent.model.enums.EventRole;
-
-import java.io.Serializable;
-import java.util.Objects;
-import java.util.UUID;
 
 @Embeddable
 public class EventParticipationId implements Serializable {

@@ -7,22 +7,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.when;
 
-import com.google.zxing.WriterException;
-import com.google.zxing.qrcode.QRCodeWriter;
+import java.util.Base64;
+import java.util.UUID;
 
-import org.gcrel.tfbackevent.exception.QRGenerationException;
-import org.gcrel.tfbackevent.service.QRService;
+import org.gcrel.tfbackevent.payment.exception.QRGenerationException;
+import org.gcrel.tfbackevent.payment.service.QRService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Base64;
-import java.util.UUID;
+import com.google.zxing.WriterException;
+import com.google.zxing.qrcode.QRCodeWriter;
 
 @ExtendWith(MockitoExtension.class)
 public class QRServiceTest {

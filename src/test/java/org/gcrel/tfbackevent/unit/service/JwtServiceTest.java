@@ -1,20 +1,25 @@
 package org.gcrel.tfbackevent.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.jsonwebtoken.JwtException;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
+import org.gcrel.tfbackevent.auth.service.JwtService;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
-import org.gcrel.tfbackevent.service.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
+import io.jsonwebtoken.JwtException;
 
 class JwtServiceTest {
 

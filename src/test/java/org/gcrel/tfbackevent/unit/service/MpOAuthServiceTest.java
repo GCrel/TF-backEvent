@@ -4,13 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.argThat;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -18,13 +18,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.gcrel.tfbackevent.exception.InvalidCredentialsException;
-import org.gcrel.tfbackevent.exception.MpAccountNotLinkedException;
+import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
+import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
-import org.gcrel.tfbackevent.repository.UserRepository;
-import org.gcrel.tfbackevent.service.MpOAuthService;
+import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
+import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.service.MpOAuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,8 +36,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
-
-import com.mercadopago.net.HttpStatus;
 
 @ExtendWith(MockitoExtension.class)
 public class MpOAuthServiceTest {
@@ -115,12 +113,11 @@ public class MpOAuthServiceTest {
             assertTrue(response.isLinked());
             assertEquals("organizer@mp.com", response.getMpEmail());
 
-            verify(mpAccountRepository).save(argThat(saved ->
-                    saved.getMpAccessToken().equals("new_access_token")
-                            && saved.getMpRefreshToken().equals("new_refresh_token")
-                            && saved.getMpUserId().equals("123456789")
-                            && saved.getMpEmail().equals("organizer@mp.com")
-                            && saved.getMpTokenExpiresAt().isAfter(LocalDateTime.now())));
+            verify(mpAccountRepository).save(argThat(saved -> saved.getMpAccessToken().equals("new_access_token")
+                    && saved.getMpRefreshToken().equals("new_refresh_token")
+                    && saved.getMpUserId().equals("123456789")
+                    && saved.getMpEmail().equals("organizer@mp.com")
+                    && saved.getMpTokenExpiresAt().isAfter(LocalDateTime.now())));
             // Como se crean dos RestTemplate (uno para token, otro para email), verificamos
             // la cantidad
             assertEquals(2, mocked.constructed().size());
@@ -130,37 +127,37 @@ public class MpOAuthServiceTest {
 
     @Test
     void linkAccount_WhenAccountAlreadyExists_UpdatesAllOAuthCredentials() {
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-            when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
 
-            Map<String, Object> tokenResponseBody = new HashMap<>();
-            tokenResponseBody.put("access_token", "updated_access_token");
-            tokenResponseBody.put("user_id", 987654321);
-            tokenResponseBody.put("refresh_token", "updated_refresh_token");
-            tokenResponseBody.put("expires_in", 7200);
-            ResponseEntity<Map> tokenResponse = ResponseEntity.ok(tokenResponseBody);
+        Map<String, Object> tokenResponseBody = new HashMap<>();
+        tokenResponseBody.put("access_token", "updated_access_token");
+        tokenResponseBody.put("user_id", 987654321);
+        tokenResponseBody.put("refresh_token", "updated_refresh_token");
+        tokenResponseBody.put("expires_in", 7200);
+        ResponseEntity<Map> tokenResponse = ResponseEntity.ok(tokenResponseBody);
 
-            Map<String, Object> emailResponseBody = new HashMap<>();
-            emailResponseBody.put("email", "updated@mp.com");
-            ResponseEntity<Map> emailResponse = ResponseEntity.ok(emailResponseBody);
+        Map<String, Object> emailResponseBody = new HashMap<>();
+        emailResponseBody.put("email", "updated@mp.com");
+        ResponseEntity<Map> emailResponse = ResponseEntity.ok(emailResponseBody);
 
-            try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
-                    (mock, context) -> {
-                        when(mock.postForEntity(eq("https://api.mercadopago.com/oauth/token"), any(), eq(Map.class)))
-                                .thenReturn(tokenResponse);
-                        when(mock.exchange(contains("https://api.mercadopago.com/users/"), eq(HttpMethod.GET), any(),
-                                eq(Map.class)))
-                                .thenReturn(emailResponse);
-                    })) {
-                mpOAuthService.linkAccount("new-auth-code", userId);
-            }
+        try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
+                (mock, context) -> {
+                    when(mock.postForEntity(eq("https://api.mercadopago.com/oauth/token"), any(), eq(Map.class)))
+                            .thenReturn(tokenResponse);
+                    when(mock.exchange(contains("https://api.mercadopago.com/users/"), eq(HttpMethod.GET), any(),
+                            eq(Map.class)))
+                            .thenReturn(emailResponse);
+                })) {
+            mpOAuthService.linkAccount("new-auth-code", userId);
+        }
 
-            assertEquals("updated_access_token", account.getMpAccessToken());
-            assertEquals("updated_refresh_token", account.getMpRefreshToken());
-            assertEquals("987654321", account.getMpUserId());
-            assertEquals("updated@mp.com", account.getMpEmail());
-            assertTrue(account.getMpTokenExpiresAt().isAfter(LocalDateTime.now()));
-            verify(mpAccountRepository).save(account);
+        assertEquals("updated_access_token", account.getMpAccessToken());
+        assertEquals("updated_refresh_token", account.getMpRefreshToken());
+        assertEquals("987654321", account.getMpUserId());
+        assertEquals("updated@mp.com", account.getMpEmail());
+        assertTrue(account.getMpTokenExpiresAt().isAfter(LocalDateTime.now()));
+        verify(mpAccountRepository).save(account);
     }
 
     @Test

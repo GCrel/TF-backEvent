@@ -1,33 +1,11 @@
 package org.gcrel.tfbackevent.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
-import org.gcrel.tfbackevent.dto.request.CreateEventRequest;
-import org.gcrel.tfbackevent.dto.request.UpdateEventRequest;
-import org.gcrel.tfbackevent.dto.response.EventResponse;
-import org.gcrel.tfbackevent.exception.EventNotFoundException;
-import org.gcrel.tfbackevent.exception.EventNotModifiableException;
-import org.gcrel.tfbackevent.exception.UnauthorizedEventAccessException;
-import org.gcrel.tfbackevent.model.Event;
-import org.gcrel.tfbackevent.model.EventParticipation;
-import org.gcrel.tfbackevent.model.InPersonEvent;
-import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.model.VirtualEvent;
-import org.gcrel.tfbackevent.model.enums.EventRole;
-import org.gcrel.tfbackevent.model.enums.EventStatus;
-import org.gcrel.tfbackevent.repository.EventParticipationRepository;
-import org.gcrel.tfbackevent.repository.EventRepository;
-import org.gcrel.tfbackevent.repository.OrganizerMpAccountRepository;
-import org.gcrel.tfbackevent.service.EventService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -35,6 +13,31 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
+import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
+import org.gcrel.tfbackevent.event.dto.response.EventResponse;
+import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
+import org.gcrel.tfbackevent.event.exception.EventNotModifiableException;
+import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
+import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
+import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.event.service.EventService;
+import org.gcrel.tfbackevent.model.Event;
+import org.gcrel.tfbackevent.model.EventParticipation;
+import org.gcrel.tfbackevent.model.InPersonEvent;
+import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.VirtualEvent;
+import org.gcrel.tfbackevent.model.enums.EventRole;
+import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class EventServiceTest {

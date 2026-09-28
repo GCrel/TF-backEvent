@@ -11,25 +11,24 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.time.LocalDate;
 
-import org.gcrel.tfbackevent.config.GlobalExceptionHandler;
-import org.gcrel.tfbackevent.config.SecurityConfig;
-import org.gcrel.tfbackevent.controller.AuthController;
-import org.gcrel.tfbackevent.dto.request.LoginRequest;
-import org.gcrel.tfbackevent.dto.request.RefreshTokenRequest;
-import org.gcrel.tfbackevent.dto.request.RegisterRequest;
-import org.gcrel.tfbackevent.dto.request.VerifyEmailRequest;
-import org.gcrel.tfbackevent.dto.response.AuthResponse;
-import org.gcrel.tfbackevent.exception.EmailAlreadyExistsException;
-import org.gcrel.tfbackevent.exception.EmailNotVerifiedException;
-import org.gcrel.tfbackevent.exception.InvalidCredentialsException;
-import org.gcrel.tfbackevent.exception.InvalidVerificationCodeException;
+import org.gcrel.tfbackevent.auth.controller.AuthController;
+import org.gcrel.tfbackevent.auth.dto.request.LoginRequest;
+import org.gcrel.tfbackevent.auth.dto.request.RefreshTokenRequest;
+import org.gcrel.tfbackevent.auth.dto.request.RegisterRequest;
+import org.gcrel.tfbackevent.auth.dto.request.VerifyEmailRequest;
+import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
+import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
+import org.gcrel.tfbackevent.auth.exception.EmailNotVerifiedException;
+import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
+import org.gcrel.tfbackevent.auth.exception.InvalidVerificationCodeException;
+import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.auth.service.AuthService;
+import org.gcrel.tfbackevent.auth.service.JwtService;
+import org.gcrel.tfbackevent.common.config.GlobalExceptionHandler;
+import org.gcrel.tfbackevent.common.config.SecurityConfig;
 import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.repository.UserRepository;
-import org.gcrel.tfbackevent.service.AuthService;
-import org.gcrel.tfbackevent.service.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +42,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDate;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 @WebMvcTest(controllers = AuthController.class)
 @Import({ GlobalExceptionHandler.class, SecurityConfig.class })

@@ -7,15 +7,13 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import org.gcrel.tfbackevent.config.GlobalExceptionHandler;
-import org.gcrel.tfbackevent.config.SecurityConfig;
-import org.gcrel.tfbackevent.controller.WebhookController;
-import org.gcrel.tfbackevent.dto.request.WebhookPaymentRequest;
-import org.gcrel.tfbackevent.repository.UserRepository;
-import org.gcrel.tfbackevent.service.JwtService;
-import org.gcrel.tfbackevent.service.WebhookService;
+import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.auth.service.JwtService;
+import org.gcrel.tfbackevent.common.config.GlobalExceptionHandler;
+import org.gcrel.tfbackevent.common.config.SecurityConfig;
+import org.gcrel.tfbackevent.payment.controller.WebhookController;
+import org.gcrel.tfbackevent.payment.dto.request.WebhookPaymentRequest;
+import org.gcrel.tfbackevent.payment.service.WebhookService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +24,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @WebMvcTest(controllers = WebhookController.class)
 @Import({ GlobalExceptionHandler.class, SecurityConfig.class })

@@ -10,19 +10,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
-import org.gcrel.tfbackevent.config.GlobalExceptionHandler;
-import org.gcrel.tfbackevent.config.SecurityConfig;
-import org.gcrel.tfbackevent.controller.TicketController;
-import org.gcrel.tfbackevent.dto.request.PurchaseTicketRequest;
-import org.gcrel.tfbackevent.dto.response.PurchaseResponse;
-import org.gcrel.tfbackevent.dto.response.TicketResponse;
+import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.auth.service.JwtService;
+import org.gcrel.tfbackevent.common.config.GlobalExceptionHandler;
+import org.gcrel.tfbackevent.common.config.SecurityConfig;
 import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.repository.UserRepository;
-import org.gcrel.tfbackevent.service.JwtService;
-import org.gcrel.tfbackevent.service.TicketService;
+import org.gcrel.tfbackevent.payment.controller.TicketController;
+import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
+import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
+import org.gcrel.tfbackevent.payment.dto.response.TicketResponse;
+import org.gcrel.tfbackevent.payment.service.TicketService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,10 +38,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 @WebMvcTest(controllers = TicketController.class)
 @Import({ GlobalExceptionHandler.class, SecurityConfig.class })

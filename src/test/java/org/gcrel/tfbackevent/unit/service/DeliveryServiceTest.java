@@ -1,21 +1,32 @@
 package org.gcrel.tfbackevent.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import org.gcrel.tfbackevent.exception.QRGenerationException;
-import org.gcrel.tfbackevent.exception.TicketDeliveryException;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import org.gcrel.tfbackevent.auth.service.EmailService;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.Payment;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
-import org.gcrel.tfbackevent.repository.PaymentRepository;
-import org.gcrel.tfbackevent.service.DeliveryService;
-import org.gcrel.tfbackevent.service.EmailService;
-import org.gcrel.tfbackevent.service.QRService;
+import org.gcrel.tfbackevent.payment.exception.QRGenerationException;
+import org.gcrel.tfbackevent.payment.exception.TicketDeliveryException;
+import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
+import org.gcrel.tfbackevent.payment.service.DeliveryService;
+import org.gcrel.tfbackevent.payment.service.QRService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,11 +35,6 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 public class DeliveryServiceTest {
