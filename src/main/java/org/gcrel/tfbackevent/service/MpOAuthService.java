@@ -101,12 +101,14 @@ public class MpOAuthService {
 
             // Si ya tiene cuenta vinculada, actualizarla
             OrganizerMpAccount account = mpAccountRepository.findByUser(user)
-                    .orElse(new OrganizerMpAccount(user, accessToken, mpUserId, mpEmail, refreshToken,
+                    .orElse(new OrganizerMpAccount(user, accessToken, refreshToken, mpUserId, mpEmail,
                             LocalDateTime.now().plusSeconds(expiresIn)));
 
             account.setMpAccessToken(accessToken);
+            account.setMpRefreshToken(refreshToken);
             account.setMpUserId(mpUserId);
             account.setMpEmail(mpEmail);
+            account.setMpTokenExpiresAt(LocalDateTime.now().plusSeconds(expiresIn));
             account.setLinkedAt(LocalDateTime.now());
 
             mpAccountRepository.save(account);

@@ -81,4 +81,8 @@ public class Ticket {
     public void setStatus(TicketStatus status) {
         this.status = status;
     }
+
+    public void setAttendee(User attendee) {
+        this.attendee = attendee;
+    }
 }
