@@ -3,25 +3,20 @@ package org.gcrel.tfbackevent.event.dto.request;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+public record UpdateEventRequest(
+        String title,
+        String description,
+        LocalDateTime dateTime,
+        BigDecimal basePrice,
 
-@AllArgsConstructor
-@Data
-public class UpdateEventRequest {
-    private String title;
-    private String description;
-    private LocalDateTime dateTime;
-    private BigDecimal basePrice;
+        // Physical Event
+        String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
+        Integer capacity,
 
-    // Physical Event
-    private String address;
-    private BigDecimal latitude;
-    private BigDecimal longitude;
-    private Integer capacity;
-
-    // Virtual Event
-    private String accessLink;
-    private String platform;
-    private String accessInstructions;
+        // Virtual Event
+        String accessLink,
+        String platform,
+        String accessInstructions) {
 }

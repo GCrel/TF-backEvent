@@ -84,7 +84,6 @@ public class MpOAuthServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.empty());
 
-        // Preparamos las respuestas mockeadas de la API de MP
         Map<String, Object> tokenResponseBody = new HashMap<>();
         tokenResponseBody.put("access_token", "new_access_token");
         tokenResponseBody.put("user_id", 123456789);
@@ -96,13 +95,10 @@ public class MpOAuthServiceTest {
         emailResponseBody.put("email", "organizer@mp.com");
         ResponseEntity<Map> emailResponse = ResponseEntity.ok(emailResponseBody);
 
-        // Interceptamos TODOS los new RestTemplate() que ocurran aquí adentro
         try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
                 (mock, context) -> {
-                    // Mock para el Token
                     when(mock.postForEntity(eq("https://api.mercadopago.com/oauth/token"), any(), eq(Map.class)))
                             .thenReturn(tokenResponse);
-                    // Mock para el Email
                     when(mock.exchange(contains("https://api.mercadopago.com/users/"), eq(HttpMethod.GET), any(),
                             eq(Map.class)))
                             .thenReturn(emailResponse);
@@ -110,16 +106,14 @@ public class MpOAuthServiceTest {
 
             var response = mpOAuthService.linkAccount("auth_code_123", userId);
 
-            assertTrue(response.isLinked());
-            assertEquals("organizer@mp.com", response.getMpEmail());
+            assertTrue(response.linked());
+            assertEquals("organizer@mp.com", response.mpEmail());
 
             verify(mpAccountRepository).save(argThat(saved -> saved.getMpAccessToken().equals("new_access_token")
                     && saved.getMpRefreshToken().equals("new_refresh_token")
                     && saved.getMpUserId().equals("123456789")
                     && saved.getMpEmail().equals("organizer@mp.com")
                     && saved.getMpTokenExpiresAt().isAfter(LocalDateTime.now())));
-            // Como se crean dos RestTemplate (uno para token, otro para email), verificamos
-            // la cantidad
             assertEquals(2, mocked.constructed().size());
         }
 
@@ -173,9 +167,8 @@ public class MpOAuthServiceTest {
 
         var response = mpOAuthService.getAccountStatus(user);
 
-        // Asumiendo que tienes métodos equivalentes en MpAccountStatusResponse
-        assertTrue(response.isLinked());
-        assertEquals("test@mp.com", response.getMpEmail());
+        assertTrue(response.linked());
+        assertEquals("test@mp.com", response.mpEmail());
     }
 
     @Test
@@ -201,14 +194,11 @@ public class MpOAuthServiceTest {
         String token = mpOAuthService.getValidAccessToken(user);
 
         assertEquals("access_token_123", token);
-        // Verificamos que NO se llamó a la API para renovarlo
         verify(mpAccountRepository, never()).save(any());
     }
 
     @Test
     void getValidAccessToken_WhenTokenIsExpiring_RefreshesToken() {
-        // Configuramos el token para que expire en 2 horas (requiere refresh según tu
-        // lógica < 24hs)
         account.setMpTokenExpiresAt(LocalDateTime.now().plusHours(2));
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
 

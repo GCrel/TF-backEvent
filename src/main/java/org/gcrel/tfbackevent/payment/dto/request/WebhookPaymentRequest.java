@@ -1,18 +1,11 @@
 package org.gcrel.tfbackevent.payment.dto.request;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+public record WebhookPaymentRequest(
+        String action,
+        String type,
+        Data data) {
 
-@AllArgsConstructor
-@Data
-public class WebhookPaymentRequest {
-    private String action;
-    private String type;
-    private Data data;
-
-    @AllArgsConstructor
-    @lombok.Data
-    public static class Data {
-        private String id;
+    public record Data(
+            String id) {
     }
 }

@@ -50,8 +50,8 @@ public class TicketService {
     }
 
     public PurchaseResponse purchase(PurchaseTicketRequest request, User attendee) {
-        Event event = eventRepository.findById(request.getEventId())
-                .orElseThrow(() -> new EventNotFoundException(request.getEventId()));
+        Event event = eventRepository.findById(request.eventId())
+                .orElseThrow(() -> new EventNotFoundException(request.eventId()));
 
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new EventNotAvailableException();
@@ -70,11 +70,11 @@ public class TicketService {
         com.mercadopago.resources.payment.Payment mpPayment;
         try {
             mpPayment = mercadoPagoService.processPayment(
-                    request.getCardToken(),
+                    request.cardToken(),
                     event.getBasePrice(),
-                    request.getInstallments(),
-                    request.getPayerEmail(),
-                    request.getPaymentMethodId(),
+                    request.installments(),
+                    request.payerEmail(),
+                    request.paymentMethodId(),
                     accessToken);
         } catch (PaymentRejectedException e) {
             ticket.setStatus(TicketStatus.CANCELLED);

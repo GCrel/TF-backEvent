@@ -38,20 +38,20 @@ public class AuthController {
 
     @PostMapping("/verify")
     public ResponseEntity<AuthResponse> verifyEmail(@RequestBody VerifyEmailRequest request) {
-        AuthResponse response = authService.verifyEmail(request.getEmail(), request.getCode());
+        AuthResponse response = authService.verifyEmail(request.email(), request.code());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/resend-verification")
     public ResponseEntity<Void> resendVerificationCode(
             @RequestBody ResendVerificationRequest request) {
-        authService.resendVerificationCode(request.getEmail());
+        authService.resendVerificationCode(request.email());
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request.getEmail(), request.getPassword());
+        AuthResponse response = authService.login(request.email(), request.password());
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 

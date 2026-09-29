@@ -42,15 +42,15 @@ public class AuthService {
     }
 
     public void register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new EmailAlreadyExistsException(request.getEmail());
+        if (userRepository.existsByEmail(request.email())) {
+            throw new EmailAlreadyExistsException(request.email());
         }
 
         User user = new User(
-                request.getName(),
-                request.getEmail(),
-                passwordEncoder.encode(request.getPassword()),
-                request.getDateBirth());
+                request.name(),
+                request.email(),
+                passwordEncoder.encode(request.password()),
+                request.dateBirth());
 
         sendVerificationEmail(user);
     }
@@ -102,7 +102,7 @@ public class AuthService {
 
     public AuthResponse refresh(RefreshTokenRequest request) {
         RefreshToken refreshToken = refreshTokenRepository
-                .findByToken(request.getRefreshToken())
+                .findByToken(request.refreshToken())
                 .orElseThrow(InvalidTokenException::new);
 
         if (refreshToken.isRevoked() || refreshToken.isExpired()) {
@@ -116,7 +116,7 @@ public class AuthService {
 
     public void logout(RefreshTokenRequest request) {
         RefreshToken refreshToken = refreshTokenRepository
-                .findByToken(request.getRefreshToken())
+                .findByToken(request.refreshToken())
                 .orElseThrow(InvalidTokenException::new);
 
         refreshTokenRepository.delete(refreshToken);

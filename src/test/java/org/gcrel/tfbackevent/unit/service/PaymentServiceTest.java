@@ -90,9 +90,9 @@ public class PaymentServiceTest {
 
         PurchaseResponse response = paymentService.handleNewPayment(ticket, mpPaymentMock, attendee);
 
-        assertEquals("approved", response.getStatus());
-        assertEquals("accredited", response.getStatusDetail());
-        assertEquals("qr_base64_string", response.getQrCodeBase64());
+        assertEquals("approved", response.status());
+        assertEquals("accredited", response.statusDetail());
+        assertEquals("qr_base64_string", response.qrCodeBase64());
         assertEquals(TicketStatus.ACTIVE, ticket.getStatus());
 
         verify(paymentRepository).save(paymentCaptor.capture());
@@ -112,8 +112,8 @@ public class PaymentServiceTest {
 
         PurchaseResponse response = paymentService.handleNewPayment(ticket, mpPaymentMock, attendee);
 
-        assertEquals("approved", response.getStatus());
-        assertNull(response.getQrCodeBase64());
+        assertEquals("approved", response.status());
+        assertNull(response.qrCodeBase64());
         assertEquals(TicketStatus.ACTIVE, ticket.getStatus());
         verify(paymentRepository).save(any());
     }
@@ -126,8 +126,8 @@ public class PaymentServiceTest {
 
         PurchaseResponse response = paymentService.handleNewPayment(ticket, mpPaymentMock, attendee);
 
-        assertEquals("rejected", response.getStatus());
-        assertNull(response.getQrCodeBase64());
+        assertEquals("rejected", response.status());
+        assertNull(response.qrCodeBase64());
         assertEquals(TicketStatus.CANCELLED, ticket.getStatus());
 
         verify(paymentRepository).save(paymentCaptor.capture());

@@ -143,7 +143,9 @@ public class WebhookServiceTest {
 
     @Test
     void processPaymentNotification_WhenTypeIsNotPayment_ReturnsEarly() throws Exception {
-        request.setType("plan"); // Modificamos gracias a @Data
+        WebhookPaymentRequest.Data requestData = new WebhookPaymentRequest.Data(PAYMENT_ID);
+        request = new WebhookPaymentRequest("payment.created", "plan", requestData);
+
         String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
 
         webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);

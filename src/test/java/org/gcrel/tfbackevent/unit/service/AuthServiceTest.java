@@ -117,7 +117,7 @@ public class AuthServiceTest {
         assertTrue(testUser.isEnabled());
         assertNull(testUser.getVerificationCode());
         assertNotNull(response);
-        assertEquals("access_token", response.getAccessToken());
+        assertEquals("access_token", response.accessToken());
         verify(userRepository).save(testUser);
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
@@ -150,7 +150,7 @@ public class AuthServiceTest {
         AuthResponse response = authService.login(TEST_EMAIL, TEST_PASSWORD);
 
         assertNotNull(response);
-        assertEquals("access_token", response.getAccessToken());
+        assertEquals("access_token", response.accessToken());
         verify(refreshTokenRepository)
                 .deleteAllByUser(testUser); // Verify that it clears previous tokens
         verify(refreshTokenRepository).save(any(RefreshToken.class)); // Save the new token
@@ -193,8 +193,8 @@ public class AuthServiceTest {
 
         AuthResponse response = authService.refresh(request);
 
-        assertEquals("new_access_token", response.getAccessToken());
-        assertEquals("old_refresh_token", response.getRefreshToken());
+        assertEquals("new_access_token", response.accessToken());
+        assertEquals("old_refresh_token", response.refreshToken());
     }
 
     @Test

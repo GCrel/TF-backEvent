@@ -91,9 +91,9 @@ public class EventServiceTest {
         Event savedEvent = eventCaptor.getValue();
         assertInstanceOf(InPersonEvent.class, savedEvent);
         assertEquals("Tech Meetup", savedEvent.getTitle());
-        assertEquals("IN_PERSON", response.getEventType());
-        assertEquals("Av. Siempre Viva 123", response.getAddress());
-        assertEquals(200, response.getCapacity());
+        assertEquals("IN_PERSON", response.eventType());
+        assertEquals("Av. Siempre Viva 123", response.address());
+        assertEquals(200, response.capacity());
     }
 
     @Test
@@ -120,8 +120,8 @@ public class EventServiceTest {
         Event savedEvent = eventCaptor.getValue();
         assertInstanceOf(VirtualEvent.class, savedEvent);
         assertEquals("Zoom", ((VirtualEvent) savedEvent).getPlatform());
-        assertEquals("VIRTUAL", response.getEventType());
-        assertEquals("https://meet.example.com/link", response.getAccessLink());
+        assertEquals("VIRTUAL", response.eventType());
+        assertEquals("https://meet.example.com/link", response.accessLink());
     }
 
     @Test
@@ -158,11 +158,11 @@ public class EventServiceTest {
 
         EventResponse response = eventService.updateEvent(eventId, request, organizer);
 
-        assertEquals("Event updated", response.getTitle());
-        assertEquals("Updated description", response.getDescription());
-        assertEquals(new BigDecimal("180.00"), response.getBasePrice());
-        assertEquals("New address", response.getAddress());
-        assertEquals(120, response.getCapacity());
+        assertEquals("Event updated", response.title());
+        assertEquals("Updated description", response.description());
+        assertEquals(new BigDecimal("180.00"), response.basePrice());
+        assertEquals("New address", response.address());
+        assertEquals(120, response.capacity());
         verify(eventRepository).save(existingEvent);
     }
 
@@ -276,8 +276,8 @@ public class EventServiceTest {
         List<EventResponse> response = eventService.getAllEvents();
 
         assertEquals(2, response.size());
-        assertEquals("IN_PERSON", response.get(0).getEventType());
-        assertEquals("VIRTUAL", response.get(1).getEventType());
+        assertEquals("IN_PERSON", response.get(0).eventType());
+        assertEquals("VIRTUAL", response.get(1).eventType());
     }
 
     @Test
@@ -310,7 +310,7 @@ public class EventServiceTest {
 
         EventResponse response = eventService.publishEvent(eventId, organizer);
 
-        assertEquals("PUBLISHED", response.getStatus());
+        assertEquals("PUBLISHED", response.status());
         verify(eventRepository).save(existingEvent);
     }
 }

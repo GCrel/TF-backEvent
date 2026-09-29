@@ -70,20 +70,20 @@ public class EventService {
         validateOwnership(event, organizer);
         validateModifiable(event);
 
-        event.setTitle(request.getTitle());
-        event.setDescription(request.getDescription());
-        event.setDateTime(request.getDateTime());
-        event.setBasePrice(request.getBasePrice());
+        event.setTitle(request.title());
+        event.setDescription(request.description());
+        event.setDateTime(request.dateTime());
+        event.setBasePrice(request.basePrice());
 
         if (event instanceof InPersonEvent inPerson) {
-            inPerson.setAddress(request.getAddress());
-            inPerson.setLatitude(request.getLatitude());
-            inPerson.setLongitude(request.getLongitude());
-            inPerson.setCapacity(request.getCapacity());
+            inPerson.setAddress(request.address());
+            inPerson.setLatitude(request.latitude());
+            inPerson.setLongitude(request.longitude());
+            inPerson.setCapacity(request.capacity());
         } else if (event instanceof VirtualEvent virtual) {
-            virtual.setAccessLink(request.getAccessLink());
-            virtual.setPlatform(request.getPlatform());
-            virtual.setAccessInstructions(request.getAccessInstructions());
+            virtual.setAccessLink(request.accessLink());
+            virtual.setPlatform(request.platform());
+            virtual.setAccessInstructions(request.accessInstructions());
         }
 
         eventRepository.save(event);
@@ -109,26 +109,26 @@ public class EventService {
 
     // private helper methods
     private Event buildEvent(CreateEventRequest request) {
-        return switch (request.getEventType()) {
+        return switch (request.eventType()) {
             case "IN_PERSON" ->
                 new InPersonEvent(
-                        request.getTitle(),
-                        request.getDescription(),
-                        request.getDateTime(),
-                        request.getBasePrice(),
-                        request.getAddress(),
-                        request.getLatitude(),
-                        request.getLongitude(),
-                        request.getCapacity());
+                        request.title(),
+                        request.description(),
+                        request.dateTime(),
+                        request.basePrice(),
+                        request.address(),
+                        request.latitude(),
+                        request.longitude(),
+                        request.capacity());
             case "VIRTUAL" ->
                 new VirtualEvent(
-                        request.getTitle(),
-                        request.getDescription(),
-                        request.getDateTime(),
-                        request.getBasePrice(),
-                        request.getAccessLink(),
-                        request.getPlatform(),
-                        request.getAccessInstructions());
+                        request.title(),
+                        request.description(),
+                        request.dateTime(),
+                        request.basePrice(),
+                        request.accessLink(),
+                        request.platform(),
+                        request.accessInstructions());
             default -> throw new InvalidEventTypeException();
         };
     }

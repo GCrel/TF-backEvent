@@ -7,57 +7,61 @@ import java.util.UUID;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+public record EventResponse(
+        UUID id,
+        String title,
+        String description,
+        LocalDateTime dateTime,
+        String status,
+        BigDecimal basePrice,
+        String eventType,
 
-@AllArgsConstructor
-@Data
-public class EventResponse {
-    private UUID id;
-    private String title;
-    private String description;
-    private LocalDateTime dateTime;
-    private String status;
-    private BigDecimal basePrice;
-    private String eventType;
+        // Physical Event
+        String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
+        Integer capacity,
 
-    private String address;
-    private BigDecimal latitude;
-    private BigDecimal longitude;
-    private Integer capacity;
-
-    private String accessLink;
-    private String platform;
-    private String accessInstructions;
+        // Virtual Event
+        String accessLink,
+        String platform,
+        String accessInstructions) {
 
     // Physical Event Constructor
     public EventResponse(InPersonEvent event) {
-        this.id = event.getId();
-        this.title = event.getTitle();
-        this.description = event.getDescription();
-        this.dateTime = event.getDateTime();
-        this.status = event.getStatus().name();
-        this.basePrice = event.getBasePrice();
-        this.eventType = "IN_PERSON";
-
-        this.address = event.getAddress();
-        this.latitude = event.getLatitude();
-        this.longitude = event.getLongitude();
-        this.capacity = event.getCapacity();
+        this(
+                event.getId(),
+                event.getTitle(),
+                event.getDescription(),
+                event.getDateTime(),
+                event.getStatus().name(),
+                event.getBasePrice(),
+                "IN_PERSON",
+                event.getAddress(),
+                event.getLatitude(),
+                event.getLongitude(),
+                event.getCapacity(),
+                null,
+                null,
+                null);
     }
 
     // Virtual Event Constructor
     public EventResponse(VirtualEvent event) {
-        this.id = event.getId();
-        this.title = event.getTitle();
-        this.description = event.getDescription();
-        this.dateTime = event.getDateTime();
-        this.status = event.getStatus().name();
-        this.basePrice = event.getBasePrice();
-        this.eventType = "VIRTUAL";
-
-        this.accessLink = event.getAccessLink();
-        this.platform = event.getPlatform();
-        this.accessInstructions = event.getAccessInstructions();
+        this(
+                event.getId(),
+                event.getTitle(),
+                event.getDescription(),
+                event.getDateTime(),
+                event.getStatus().name(),
+                event.getBasePrice(),
+                "VIRTUAL",
+                null,
+                null,
+                null,
+                null,
+                event.getAccessLink(),
+                event.getPlatform(),
+                event.getAccessInstructions());
     }
 }

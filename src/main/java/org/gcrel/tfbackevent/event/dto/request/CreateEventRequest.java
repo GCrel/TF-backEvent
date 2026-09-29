@@ -3,26 +3,21 @@ package org.gcrel.tfbackevent.event.dto.request;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+public record CreateEventRequest(
+        String title,
+        String description,
+        LocalDateTime dateTime,
+        BigDecimal basePrice,
+        String eventType, // "IN_PERSON" | "VIRTUAL"
 
-@AllArgsConstructor
-@Data
-public class CreateEventRequest {
-    private String title;
-    private String description;
-    private LocalDateTime dateTime;
-    private BigDecimal basePrice;
-    private String eventType; // "IN_PERSON" | "VIRTUAL"
+        // Physical Event Fields
+        String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
+        Integer capacity,
 
-    // Physical Event Fields
-    private String address;
-    private BigDecimal latitude;
-    private BigDecimal longitude;
-    private Integer capacity;
-
-    // Virtual Event Fields
-    private String accessLink;
-    private String platform;
-    private String accessInstructions;
+        // Virtual Event Fields
+        String accessLink,
+        String platform,
+        String accessInstructions) {
 }

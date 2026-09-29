@@ -45,14 +45,14 @@ public class WebhookService {
 
     public void processPaymentNotification(WebhookPaymentRequest request, String xSignature, String xRequestId) {
 
-        validateSignature(xSignature, xRequestId, request.getData().getId());
+        validateSignature(xSignature, xRequestId, request.data().id());
 
-        if (!"payment".equals(request.getType())) {
+        if (!"payment".equals(request.type())) {
             return;
         }
 
         Payment payment = paymentRepository
-                .findByTransactionId(request.getData().getId())
+                .findByTransactionId(request.data().id())
                 .orElse(null);
 
         if (payment == null || payment.getPaymentStatus() != PaymentStatus.PENDING) {
@@ -62,7 +62,7 @@ public class WebhookService {
         String organizerAccessToken = getOrganizerToken(payment);
 
         com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService
-                .getPaymentById(request.getData().getId(), organizerAccessToken);
+                .getPaymentById(request.data().id(), organizerAccessToken);
 
         paymentService.handleExistingPayment(payment, mpPayment);
     }

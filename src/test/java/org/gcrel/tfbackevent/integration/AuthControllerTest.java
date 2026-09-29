@@ -97,7 +97,7 @@ public class AuthControllerTest {
     void register_EmailAlreadyExists_Returns409() throws Exception {
         RegisterRequest request = new RegisterRequest("John Doe", "test@example.com", "password", LocalDate.now());
 
-        doThrow(new EmailAlreadyExistsException(request.getEmail()))
+        doThrow(new EmailAlreadyExistsException(request.email()))
                 .when(authService)
                 .register(any(RegisterRequest.class));
 
@@ -108,7 +108,7 @@ public class AuthControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(
                         jsonPath("$.error")
-                                .value("El email ya está registrado: " + request.getEmail()))
+                                .value("El email ya está registrado: " + request.email()))
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.timestamp").exists());
     }
