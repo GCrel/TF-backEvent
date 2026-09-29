@@ -1,6 +1,8 @@
 package org.gcrel.tfbackevent.auth.exception;
 
-public class InvalidVerificationCodeException extends RuntimeException {
+import org.gcrel.tfbackevent.common.exception.BadRequestException;
+
+public class InvalidVerificationCodeException extends BadRequestException {
     public InvalidVerificationCodeException() {
         super("Código incorrecto");
     }

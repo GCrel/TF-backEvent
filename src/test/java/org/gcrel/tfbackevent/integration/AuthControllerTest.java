@@ -107,8 +107,10 @@ public class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andExpect(
-                        jsonPath("$['Error:']")
-                                .value("El email ya está registrado: " + request.getEmail()));
+                        jsonPath("$.error")
+                                .value("El email ya está registrado: " + request.getEmail()))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     // ==========================================
@@ -143,7 +145,9 @@ public class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$['Error:']").value("Código incorrecto"));
+                .andExpect(jsonPath("$.error").value("Código incorrecto"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     // ==========================================
@@ -178,8 +182,10 @@ public class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden())
                 .andExpect(
-                        jsonPath("$['Error:']")
-                                .value("El correo electrónico no ha sido verificado."));
+                        jsonPath("$.error")
+                                .value("El correo electrónico no ha sido verificado."))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test
@@ -194,7 +200,9 @@ public class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$['Error:']").value("Credenciales inválidas."));
+                .andExpect(jsonPath("$.error").value("Credenciales inválidas."))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     // ==========================================

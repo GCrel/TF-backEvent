@@ -221,8 +221,10 @@ public class EventControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden())
                 .andExpect(
-                        jsonPath("$['Error:']")
-                                .value("No tenés permisos para modificar este evento."));
+                        jsonPath("$.error")
+                                .value("No tenés permisos para modificar este evento."))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test
@@ -267,8 +269,10 @@ public class EventControllerTest {
                         .with(authentication(authentication)))
                 .andExpect(status().isForbidden())
                 .andExpect(
-                        jsonPath("$['Error:']")
-                                .value("No tenés permisos para modificar este evento."));
+                        jsonPath("$.error")
+                                .value("No tenés permisos para modificar este evento."))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test

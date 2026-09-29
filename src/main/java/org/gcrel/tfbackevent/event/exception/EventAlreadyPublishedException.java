@@ -1,6 +1,8 @@
 package org.gcrel.tfbackevent.event.exception;
 
-public class EventAlreadyPublishedException extends RuntimeException {
+import org.gcrel.tfbackevent.common.exception.ConflictException;
+
+public class EventAlreadyPublishedException extends ConflictException {
     public EventAlreadyPublishedException() {
         super("El evento ya está publicado.");
     }

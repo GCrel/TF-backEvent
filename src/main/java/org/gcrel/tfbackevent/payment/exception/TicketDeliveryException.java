@@ -1,6 +1,8 @@
 package org.gcrel.tfbackevent.payment.exception;
 
-public class TicketDeliveryException extends RuntimeException {
+import org.gcrel.tfbackevent.common.exception.BadGatewayException;
+
+public class TicketDeliveryException extends BadGatewayException {
     public TicketDeliveryException(String message, Throwable cause) {
         super(message, cause);
     }

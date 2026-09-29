@@ -1,6 +1,8 @@
 package org.gcrel.tfbackevent.payment.exception;
 
-public class WebhookValidationException extends RuntimeException {
+import org.gcrel.tfbackevent.common.exception.UnauthorizedException;
+
+public class WebhookValidationException extends UnauthorizedException {
     public WebhookValidationException() {
         super("Firma del webhook inválida.");
     }
