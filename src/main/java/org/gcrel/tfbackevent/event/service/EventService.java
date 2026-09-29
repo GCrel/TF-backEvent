@@ -110,7 +110,7 @@ public class EventService {
     // private helper methods
     private Event buildEvent(CreateEventRequest request) {
         return switch (request.eventType()) {
-            case "IN_PERSON" ->
+            case IN_PERSON ->
                 new InPersonEvent(
                         request.title(),
                         request.description(),
@@ -120,7 +120,7 @@ public class EventService {
                         request.latitude(),
                         request.longitude(),
                         request.capacity());
-            case "VIRTUAL" ->
+            case VIRTUAL ->
                 new VirtualEvent(
                         request.title(),
                         request.description(),

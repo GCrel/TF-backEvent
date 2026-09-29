@@ -31,6 +31,7 @@ import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,7 +87,7 @@ public class EventControllerTest {
                 "Spring Boot meetup",
                 LocalDateTime.of(2026, 9, 10, 19, 0),
                 new BigDecimal("25.00"),
-                "IN_PERSON",
+                EventType.IN_PERSON,
                 "Main St 123",
                 new BigDecimal("-34.6037"),
                 new BigDecimal("-58.3816"),
@@ -133,7 +134,7 @@ public class EventControllerTest {
                 "Spring Boot meetup",
                 LocalDateTime.of(2026, 9, 10, 19, 0),
                 new BigDecimal("25.00"),
-                "IN_PERSON",
+                EventType.IN_PERSON,
                 "Main St 123",
                 new BigDecimal("-34.6037"),
                 new BigDecimal("-58.3816"),

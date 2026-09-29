@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.VirtualEvent;
+import org.gcrel.tfbackevent.model.enums.EventType;
 
 public record EventResponse(
         UUID id,
@@ -36,7 +37,7 @@ public record EventResponse(
                 event.getDateTime(),
                 event.getStatus().name(),
                 event.getBasePrice(),
-                "IN_PERSON",
+                EventType.IN_PERSON.name(),
                 event.getAddress(),
                 event.getLatitude(),
                 event.getLongitude(),
@@ -55,7 +56,7 @@ public record EventResponse(
                 event.getDateTime(),
                 event.getStatus().name(),
                 event.getBasePrice(),
-                "VIRTUAL",
+                EventType.VIRTUAL.name(),
                 null,
                 null,
                 null,

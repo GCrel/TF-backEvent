@@ -30,6 +30,7 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,7 +74,7 @@ public class EventServiceTest {
                 "Evento de tecnología",
                 eventDateTime,
                 new BigDecimal("150.00"),
-                "IN_PERSON",
+                EventType.IN_PERSON,
                 "Av. Siempre Viva 123",
                 new BigDecimal("-34.6037"),
                 new BigDecimal("-58.3816"),
@@ -103,7 +104,7 @@ public class EventServiceTest {
                 "Sesión online",
                 eventDateTime,
                 new BigDecimal("50.00"),
-                "VIRTUAL",
+                EventType.VIRTUAL,
                 null,
                 null,
                 null,
