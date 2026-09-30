@@ -10,6 +10,7 @@ import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
+import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
@@ -18,13 +19,17 @@ import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
 import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
 import org.gcrel.tfbackevent.payment.dto.response.TicketResponse;
+import org.gcrel.tfbackevent.payment.exception.EventCapacityExceededException;
+import org.gcrel.tfbackevent.payment.exception.InvalidTicketPurchaseException;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
+import org.gcrel.tfbackevent.payment.exception.TicketAlreadyPurchasedException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotFoundException;
 import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class TicketService {
@@ -36,10 +41,12 @@ public class TicketService {
     private final MpOAuthService mpOAuthService;
     private final PaymentService paymentService;
     private final QRService qrService;
+    private final TransactionTemplate transactionTemplate;
 
     public TicketService(TicketRepository ticketRepository, EventRepository eventRepository,
             EventParticipationRepository eventParticipationRepository, MercadoPagoService mercadoPagoService,
-            MpOAuthService mpOAuthService, PaymentService paymentService, QRService qrService) {
+            MpOAuthService mpOAuthService, PaymentService paymentService, QRService qrService,
+            TransactionTemplate transactionTemplate) {
         this.ticketRepository = ticketRepository;
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
@@ -47,15 +54,13 @@ public class TicketService {
         this.mpOAuthService = mpOAuthService;
         this.paymentService = paymentService;
         this.qrService = qrService;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public PurchaseResponse purchase(PurchaseTicketRequest request, User attendee) {
         Event event = eventRepository.findById(request.eventId())
                 .orElseThrow(() -> new EventNotFoundException(request.eventId()));
-
-        if (event.getStatus() != EventStatus.PUBLISHED) {
-            throw new EventNotAvailableException();
-        }
+        validateEventForPurchase(event);
 
         EventParticipation organizerParticipation = eventParticipationRepository
                 .findByEventAndEventRole(event, EventRole.ORGANIZER)
@@ -64,8 +69,8 @@ public class TicketService {
         String accessToken = mpOAuthService
                 .getValidAccessToken(organizerParticipation.getUser());
 
-        Ticket ticket = new Ticket(LocalDateTime.now(), event, attendee);
-        ticketRepository.save(ticket);
+        Ticket ticket = transactionTemplate.execute(status -> reserveTicket(request, attendee));
+        event = ticket.getEvent();
 
         com.mercadopago.resources.payment.Payment mpPayment;
         try {
@@ -83,6 +88,37 @@ public class TicketService {
         }
 
         return paymentService.handleNewPayment(ticket, mpPayment, attendee);
+    }
+
+    private Ticket reserveTicket(PurchaseTicketRequest request, User attendee) {
+        Event event = eventRepository.findForTicketReservation(request.eventId())
+                .orElseThrow(() -> new EventNotFoundException(request.eventId()));
+
+        validateEventForPurchase(event);
+
+        List<TicketStatus> activeStatuses = List.of(TicketStatus.PENDING, TicketStatus.ACTIVE);
+        if (ticketRepository.existsByEventAndAttendeeAndStatusIn(event, attendee, activeStatuses)) {
+            throw new TicketAlreadyPurchasedException();
+        }
+
+        if (event instanceof InPersonEvent inPerson) {
+            long reservedTickets = ticketRepository.countByEventAndStatusIn(
+                    event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED));
+            if (reservedTickets >= inPerson.getCapacity()) {
+                throw new EventCapacityExceededException();
+            }
+        }
+
+        return ticketRepository.save(new Ticket(LocalDateTime.now(), event, attendee));
+    }
+
+    private void validateEventForPurchase(Event event) {
+        if (event.getStatus() != EventStatus.PUBLISHED || !event.getDateTime().isAfter(LocalDateTime.now())) {
+            throw new EventNotAvailableException();
+        }
+        if (event.getBasePrice() == null || event.getBasePrice().signum() <= 0) {
+            throw new InvalidTicketPurchaseException("El evento debe tener un precio mayor que cero.");
+        }
     }
 
     public List<TicketResponse> getMyTickets(User attendee) {

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -48,6 +49,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.mercadopago.resources.payment.Payment;
 
@@ -73,6 +76,8 @@ public class TicketServiceTest {
     private EmailService emailService;
     @Mock
     private PaymentService paymentService;
+    @Mock
+    private TransactionTemplate transactionTemplate;
 
     @InjectMocks
     private TicketService ticketService;
@@ -114,11 +119,16 @@ public class TicketServiceTest {
         ticket = new Ticket(LocalDateTime.now(), event, attendee);
         ticket.setId(UUID.randomUUID());
         ticket.setStatus(TicketStatus.ACTIVE);
+
+        lenient().when(transactionTemplate.execute(any(TransactionCallback.class)))
+                .thenAnswer(invocation -> ((TransactionCallback<?>) invocation.getArgument(0)).doInTransaction(null));
+        lenient().when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
     void purchase_WhenPaymentApproved_ReturnsApprovedResponse() {
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findForTicketReservation(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
@@ -152,6 +162,7 @@ public class TicketServiceTest {
     @Test
     void purchase_WhenPaymentRejectedExceptionThrown_CancelsTicketAndThrows() {
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findForTicketReservation(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
