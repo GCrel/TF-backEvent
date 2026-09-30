@@ -6,12 +6,10 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record VerifyEmailRequest(
-        @NotBlank(message = "Code is required")
-        @Size (min = 6, max = 6, message = "Code must be 6 characters long")
-        @Pattern (regexp = "^[0-9]+$", message = "Code must be numeric")
+        @NotBlank 
+        @Pattern(regexp = "^\\d{6}$", message = "Code must be 6 digits") 
         String code,
-
-        @NotBlank(message = "Email is required")
-        @Email(message = "Email should be valid")
+        
+        @NotBlank @Email @Size(max = 254) 
         String email) {
 }

@@ -11,6 +11,7 @@ import org.gcrel.tfbackevent.payment.service.TicketService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,7 +30,7 @@ public class TicketController {
 
     @PostMapping("/purchase")
     public ResponseEntity<PurchaseResponse> purchase(
-            @RequestBody PurchaseTicketRequest request, Authentication authentication) {
+            @Validated @RequestBody PurchaseTicketRequest request, Authentication authentication) {
         User attendee = (User) authentication.getPrincipal();
         PurchaseResponse response = ticketService.purchase(request, attendee);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);

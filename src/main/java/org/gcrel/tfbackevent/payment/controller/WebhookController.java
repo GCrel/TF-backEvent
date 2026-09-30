@@ -3,6 +3,7 @@ package org.gcrel.tfbackevent.payment.controller;
 import org.gcrel.tfbackevent.payment.dto.request.WebhookPaymentRequest;
 import org.gcrel.tfbackevent.payment.service.WebhookService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -20,7 +21,7 @@ public class WebhookController {
 
     @PostMapping("/payments")
     public ResponseEntity<Void> receivePaymentNotification(
-            @RequestBody WebhookPaymentRequest request,
+            @Validated @RequestBody WebhookPaymentRequest request,
             @RequestHeader("x-signature") String xSignature,
             @RequestHeader("x-request-id") String xRequestId) {
         webhookService.processPaymentNotification(request, xSignature, xRequestId);

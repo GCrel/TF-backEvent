@@ -11,6 +11,7 @@ import org.gcrel.tfbackevent.model.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,7 +32,7 @@ public class EventController {
 
     @PostMapping
     public ResponseEntity<EventResponse> createEvent(
-            @RequestBody CreateEventRequest request, Authentication authentication) {
+            @Validated @RequestBody CreateEventRequest request, Authentication authentication) {
         User organizer = (User) authentication.getPrincipal();
         EventResponse response = eventService.createEvent(request, organizer);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -48,7 +49,7 @@ public class EventController {
     @PutMapping("/{id}")
     public ResponseEntity<EventResponse> updateEvent(
             @PathVariable UUID id,
-            @RequestBody UpdateEventRequest request,
+            @Validated @RequestBody UpdateEventRequest request,
             Authentication authentication) {
         User organizer = (User) authentication.getPrincipal();
         EventResponse response = eventService.updateEvent(id, request, organizer);
