@@ -1,7 +1,6 @@
 package org.gcrel.tfbackevent.payment.controller;
 
-import java.util.UUID;
-
+import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
 import org.gcrel.tfbackevent.payment.service.MpOAuthService;
@@ -34,9 +33,14 @@ public class MpController {
     }
 
     @GetMapping("/callback")
-    public ResponseEntity<MpAccountStatusResponse> callback(@RequestParam String code, @RequestParam String state) {
-        UUID userId = UUID.fromString(state);
-        MpAccountStatusResponse response = mpOAuthService.linkAccount(code, userId);
+    public ResponseEntity<MpAccountStatusResponse> callback(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String error) {
+        if (error != null || code == null || state == null) {
+            throw new BadRequestException("La autorización de MercadoPago fue cancelada o es inválida.");
+        }
+        MpAccountStatusResponse response = mpOAuthService.linkAccount(code, state);
         return ResponseEntity.ok(response);
     }
 

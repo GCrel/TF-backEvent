@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockConstruction;
@@ -18,13 +17,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
+import org.gcrel.tfbackevent.payment.exception.InvalidMpOAuthStateException;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.service.MpAccountLinkService;
 import org.gcrel.tfbackevent.payment.service.MpOAuthService;
+import org.gcrel.tfbackevent.payment.service.MpOAuthStateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +45,10 @@ public class MpOAuthServiceTest {
     private OrganizerMpAccountRepository mpAccountRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private MpOAuthStateService oauthStateService;
+    @Mock
+    private MpAccountLinkService accountLinkService;
 
     @InjectMocks
     private MpOAuthService mpOAuthService;
@@ -71,18 +77,25 @@ public class MpOAuthServiceTest {
 
     @Test
     void buildAuthorizationUrl_ReturnsCorrectUrl() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
         String url = mpOAuthService.buildAuthorizationUrl(userId);
 
         assertTrue(url.startsWith("https://auth.mercadopago.com/authorization"));
         assertTrue(url.contains("client_id=" + CLIENT_ID));
-        assertTrue(url.contains("redirect_uri=" + REDIRECT_URI));
-        assertTrue(url.contains("state=" + userId.toString()));
+        assertTrue(url.contains("redirect_uri=https%3A%2F%2Fmisitio.com%2Foauth%2Fcallback"));
+        String state = url.substring(url.indexOf("state=") + "state=".length());
+        assertEquals(43, state.length());
+        assertTrue(state.matches("[A-Za-z0-9_-]+"));
+        org.mockito.Mockito.verify(oauthStateService).create(eq(state), eq(user), any(LocalDateTime.class));
     }
 
     @Test
     void linkAccount_WhenSuccessful_ReturnsStatusResponseAndSavesAccount() {
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(mpAccountRepository.findByUser(user)).thenReturn(Optional.empty());
+        when(oauthStateService.consume("state")).thenReturn(user);
+        when(accountLinkService.save(eq(user), eq("new_access_token"), eq("new_refresh_token"),
+                eq("123456789"), eq("organizer@mp.com"), eq(3600L)))
+                .thenReturn(new MpAccountStatusResponse(true, "organizer@mp.com", LocalDateTime.now()));
 
         Map<String, Object> tokenResponseBody = new HashMap<>();
         tokenResponseBody.put("access_token", "new_access_token");
@@ -104,16 +117,11 @@ public class MpOAuthServiceTest {
                             .thenReturn(emailResponse);
                 })) {
 
-            var response = mpOAuthService.linkAccount("auth_code_123", userId);
+            var response = mpOAuthService.linkAccount("auth_code_123", "state");
 
             assertTrue(response.linked());
             assertEquals("organizer@mp.com", response.mpEmail());
 
-            verify(mpAccountRepository).save(argThat(saved -> saved.getMpAccessToken().equals("new_access_token")
-                    && saved.getMpRefreshToken().equals("new_refresh_token")
-                    && saved.getMpUserId().equals("123456789")
-                    && saved.getMpEmail().equals("organizer@mp.com")
-                    && saved.getMpTokenExpiresAt().isAfter(LocalDateTime.now())));
             assertEquals(2, mocked.constructed().size());
         }
 
@@ -121,8 +129,7 @@ public class MpOAuthServiceTest {
 
     @Test
     void linkAccount_WhenAccountAlreadyExists_UpdatesAllOAuthCredentials() {
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
+        when(oauthStateService.consume("state")).thenReturn(user);
 
         Map<String, Object> tokenResponseBody = new HashMap<>();
         tokenResponseBody.put("access_token", "updated_access_token");
@@ -143,22 +150,21 @@ public class MpOAuthServiceTest {
                             eq(Map.class)))
                             .thenReturn(emailResponse);
                 })) {
-            mpOAuthService.linkAccount("new-auth-code", userId);
+            when(accountLinkService.save(eq(user), eq("updated_access_token"), eq("updated_refresh_token"),
+                    eq("987654321"), eq("updated@mp.com"), eq(7200L)))
+                    .thenReturn(new MpAccountStatusResponse(true, "updated@mp.com", LocalDateTime.now()));
+            mpOAuthService.linkAccount("new-auth-code", "state");
         }
 
-        assertEquals("updated_access_token", account.getMpAccessToken());
-        assertEquals("updated_refresh_token", account.getMpRefreshToken());
-        assertEquals("987654321", account.getMpUserId());
-        assertEquals("updated@mp.com", account.getMpEmail());
-        assertTrue(account.getMpTokenExpiresAt().isAfter(LocalDateTime.now()));
-        verify(mpAccountRepository).save(account);
+        org.mockito.Mockito.verify(accountLinkService).save(eq(user), eq("updated_access_token"),
+                eq("updated_refresh_token"), eq("987654321"), eq("updated@mp.com"), eq(7200L));
     }
 
     @Test
     void linkAccount_WhenUserNotFound_ThrowsInvalidCredentialsException() {
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(oauthStateService.consume("state")).thenThrow(new InvalidMpOAuthStateException());
 
-        assertThrows(InvalidCredentialsException.class, () -> mpOAuthService.linkAccount("auth_code_123", userId));
+        assertThrows(InvalidMpOAuthStateException.class, () -> mpOAuthService.linkAccount("auth_code_123", "state"));
     }
 
     @Test

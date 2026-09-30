@@ -1,6 +1,10 @@
 package org.gcrel.tfbackevent.payment.service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
@@ -29,6 +33,14 @@ import org.springframework.web.client.RestTemplate;
 public class MpOAuthService {
     private final OrganizerMpAccountRepository mpAccountRepository;
     private final UserRepository userRepository;
+    private final MpOAuthStateService oauthStateService;
+    private final MpAccountLinkService accountLinkService;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    private static final int OAUTH_STATE_BYTES = 32;
+    private static final long OAUTH_STATE_TTL_MINUTES = 10;
+    private static final String MP_AUTH_URL = "https://auth.mercadopago.com/authorization";
+    private static final String MP_TOKEN_URL = "https://api.mercadopago.com/oauth/token";
 
     @Value("${mercadopago.client-id}")
     private String clientId;
@@ -39,32 +51,41 @@ public class MpOAuthService {
     @Value("${mercadopago.redirect-uri}")
     private String redirectUri;
 
-    private static final String MP_AUTH_URL = "https://auth.mercadopago.com/authorization";
-    private static final String MP_TOKEN_URL = "https://api.mercadopago.com/oauth/token";
-
-    public MpOAuthService(OrganizerMpAccountRepository mpAccountRepository, UserRepository userRepository) {
+    public MpOAuthService(OrganizerMpAccountRepository mpAccountRepository, UserRepository userRepository,
+            MpOAuthStateService oauthStateService, MpAccountLinkService accountLinkService) {
         this.mpAccountRepository = mpAccountRepository;
         this.userRepository = userRepository;
+        this.oauthStateService = oauthStateService;
+        this.accountLinkService = accountLinkService;
     }
 
     // Construye la URL de autorización para redirigir al usuario a Mercado Pago y
     // obtener el código de autorización.
     public String buildAuthorizationUrl(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(InvalidCredentialsException::new);
+        String state = generateState();
+        oauthStateService.create(state, user, LocalDateTime.now().plusMinutes(OAUTH_STATE_TTL_MINUTES));
+
         return MP_AUTH_URL +
-                "?client_id=" + clientId +
+                "?client_id=" + encode(clientId) +
                 "&response_type=code" +
                 "&platform_id=mp" +
-                "&redirect_uri=" + redirectUri +
-                "&state=" + userId;
+                "&redirect_uri=" + encode(redirectUri) +
+                "&state=" + encode(state);
+    }
+
+    private String generateState() {
+        byte[] bytes = new byte[OAUTH_STATE_BYTES];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     // Intercambia el código de autorización por un access token y vincula la cuenta
     // de
     // Mercado Pago con el usuario en la base de datos.
-    public MpAccountStatusResponse linkAccount(String code, UUID userId) {
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(InvalidCredentialsException::new);
+    public MpAccountStatusResponse linkAccount(String code, String state) {
+        User user = oauthStateService.consume(state);
 
         RestTemplate restTemplate = new RestTemplate();
 
@@ -99,24 +120,15 @@ public class MpOAuthService {
             String refreshToken = (String) responseBody.get("refresh_token");
             Long expiresIn = ((Number) responseBody.get("expires_in")).longValue();
 
-            // Si ya tiene cuenta vinculada, actualizarla
-            OrganizerMpAccount account = mpAccountRepository.findByUser(user)
-                    .orElse(new OrganizerMpAccount(user, accessToken, refreshToken, mpUserId, mpEmail,
-                            LocalDateTime.now().plusSeconds(expiresIn)));
-
-            account.setMpAccessToken(accessToken);
-            account.setMpRefreshToken(refreshToken);
-            account.setMpUserId(mpUserId);
-            account.setMpEmail(mpEmail);
-            account.setMpTokenExpiresAt(LocalDateTime.now().plusSeconds(expiresIn));
-            account.setLinkedAt(LocalDateTime.now());
-
-            mpAccountRepository.save(account);
-            return new MpAccountStatusResponse(true, account.getMpEmail(), account.getLinkedAt());
+            return accountLinkService.save(user, accessToken, refreshToken, mpUserId, mpEmail, expiresIn);
 
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             throw new MpOAuthException(e.getMessage());
         }
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     // Devuelve el estado de la cuenta de Mercado Pago vinculada al usuario.

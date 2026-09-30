@@ -22,6 +22,7 @@ import org.gcrel.tfbackevent.common.config.SecurityConfig;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.payment.controller.MpController;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
+import org.gcrel.tfbackevent.payment.exception.InvalidMpOAuthStateException;
 import org.gcrel.tfbackevent.payment.service.MpOAuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,7 +68,7 @@ public class MpControllerTest {
 
     @Test
     void connect_Success_Returns302AndLocationHeader() throws Exception {
-        String expectedAuthUrl = "https://auth.mercadopago.com/authorization?client_id=test&state=" + testUser.getId();
+        String expectedAuthUrl = "https://auth.mercadopago.com/authorization?client_id=test&state=random-state";
 
         when(mpOAuthService.buildAuthorizationUrl(testUser.getId())).thenReturn(expectedAuthUrl);
 
@@ -78,7 +79,7 @@ public class MpControllerTest {
 
     @Test
     void callback_Success_Returns200AndBody() throws Exception {
-        UUID stateUserId = UUID.randomUUID();
+        String state = "random-state";
         String authCode = "AUTH_CODE_123";
 
         MpAccountStatusResponse expectedResponse = new MpAccountStatusResponse(
@@ -86,15 +87,33 @@ public class MpControllerTest {
                 "organizer@mp.com",
                 LocalDateTime.now());
 
-        when(mpOAuthService.linkAccount(eq(authCode), eq(stateUserId))).thenReturn(expectedResponse);
+        when(mpOAuthService.linkAccount(eq(authCode), eq(state))).thenReturn(expectedResponse);
 
         mockMvc.perform(get("/api/v1/mp/callback")
                 .param("code", authCode)
-                .param("state", stateUserId.toString())
+                .param("state", state)
                 .with(authentication(authentication)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.linked").value(true))
                 .andExpect(jsonPath("$.mpEmail").value("organizer@mp.com"));
+    }
+
+    @Test
+    void callback_InvalidState_Returns400() throws Exception {
+        when(mpOAuthService.linkAccount(eq("AUTH_CODE_123"), eq("not-a-valid-state")))
+                .thenThrow(new InvalidMpOAuthStateException());
+
+        mockMvc.perform(get("/api/v1/mp/callback")
+                .param("code", "AUTH_CODE_123")
+                .param("state", "not-a-valid-state"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void callback_Cancelled_Returns400() throws Exception {
+        mockMvc.perform(get("/api/v1/mp/callback")
+                .param("error", "access_denied"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
