@@ -1,5 +1,6 @@
 package org.gcrel.tfbackevent.payment.service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 import org.gcrel.tfbackevent.model.Payment;
@@ -82,8 +83,21 @@ public class PaymentService {
         switch (mpPayment.getStatus()) {
             case "approved" -> approve(managedPayment);
             case "rejected", "cancelled" -> reject(managedPayment);
-            default -> paymentRepository.save(managedPayment);
+            default -> {
+                managedPayment.setNextReconcileAt(LocalDateTime.now().plus(reconciliationDelay(managedPayment)));
+                paymentRepository.save(managedPayment);
+            }
         }
+    }
+
+    static Duration reconciliationDelay(Payment payment) {
+        Duration delay = Duration.between(payment.getPaymentDate(), LocalDateTime.now()).dividedBy(4);
+        if (delay.compareTo(Duration.ofMinutes(5)) < 0) {
+            return Duration.ofMinutes(5);
+        }
+        return delay.compareTo(Duration.ofHours(24)) > 0
+                ? Duration.ofHours(24)
+                : delay;
     }
 
     @Transactional
@@ -120,6 +134,7 @@ public class PaymentService {
         ticketRepository.save(payment.getTicket());
         payment.setPaymentStatus(PaymentStatus.APPROVED);
         payment.setPaymentDate(LocalDateTime.now());
+        payment.setNextReconcileAt(null);
         payment.setDeliveryStatus(DeliveryStatus.PENDING);
         payment.setNextDeliveryAttemptAt(LocalDateTime.now());
         payment.setLastDeliveryError(null);
@@ -131,6 +146,7 @@ public class PaymentService {
         ticketRepository.save(payment.getTicket());
         payment.setPaymentStatus(PaymentStatus.REJECTED);
         payment.setPaymentDate(LocalDateTime.now());
+        payment.setNextReconcileAt(null);
         payment.setDeliveryStatus(DeliveryStatus.NOT_REQUIRED);
         payment.setNextDeliveryAttemptAt(null);
         paymentRepository.save(payment);

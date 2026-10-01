@@ -62,6 +62,9 @@ public class Payment {
     @Column(name = "last_delivery_error")
     private String lastDeliveryError;
 
+    @Column(name = "next_reconcile_at")
+    private LocalDateTime nextReconcileAt;
+
     @Column(nullable = false)
     @Version
     private long version;
@@ -85,6 +88,7 @@ public class Payment {
         this.deliveryStatus = DeliveryStatus.NOT_REQUIRED;
         this.deliveryAttempts = 0;
         this.ticket = ticket;
+        this.nextReconcileAt = paymentDate;
     }
 
     @Override
@@ -156,6 +160,10 @@ public class Payment {
         return lastDeliveryError;
     }
 
+    public LocalDateTime getNextReconcileAt() {
+        return nextReconcileAt;
+    }
+
     public void setMercadoPagoStatus(String mercadoPagoStatus) {
         this.mercadoPagoStatus = mercadoPagoStatus;
     }
@@ -178,5 +186,9 @@ public class Payment {
 
     public void setLastDeliveryError(String lastDeliveryError) {
         this.lastDeliveryError = lastDeliveryError;
+    }
+
+    public void setNextReconcileAt(LocalDateTime nextReconcileAt) {
+        this.nextReconcileAt = nextReconcileAt;
     }
 }

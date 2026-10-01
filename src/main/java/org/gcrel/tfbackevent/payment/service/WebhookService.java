@@ -16,10 +16,12 @@ import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.payment.dto.request.WebhookPaymentRequest;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
+import org.gcrel.tfbackevent.payment.exception.PaymentNotificationPendingException;
 import org.gcrel.tfbackevent.payment.exception.WebhookValidationException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -55,7 +57,10 @@ public class WebhookService {
                 .findByTransactionId(request.data().id())
                 .orElse(null);
 
-        if (payment == null || payment.getPaymentStatus() != PaymentStatus.PENDING) {
+        if (payment == null) {
+            throw new PaymentNotificationPendingException();
+        }
+        if (payment.getPaymentStatus() != PaymentStatus.PENDING) {
             return;
         }
 
@@ -64,7 +69,11 @@ public class WebhookService {
         com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService
                 .getPaymentById(request.data().id(), organizerAccessToken);
 
-        paymentService.handleExistingPayment(payment, mpPayment);
+        try {
+            paymentService.handleExistingPayment(payment, mpPayment);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            // Otro proceso ganó la carrera de reconciliación; el estado ya fue actualizado.
+        }
     }
 
     private String getOrganizerToken(Payment payment) {

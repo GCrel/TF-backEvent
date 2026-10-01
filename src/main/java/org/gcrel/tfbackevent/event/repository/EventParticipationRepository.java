@@ -7,6 +7,7 @@ import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.EventParticipationId;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -14,5 +15,6 @@ import org.springframework.stereotype.Repository;
 public interface EventParticipationRepository extends JpaRepository<EventParticipation, EventParticipationId> {
     boolean existsByEventAndUserAndId_EventRole(Event event, User user, EventRole eventRole);
 
+    @EntityGraph(attributePaths = "user")
     Optional<EventParticipation> findByEventAndEventRole(Event event, EventRole eventRole);
 }

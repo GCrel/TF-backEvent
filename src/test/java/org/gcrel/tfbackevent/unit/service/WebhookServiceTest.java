@@ -27,6 +27,7 @@ import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.dto.request.WebhookPaymentRequest;
+import org.gcrel.tfbackevent.payment.exception.PaymentNotificationPendingException;
 import org.gcrel.tfbackevent.payment.exception.WebhookValidationException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
@@ -189,12 +190,13 @@ public class WebhookServiceTest {
     }
 
     @Test
-    void processPaymentNotification_WhenLocalPaymentNotFound_ReturnsEarly() throws Exception {
+    void processPaymentNotification_WhenLocalPaymentNotFound_RequestsRetry() throws Exception {
         String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
 
         when(paymentRepository.findByTransactionId(PAYMENT_ID)).thenReturn(Optional.empty());
 
-        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
+        assertThrows(PaymentNotificationPendingException.class,
+                () -> webhookService.processPaymentNotification(request, validSignature, REQUEST_ID));
 
         verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
         verify(ticketRepository, never()).save(any());

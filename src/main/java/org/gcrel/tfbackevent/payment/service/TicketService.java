@@ -22,6 +22,7 @@ import org.gcrel.tfbackevent.payment.dto.response.TicketResponse;
 import org.gcrel.tfbackevent.payment.exception.EventCapacityExceededException;
 import org.gcrel.tfbackevent.payment.exception.InvalidTicketPurchaseException;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
+import org.gcrel.tfbackevent.payment.exception.PaymentProcessingException;
 import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
 import org.gcrel.tfbackevent.payment.exception.TicketAlreadyPurchasedException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
@@ -80,10 +81,17 @@ public class TicketService {
                     request.installments(),
                     request.payerEmail(),
                     request.paymentMethodId(),
-                    accessToken);
+                    accessToken,
+                    ticket.getId().toString());
         } catch (PaymentRejectedException e) {
             ticket.setStatus(TicketStatus.CANCELLED);
             ticketRepository.save(ticket);
+            throw e;
+        } catch (PaymentProcessingException e) {
+            if (!e.isOutcomeUnknown()) {
+                ticket.setStatus(TicketStatus.CANCELLED);
+                ticketRepository.save(ticket);
+            }
             throw e;
         }
 

@@ -123,6 +123,11 @@ public class TicketServiceTest {
         lenient().when(transactionTemplate.execute(any(TransactionCallback.class)))
                 .thenAnswer(invocation -> ((TransactionCallback<?>) invocation.getArgument(0)).doInTransaction(null));
         lenient().when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(ticketRepository.save(argThat(saved -> saved.getId() == null))).thenAnswer(invocation -> {
+            Ticket saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
     }
 
     @Test
@@ -133,7 +138,7 @@ public class TicketServiceTest {
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
 
-        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any()))
+        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
                 .thenReturn(mpPaymentMock);
         PurchaseResponse expected = new PurchaseResponse(
                 ticket.getId(), "approved", null, "approved", "qr_base64_string");
@@ -166,7 +171,7 @@ public class TicketServiceTest {
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
-        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any()))
+        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
                 .thenThrow(new PaymentRejectedException("Rejected"));
 
         assertThrows(

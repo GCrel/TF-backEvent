@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.times;
@@ -14,7 +15,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 
-import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
+import org.gcrel.tfbackevent.payment.exception.PaymentProcessingException;
 import org.gcrel.tfbackevent.payment.service.MercadoPagoService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +23,6 @@ import org.mockito.InjectMocks;
 import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.mercadopago.MercadoPagoConfig;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.payment.PaymentCreateRequest;
 import com.mercadopago.core.MPRequestOptions;
@@ -53,7 +53,8 @@ public class MercadoPagoServiceTest {
                     1,
                     "payer@email.com",
                     "visa",
-                    ORGANIZER_TOKEN);
+                    ORGANIZER_TOKEN,
+                    "ticket-id");
 
             assertNotNull(result);
             assertEquals(expectedPayment, result);
@@ -65,7 +66,7 @@ public class MercadoPagoServiceTest {
     }
 
     @Test
-    void processPayment_WhenMPExceptionThrown_ThrowsPaymentRejectedException() throws Exception {
+    void processPayment_WhenMPExceptionThrown_ThrowsPaymentProcessingException() throws Exception {
         try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
                 PaymentClient.class,
                 (mock, context) -> {
@@ -73,15 +74,16 @@ public class MercadoPagoServiceTest {
                             .thenThrow(new MPException("MP Error"));
                 })) {
 
-            PaymentRejectedException exception = assertThrows(
-                    PaymentRejectedException.class,
+            PaymentProcessingException exception = assertThrows(
+                    PaymentProcessingException.class,
                     () -> mercadoPagoService.processPayment(
                             "card_token",
                             new BigDecimal("1500.00"),
                             1,
                             "payer@email.com",
                             "visa",
-                            ORGANIZER_TOKEN));
+                            ORGANIZER_TOKEN,
+                            "ticket-id"));
 
             assertTrue(exception.getMessage().contains("MP Error"));
         }
@@ -95,7 +97,7 @@ public class MercadoPagoServiceTest {
         try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
                 PaymentClient.class,
                 (mock, context) -> {
-                    when(mock.get(anyLong())).thenReturn(expectedPayment);
+                    when(mock.get(anyLong(), any(MPRequestOptions.class))).thenReturn(expectedPayment);
                 })) {
 
             Payment result = mercadoPagoService.getPaymentById(paymentId, ORGANIZER_TOKEN);
@@ -103,39 +105,40 @@ public class MercadoPagoServiceTest {
             assertNotNull(result);
             assertEquals(expectedPayment, result);
 
-            verify(mockedClient.constructed().get(0), times(1)).get(123456789L);
+            verify(mockedClient.constructed().get(0), times(1))
+                    .get(eq(123456789L), any(MPRequestOptions.class));
         }
     }
 
     @Test
-    void getPaymentById_SetsOrganizerAccessTokenInMercadoPagoConfig() throws Exception {
+    void getPaymentById_UsesOrganizerAccessTokenInRequestOptions() throws Exception {
         Payment expectedPayment = mock(Payment.class);
         String paymentId = "123456789";
 
         try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
                 PaymentClient.class,
                 (mock, context) -> {
-                    when(mock.get(anyLong())).thenReturn(expectedPayment);
+                    when(mock.get(anyLong(), any(MPRequestOptions.class))).thenReturn(expectedPayment);
                 })) {
 
             mercadoPagoService.getPaymentById(paymentId, ORGANIZER_TOKEN);
 
-            assertEquals(ORGANIZER_TOKEN, MercadoPagoConfig.getAccessToken());
+            verify(mockedClient.constructed().get(0)).get(eq(123456789L), any(MPRequestOptions.class));
         }
     }
 
     @Test
-    void getPaymentById_WhenMPApiExceptionThrown_ThrowsPaymentRejectedException() throws Exception {
+    void getPaymentById_WhenMPApiExceptionThrown_ThrowsPaymentProcessingException() throws Exception {
         String paymentId = "123456789";
 
         try (MockedConstruction<PaymentClient> mockedClient = mockConstruction(
                 PaymentClient.class,
                 (mock, context) -> {
-                    when(mock.get(anyLong())).thenThrow(new MPException("API Error"));
+                    when(mock.get(anyLong(), any(MPRequestOptions.class))).thenThrow(new MPException("API Error"));
                 })) {
 
-            PaymentRejectedException exception = assertThrows(
-                    PaymentRejectedException.class,
+            PaymentProcessingException exception = assertThrows(
+                    PaymentProcessingException.class,
                     () -> mercadoPagoService.getPaymentById(paymentId, ORGANIZER_TOKEN));
 
             assertTrue(exception.getMessage().contains("API Error"));
