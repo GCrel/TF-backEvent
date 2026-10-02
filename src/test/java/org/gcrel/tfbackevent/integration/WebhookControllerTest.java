@@ -62,18 +62,19 @@ public class WebhookControllerTest {
         doNothing()
                 .when(webhookService)
                 .processPaymentNotification(
-                        any(WebhookPaymentRequest.class), eq("sig"), eq("req-1"));
+                        any(WebhookPaymentRequest.class), eq("sig"), eq("req-1"), eq("12345"));
 
         mockMvc.perform(
                 post("/api/v1/webhooks/payments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("x-signature", "sig")
                         .header("x-request-id", "req-1")
+                        .queryParam("data.id", "12345")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
         verify(webhookService)
                 .processPaymentNotification(
-                        any(WebhookPaymentRequest.class), eq("sig"), eq("req-1"));
+                        any(WebhookPaymentRequest.class), eq("sig"), eq("req-1"), eq("12345"));
     }
 }

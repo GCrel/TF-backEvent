@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.Optional;
@@ -40,10 +41,8 @@ import org.gcrel.tfbackevent.payment.service.WebhookService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.mercadopago.resources.payment.Payment;
 
@@ -66,7 +65,6 @@ public class WebhookServiceTest {
     @Mock
     private PaymentService paymentService;
 
-    @InjectMocks
     private WebhookService webhookService;
 
     private static final String SECRET = "test-secret-key";
@@ -83,7 +81,13 @@ public class WebhookServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(webhookService, "webhookSecret", SECRET);
+        webhookService = new WebhookService(
+                paymentRepository,
+                mercadoPagoService,
+                mpAccountRepository,
+                mpOAuthService,
+                paymentService,
+                SECRET);
 
         // 1. Usando tu @AllArgsConstructor y @Data reales
         WebhookPaymentRequest.Data requestData = new WebhookPaymentRequest.Data(PAYMENT_ID);
@@ -130,16 +134,72 @@ public class WebhookServiceTest {
         return "ts=" + ts + ",v1=" + hexHash;
     }
 
+    private String currentTimestamp() {
+        return Long.toString(Instant.now().getEpochSecond());
+    }
+
     @Test
     void processPaymentNotification_WhenSignatureIsInvalid_ThrowsException() {
-        String invalidSignature = "ts=123456,v1=badhash123";
+        String invalidSignature = "ts=" + currentTimestamp() + ",v1=badhash123";
 
         assertThrows(
                 WebhookValidationException.class,
                 () -> webhookService.processPaymentNotification(
-                        request, invalidSignature, REQUEST_ID));
+                        request, invalidSignature, REQUEST_ID, PAYMENT_ID));
 
         verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
+    }
+
+    @Test
+    void processPaymentNotification_WhenSignatureIsTooOld_ThrowsException() throws Exception {
+        String timestamp = Long.toString(Instant.now().minusSeconds(301).getEpochSecond());
+        String signature = generateValidSignature(PAYMENT_ID, REQUEST_ID, timestamp);
+
+        assertThrows(
+                WebhookValidationException.class,
+                () -> webhookService.processPaymentNotification(
+                        request, signature, REQUEST_ID, PAYMENT_ID));
+
+        verify(paymentRepository, never()).findByTransactionId(anyString());
+    }
+
+    @Test
+    void processPaymentNotification_WhenDataIdIsMissing_ThrowsException() throws Exception {
+        String timestamp = currentTimestamp();
+        String signature = generateValidSignature(PAYMENT_ID, REQUEST_ID, timestamp);
+
+        assertThrows(
+                WebhookValidationException.class,
+                () -> webhookService.processPaymentNotification(
+                        request, signature, REQUEST_ID, null));
+
+        verify(paymentRepository, never()).findByTransactionId(anyString());
+    }
+
+    @Test
+    void processPaymentNotification_WhenDataIdDoesNotMatchPayload_ThrowsException() throws Exception {
+        String timestamp = currentTimestamp();
+        String signature = generateValidSignature("111111111", REQUEST_ID, timestamp);
+
+        assertThrows(
+                WebhookValidationException.class,
+                () -> webhookService.processPaymentNotification(
+                        request, signature, REQUEST_ID, "111111111"));
+
+        verify(paymentRepository, never()).findByTransactionId(anyString());
+    }
+
+    @Test
+    void processPaymentNotification_WhenTimestampIsInMilliseconds_AcceptsSignature() throws Exception {
+        String timestamp = Long.toString(Instant.now().toEpochMilli());
+        String signature = generateValidSignature(PAYMENT_ID, REQUEST_ID, timestamp);
+
+        when(paymentRepository.findByTransactionId(PAYMENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(
+                PaymentNotificationPendingException.class,
+                () -> webhookService.processPaymentNotification(
+                        request, signature, REQUEST_ID, PAYMENT_ID));
     }
 
     @Test
@@ -147,16 +207,17 @@ public class WebhookServiceTest {
         WebhookPaymentRequest.Data requestData = new WebhookPaymentRequest.Data(PAYMENT_ID);
         request = new WebhookPaymentRequest("payment.created", "plan", requestData);
 
-        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
+        String timestamp = currentTimestamp();
+        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, timestamp);
 
-        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
+        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID, PAYMENT_ID);
 
         verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
     }
 
     @Test
     void processPaymentNotification_WhenPaymentIsApproved_UpdatesAndSendsEmail() throws Exception {
-        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
+        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, currentTimestamp());
 
         when(mpAccountRepository.findByPaymentTransactionId(PAYMENT_ID, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerAccount));
@@ -166,14 +227,14 @@ public class WebhookServiceTest {
                 .thenReturn(mpPaymentMock);
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
                 .thenReturn(Optional.of(localPayment));
-        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
+        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID, PAYMENT_ID);
 
         verify(paymentService).handleExistingPayment(localPayment, mpPaymentMock);
     }
 
     @Test
     void processPaymentNotification_WhenPaymentIsRejected_UpdatesStatusOnly() throws Exception {
-        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
+        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, currentTimestamp());
 
         when(mpAccountRepository.findByPaymentTransactionId(PAYMENT_ID, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerAccount));
@@ -184,19 +245,20 @@ public class WebhookServiceTest {
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
                 .thenReturn(Optional.of(localPayment));
 
-        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
+        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID, PAYMENT_ID);
 
         verify(paymentService).handleExistingPayment(localPayment, mpPaymentMock);
     }
 
     @Test
     void processPaymentNotification_WhenLocalPaymentNotFound_RequestsRetry() throws Exception {
-        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
+        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, currentTimestamp());
 
         when(paymentRepository.findByTransactionId(PAYMENT_ID)).thenReturn(Optional.empty());
 
         assertThrows(PaymentNotificationPendingException.class,
-                () -> webhookService.processPaymentNotification(request, validSignature, REQUEST_ID));
+                () -> webhookService.processPaymentNotification(
+                        request, validSignature, REQUEST_ID, PAYMENT_ID));
 
         verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
         verify(ticketRepository, never()).save(any());
@@ -205,14 +267,14 @@ public class WebhookServiceTest {
 
     @Test
     void processPaymentNotification_WhenPaymentIsNotPending_ReturnsEarly() throws Exception {
-        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, "123456789");
+        String validSignature = generateValidSignature(PAYMENT_ID, REQUEST_ID, currentTimestamp());
 
         localPayment.setPaymentStatus(PaymentStatus.APPROVED);
 
         when(paymentRepository.findByTransactionId(PAYMENT_ID))
                 .thenReturn(Optional.of(localPayment));
 
-        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID);
+        webhookService.processPaymentNotification(request, validSignature, REQUEST_ID, PAYMENT_ID);
 
         verify(mercadoPagoService, never()).getPaymentById(anyString(), anyString());
         verify(mpAccountRepository, never()).findByPaymentTransactionId(anyString(), any());

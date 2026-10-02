@@ -2,7 +2,9 @@ package org.gcrel.tfbackevent.payment.service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
@@ -32,29 +34,31 @@ public class WebhookService {
     private final MpOAuthService mpOAuthService;
     private final PaymentService paymentService;
 
-    @Value("${MERCADO_PAGO_WEBHOOK_SECRET}")
-    private String webhookSecret;
+    private static final long MAX_SIGNATURE_AGE_SECONDS = 300;
+    private final String webhookSecret;
 
     public WebhookService(PaymentRepository paymentRepository, MercadoPagoService mercadoPagoService,
             OrganizerMpAccountRepository mpAccountRepository, MpOAuthService mpOAuthService,
-            PaymentService paymentService) {
+            PaymentService paymentService, @Value("${mercadopago.webhook-secret}") String webhookSecret) {
         this.paymentRepository = paymentRepository;
         this.mercadoPagoService = mercadoPagoService;
         this.mpAccountRepository = mpAccountRepository;
         this.mpOAuthService = mpOAuthService;
         this.paymentService = paymentService;
+        this.webhookSecret = webhookSecret;
     }
 
-    public void processPaymentNotification(WebhookPaymentRequest request, String xSignature, String xRequestId) {
+    public void processPaymentNotification(
+            WebhookPaymentRequest request, String xSignature, String xRequestId, String dataId) {
 
-        validateSignature(xSignature, xRequestId, request.data().id());
+        validateSignature(xSignature, xRequestId, dataId, request.data().id());
 
         if (!"payment".equals(request.type())) {
             return;
         }
 
         Payment payment = paymentRepository
-                .findByTransactionId(request.data().id())
+                .findByTransactionId(dataId)
                 .orElse(null);
 
         if (payment == null) {
@@ -67,7 +71,7 @@ public class WebhookService {
         String organizerAccessToken = getOrganizerToken(payment);
 
         com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService
-                .getPaymentById(request.data().id(), organizerAccessToken);
+                .getPaymentById(dataId, organizerAccessToken);
 
         try {
             paymentService.handleExistingPayment(payment, mpPayment);
@@ -84,17 +88,20 @@ public class WebhookService {
         return mpOAuthService.getValidAccessToken(account);
     }
 
-    private void validateSignature(String xSignature, String xRequestId, String paymentId) {
+    private void validateSignature(
+            String xSignature, String xRequestId, String dataId, String payloadDataId) {
         try {
             Map<String, String> signatureParts = extractSignatureData(xSignature);
             String ts = signatureParts.get("ts");
             String receivedSignature = signatureParts.get("v1");
 
-            if (ts == null || receivedSignature == null) {
+            if (ts == null || receivedSignature == null
+                    || dataId == null || !dataId.equals(payloadDataId)
+                    || isTimestampTooOld(ts)) {
                 throw new WebhookValidationException();
             }
 
-            String message = "id:" + paymentId + ";request-id:" + xRequestId + ";ts:" + ts + ";";
+            String message = "id:" + dataId + ";request-id:" + xRequestId + ";ts:" + ts + ";";
 
             Mac mac = Mac.getInstance("HmacSHA256");
             SecretKeySpec secretKey = new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
@@ -103,12 +110,23 @@ public class WebhookService {
             byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
             String computedSignature = HexFormat.of().formatHex(hash);
 
-            if (!computedSignature.equals(receivedSignature)) {
+            if (!MessageDigest.isEqual(
+                    computedSignature.getBytes(StandardCharsets.UTF_8),
+                    receivedSignature.getBytes(StandardCharsets.UTF_8))) {
                 throw new WebhookValidationException();
             }
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (NumberFormatException | NoSuchAlgorithmException | InvalidKeyException e) {
             throw new WebhookValidationException();
         }
+    }
+
+    private boolean isTimestampTooOld(String timestamp) {
+        long rawTimestamp = Long.parseLong(timestamp);
+        long timestampSeconds = rawTimestamp > 100_000_000_000L
+                ? rawTimestamp / 1000
+                : rawTimestamp;
+        long age = Instant.now().getEpochSecond() - timestampSeconds;
+        return Math.abs(age) > MAX_SIGNATURE_AGE_SECONDS;
     }
 
     private Map<String, String> extractSignatureData(String xSignature) {
