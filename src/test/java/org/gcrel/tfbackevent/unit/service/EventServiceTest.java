@@ -19,8 +19,10 @@ import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
+import org.gcrel.tfbackevent.event.exception.EventHasSalesException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventNotModifiableException;
+import org.gcrel.tfbackevent.event.exception.EventNotPublishableException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
@@ -33,7 +35,9 @@ import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +57,9 @@ public class EventServiceTest {
 
     @Mock
     private OrganizerMpAccountRepository mpAccountRepository;
+
+    @Mock
+    private TicketRepository ticketRepository;
 
     @InjectMocks
     private EventService eventService;
@@ -357,7 +364,7 @@ public class EventServiceTest {
         InPersonEvent existingEvent = new InPersonEvent(
                 "Event to publish",
                 "Description",
-                eventDateTime,
+                eventDateTime.plusDays(2),
                 new BigDecimal("90.00"),
                 "Venue",
                 new BigDecimal("-34.60"),
@@ -375,5 +382,68 @@ public class EventServiceTest {
 
         assertEquals("PUBLISHED", response.status());
         verify(eventRepository).save(existingEvent);
+    }
+
+    @Test
+    void updateEvent_WhenCapacityIsBelowSoldTickets_ShouldThrowBadRequest() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Event", "Description", eventDateTime, new BigDecimal("90.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30);
+        existingEvent.setStatus(EventStatus.PUBLISHED);
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Event", "Description", eventDateTime, new BigDecimal("90.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 2,
+                null, null, null);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(ticketRepository.countByEventAndStatusIn(
+                existingEvent, List.of(TicketStatus.ACTIVE, TicketStatus.USED))).thenReturn(3L);
+
+        assertThrows(BadRequestException.class,
+                () -> eventService.updateEvent(eventId, request, organizer));
+        verify(eventRepository, never()).save(existingEvent);
+    }
+
+    @Test
+    void updateEvent_WhenEventHasSalesAndPriceChanges_ShouldThrowConflict() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Event", "Description", eventDateTime, new BigDecimal("90.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30);
+        existingEvent.setStatus(EventStatus.PUBLISHED);
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Event", "Description", eventDateTime, new BigDecimal("100.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30,
+                null, null, null);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(ticketRepository.countByEventAndStatusIn(
+                existingEvent, List.of(TicketStatus.ACTIVE, TicketStatus.USED))).thenReturn(1L);
+
+        assertThrows(EventHasSalesException.class,
+                () -> eventService.updateEvent(eventId, request, organizer));
+        verify(eventRepository, never()).save(existingEvent);
+    }
+
+    @Test
+    void publishEvent_WhenDateHasPassed_ShouldThrowEventNotPublishableException() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Past event", "Description", LocalDateTime.now().minusMinutes(1),
+                new BigDecimal("90.00"), "Venue", new BigDecimal("-34.60"),
+                new BigDecimal("-58.38"), 30);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+
+        assertThrows(EventNotPublishableException.class,
+                () -> eventService.publishEvent(eventId, organizer));
+        verify(eventRepository, never()).save(existingEvent);
     }
 }

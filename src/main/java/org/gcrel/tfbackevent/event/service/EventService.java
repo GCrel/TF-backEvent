@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.event.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,8 +10,10 @@ import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.exception.EventAlreadyPublishedException;
+import org.gcrel.tfbackevent.event.exception.EventHasSalesException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventNotModifiableException;
+import org.gcrel.tfbackevent.event.exception.EventNotPublishableException;
 import org.gcrel.tfbackevent.event.exception.InvalidEventTypeException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
@@ -22,8 +25,10 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,12 +37,14 @@ public class EventService {
     private final EventRepository eventRepository;
     private final EventParticipationRepository eventParticipationRepository;
     private final OrganizerMpAccountRepository mpAccountRepository;
+    private final TicketRepository ticketRepository;
 
     public EventService(EventRepository eventRepository, EventParticipationRepository eventParticipationRepository,
-            OrganizerMpAccountRepository mpAccountRepository) {
+            OrganizerMpAccountRepository mpAccountRepository, TicketRepository ticketRepository) {
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
         this.mpAccountRepository = mpAccountRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     @Transactional
@@ -60,6 +67,9 @@ public class EventService {
         if (event.getStatus() == EventStatus.PUBLISHED) {
             throw new EventAlreadyPublishedException();
         }
+        if (!event.getDateTime().isAfter(LocalDateTime.now())) {
+            throw new EventNotPublishableException();
+        }
 
         if (!mpAccountRepository.existsByUser(organizer)) {
             throw new MpAccountNotLinkedException();
@@ -76,6 +86,7 @@ public class EventService {
         validateOwnership(event, organizer);
         validateModifiable(event);
         validateTypeSpecificFields(event, request);
+        validateSalesConstraints(event, request);
 
         event.setTitle(request.title());
         event.setDescription(request.description());
@@ -95,6 +106,20 @@ public class EventService {
 
         eventRepository.save(event);
         return toResponse(event);
+    }
+
+    private void validateSalesConstraints(Event event, UpdateEventRequest request) {
+        long soldTickets = ticketRepository.countByEventAndStatusIn(
+                event, List.of(TicketStatus.ACTIVE, TicketStatus.USED));
+        if (event instanceof InPersonEvent
+                && request.capacity() != null && request.capacity() < soldTickets) {
+            throw new BadRequestException("La capacidad no puede ser menor a las entradas vendidas.");
+        }
+        if (soldTickets > 0
+                && (!event.getBasePrice().equals(request.basePrice())
+                        || !event.getDateTime().equals(request.dateTime()))) {
+            throw new EventHasSalesException();
+        }
     }
 
     public EventResponse getEvent(UUID id) {
