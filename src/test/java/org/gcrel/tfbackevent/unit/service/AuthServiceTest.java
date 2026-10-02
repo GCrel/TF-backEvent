@@ -23,6 +23,7 @@ import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
 import org.gcrel.tfbackevent.auth.exception.EmailNotVerifiedException;
 import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
 import org.gcrel.tfbackevent.auth.exception.InvalidTokenException;
+import org.gcrel.tfbackevent.auth.exception.InvalidVerificationCodeException;
 import org.gcrel.tfbackevent.auth.exception.VerificationCodeExpiredException;
 import org.gcrel.tfbackevent.auth.repository.RefreshTokenRepository;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
@@ -133,6 +134,40 @@ public class AuthServiceTest {
         assertThrows(
                 VerificationCodeExpiredException.class,
                 () -> authService.verifyEmail(TEST_EMAIL, "123456"));
+    }
+
+    @Test
+    void verifyEmail_InvalidCode_InvalidatesCodeAfterFiveAttempts() {
+        testUser.setVerificationCode("123456");
+        testUser.setVerificationCodeExpiresAt(LocalDateTime.now().plusMinutes(10));
+        testUser.setEnabled(false);
+
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            assertThrows(
+                    InvalidVerificationCodeException.class,
+                    () -> authService.verifyEmail(TEST_EMAIL, "000000"));
+        }
+
+        assertEquals(5, testUser.getVerificationCodeFailedAttempts());
+        assertNull(testUser.getVerificationCode());
+        assertNull(testUser.getVerificationCodeExpiresAt());
+        verify(userRepository, org.mockito.Mockito.times(5)).save(testUser);
+    }
+
+    @Test
+    void resendVerificationCode_ResetsFailedAttempts() {
+        testUser.setVerificationCode("123456");
+        testUser.setVerificationCodeFailedAttempts(4);
+        testUser.setEnabled(false);
+
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+
+        authService.resendVerificationCode(TEST_EMAIL);
+
+        assertEquals(0, testUser.getVerificationCodeFailedAttempts());
+        assertNotNull(testUser.getVerificationCode());
     }
 
     // ==========================================

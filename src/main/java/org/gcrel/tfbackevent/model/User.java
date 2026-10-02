@@ -54,6 +54,9 @@ public class User implements UserDetails {
     @Column(name = "verification_code_expires_at")
     private LocalDateTime verificationCodeExpiresAt;
 
+    @Column(name = "verification_code_failed_attempts", nullable = false)
+    private int verificationCodeFailedAttempts;
+
     public User() {
     }
 
@@ -143,5 +146,13 @@ public class User implements UserDetails {
 
     public void setVerificationCodeExpiresAt(LocalDateTime verificationCodeExpiresAt) {
         this.verificationCodeExpiresAt = verificationCodeExpiresAt;
+    }
+
+    public int getVerificationCodeFailedAttempts() {
+        return verificationCodeFailedAttempts;
+    }
+
+    public void setVerificationCodeFailedAttempts(int verificationCodeFailedAttempts) {
+        this.verificationCodeFailedAttempts = verificationCodeFailedAttempts;
     }
 }

@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
+    private static final int MAX_VERIFICATION_CODE_ATTEMPTS = 5;
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtService jwtService;
@@ -74,13 +76,22 @@ public class AuthService {
         if (user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
             throw new VerificationCodeExpiredException();
         }
-        if (!user.getVerificationCode().equals(code)) {
+        if (user.getVerificationCode() == null
+                || !user.getVerificationCode().equals(code)) {
+            int failedAttempts = user.getVerificationCodeFailedAttempts() + 1;
+            user.setVerificationCodeFailedAttempts(failedAttempts);
+            if (failedAttempts >= MAX_VERIFICATION_CODE_ATTEMPTS) {
+                user.setVerificationCode(null);
+                user.setVerificationCodeExpiresAt(null);
+            }
+            userRepository.save(user);
             throw new InvalidVerificationCodeException();
         }
 
         user.setEnabled(true);
         user.setVerificationCode(null);
         user.setVerificationCodeExpiresAt(null);
+        user.setVerificationCodeFailedAttempts(0);
         userRepository.save(user);
         return generateTokenPair(user);
     }
@@ -141,6 +152,7 @@ public class AuthService {
         // assign code and expiration to user
         user.setVerificationCode(code);
         user.setVerificationCodeExpiresAt(LocalDateTime.now().plusMinutes(15));
+        user.setVerificationCodeFailedAttempts(0);
 
         userRepository.save(user);
 
