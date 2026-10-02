@@ -24,9 +24,7 @@ public record EventResponse(
         Integer capacity,
 
         // Virtual Event
-        String accessLink,
-        String platform,
-        String accessInstructions) {
+        String platform) {
 
     // Physical Event Constructor
     public EventResponse(InPersonEvent event) {
@@ -42,8 +40,6 @@ public record EventResponse(
                 event.getLatitude(),
                 event.getLongitude(),
                 event.getCapacity(),
-                null,
-                null,
                 null);
     }
 
@@ -61,8 +57,6 @@ public record EventResponse(
                 null,
                 null,
                 null,
-                event.getAccessLink(),
-                event.getPlatform(),
-                event.getAccessInstructions());
+                event.getPlatform());
     }
 }

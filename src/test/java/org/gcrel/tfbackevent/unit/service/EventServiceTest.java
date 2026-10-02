@@ -122,7 +122,7 @@ public class EventServiceTest {
         assertInstanceOf(VirtualEvent.class, savedEvent);
         assertEquals("Zoom", ((VirtualEvent) savedEvent).getPlatform());
         assertEquals("VIRTUAL", response.eventType());
-        assertEquals("https://meet.example.com/link", response.accessLink());
+        assertEquals("Zoom", response.platform());
     }
 
     @Test

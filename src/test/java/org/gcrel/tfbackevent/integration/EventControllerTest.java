@@ -85,7 +85,7 @@ public class EventControllerTest {
         CreateEventRequest request = new CreateEventRequest(
                 "Tech Meetup",
                 "Spring Boot meetup",
-                LocalDateTime.of(2026, 9, 10, 19, 0),
+                LocalDateTime.of(2027, 9, 10, 19, 0),
                 new BigDecimal("25.00"),
                 EventType.IN_PERSON,
                 "Main St 123",
@@ -109,8 +109,6 @@ public class EventControllerTest {
                 request.latitude(),
                 request.longitude(),
                 request.capacity(),
-                null,
-                null,
                 null);
 
         when(eventService.createEvent(any(CreateEventRequest.class), any(User.class)))
@@ -178,8 +176,6 @@ public class EventControllerTest {
                 request.latitude(),
                 request.longitude(),
                 request.capacity(),
-                null,
-                null,
                 null);
 
         when(eventService.updateEvent(eq(eventId), any(UpdateEventRequest.class), any(User.class)))
@@ -243,8 +239,6 @@ public class EventControllerTest {
                 new BigDecimal("-34.6"),
                 new BigDecimal("-58.38"),
                 100,
-                null,
-                null,
                 null);
 
         when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
@@ -291,16 +285,16 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "https://meet.example.com/abc",
-                "Meet",
-                "Join 10 minutes before start");
+                "Meet");
 
         when(eventService.getEvent(eventId)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/events/{id}", eventId).with(authentication(authentication)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(eventId.toString()))
-                .andExpect(jsonPath("$.eventType").value("VIRTUAL"));
+                .andExpect(jsonPath("$.eventType").value("VIRTUAL"))
+                .andExpect(jsonPath("$.accessLink").doesNotExist())
+                .andExpect(jsonPath("$.accessInstructions").doesNotExist());
     }
 
     @Test
@@ -326,8 +320,6 @@ public class EventControllerTest {
                 new BigDecimal("-34.60"),
                 new BigDecimal("-58.38"),
                 50,
-                null,
-                null,
                 null);
         EventResponse second = new EventResponse(
                 UUID.randomUUID(),
@@ -341,9 +333,7 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "https://zoom.us/xyz",
-                "Zoom",
-                "Use waiting room");
+                "Zoom");
 
         when(eventService.getAllEvents()).thenReturn(List.of(first, second));
 
@@ -351,7 +341,11 @@ public class EventControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].title").value("Event 1"))
-                .andExpect(jsonPath("$[1].title").value("Event 2"));
+                .andExpect(jsonPath("$[1].title").value("Event 2"))
+                .andExpect(jsonPath("$[0].accessLink").doesNotExist())
+                .andExpect(jsonPath("$[0].accessInstructions").doesNotExist())
+                .andExpect(jsonPath("$[1].accessLink").doesNotExist())
+                .andExpect(jsonPath("$[1].accessInstructions").doesNotExist());
     }
 
     @Test
