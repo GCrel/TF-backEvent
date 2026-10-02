@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
@@ -126,6 +128,28 @@ public class EventServiceTest {
     }
 
     @Test
+    void createEvent_VirtualWithoutPlatform_ShouldThrowBadRequest() {
+        CreateEventRequest request = new CreateEventRequest(
+                "Webinar",
+                "Sesión online",
+                eventDateTime,
+                new BigDecimal("50.00"),
+                EventType.VIRTUAL,
+                null,
+                null,
+                null,
+                null,
+                "https://meet.example.com/link",
+                null,
+                "Ingresá usando el link");
+
+        assertThrows(BadRequestException.class, () -> eventService.createEvent(request, organizer));
+
+        verify(eventRepository, never()).save(any());
+        verify(eventParticipationRepository, never()).save(any());
+    }
+
+    @Test
     void updateEvent_WhenOrganizerAndEditable_ShouldUpdateValues() {
         UUID eventId = UUID.randomUUID();
         InPersonEvent existingEvent = new InPersonEvent(
@@ -165,6 +189,44 @@ public class EventServiceTest {
         assertEquals("New address", response.address());
         assertEquals(120, response.capacity());
         verify(eventRepository).save(existingEvent);
+    }
+
+    @Test
+    void updateEvent_InPersonWithoutCapacity_ShouldThrowBadRequest() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Event old",
+                "Old description",
+                eventDateTime,
+                new BigDecimal("100.00"),
+                "Old address",
+                new BigDecimal("-34.60"),
+                new BigDecimal("-58.38"),
+                50);
+        existingEvent.setStatus(EventStatus.DRAFT);
+
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Event updated",
+                "Updated description",
+                eventDateTime.plusHours(2),
+                new BigDecimal("180.00"),
+                "New address",
+                new BigDecimal("-34.61"),
+                new BigDecimal("-58.39"),
+                null,
+                null,
+                null,
+                null);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                existingEvent, organizer, EventRole.ORGANIZER))
+                .thenReturn(true);
+
+        assertThrows(BadRequestException.class,
+                () -> eventService.updateEvent(eventId, request, organizer));
+
+        verify(eventRepository, never()).save(existingEvent);
     }
 
     @Test

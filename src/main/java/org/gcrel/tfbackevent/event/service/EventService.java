@@ -1,8 +1,10 @@
 package org.gcrel.tfbackevent.event.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
@@ -23,6 +25,7 @@ import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EventService {
@@ -37,6 +40,7 @@ public class EventService {
         this.mpAccountRepository = mpAccountRepository;
     }
 
+    @Transactional
     public EventResponse createEvent(CreateEventRequest request, User organizer) {
         Event event = buildEvent(request);
         eventRepository.save(event);
@@ -47,6 +51,7 @@ public class EventService {
         return toResponse(event);
     }
 
+    @Transactional
     public EventResponse publishEvent(UUID id, User organizer) {
         Event event = findEventById(id);
         validateOwnership(event, organizer);
@@ -65,10 +70,12 @@ public class EventService {
         return toResponse(event);
     }
 
+    @Transactional
     public EventResponse updateEvent(UUID id, UpdateEventRequest request, User organizer) {
         Event event = findEventById(id);
         validateOwnership(event, organizer);
         validateModifiable(event);
+        validateTypeSpecificFields(event, request);
 
         event.setTitle(request.title());
         event.setDescription(request.description());
@@ -98,6 +105,7 @@ public class EventService {
         return eventRepository.findAll().stream().map(this::toResponse).toList();
     }
 
+    @Transactional
     public void cancelEvent(UUID id, User organizer) {
         Event event = findEventById(id);
         validateOwnership(event, organizer);
@@ -109,6 +117,7 @@ public class EventService {
 
     // private helper methods
     private Event buildEvent(CreateEventRequest request) {
+        validateTypeSpecificFields(request);
         return switch (request.eventType()) {
             case IN_PERSON ->
                 new InPersonEvent(
@@ -131,6 +140,43 @@ public class EventService {
                         request.accessInstructions());
             default -> throw new InvalidEventTypeException();
         };
+    }
+
+    private void validateTypeSpecificFields(CreateEventRequest request) {
+        switch (request.eventType()) {
+            case IN_PERSON -> validateInPersonFields(
+                    request.address(), request.latitude(), request.longitude(), request.capacity());
+            case VIRTUAL -> validateVirtualFields(request.accessLink(), request.platform());
+            default -> throw new InvalidEventTypeException();
+        }
+    }
+
+    private void validateTypeSpecificFields(Event event, UpdateEventRequest request) {
+        if (event instanceof InPersonEvent) {
+            validateInPersonFields(
+                    request.address(), request.latitude(), request.longitude(), request.capacity());
+        } else if (event instanceof VirtualEvent) {
+            validateVirtualFields(request.accessLink(), request.platform());
+        } else {
+            throw new InvalidEventTypeException();
+        }
+    }
+
+    private void validateInPersonFields(
+            String address, BigDecimal latitude, BigDecimal longitude, Integer capacity) {
+        if (address == null || address.isBlank()
+                || latitude == null || longitude == null || capacity == null) {
+            throw new BadRequestException(
+                    "address, latitude, longitude and capacity are required for in-person events.");
+        }
+    }
+
+    private void validateVirtualFields(String accessLink, String platform) {
+        if (accessLink == null || accessLink.isBlank()
+                || platform == null || platform.isBlank()) {
+            throw new BadRequestException(
+                    "accessLink and platform are required for virtual events.");
+        }
     }
 
     private EventResponse toResponse(Event event) {
