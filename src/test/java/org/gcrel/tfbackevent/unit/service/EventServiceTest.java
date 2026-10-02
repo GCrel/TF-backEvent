@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -385,6 +386,29 @@ public class EventServiceTest {
         when(eventRepository.findById(eventId)).thenReturn(Optional.empty());
 
         assertThrows(EventNotFoundException.class, () -> eventService.getEvent(eventId));
+    }
+
+    @Test
+    void finishPastEvents_WhenPublishedEventIsPast_MarksItFinished() {
+        InPersonEvent pastEvent = new InPersonEvent(
+                "Past event",
+                "Description",
+                eventDateTime.minusHours(1),
+                new BigDecimal("90.00"),
+                "Venue",
+                new BigDecimal("-34.60"),
+                new BigDecimal("-58.38"),
+                30);
+        pastEvent.setStatus(EventStatus.PUBLISHED);
+
+        when(eventRepository.findByStatusAndDateTimeBefore(
+                eq(EventStatus.PUBLISHED), any(LocalDateTime.class)))
+                .thenReturn(List.of(pastEvent));
+
+        eventService.finishPastEvents();
+
+        assertEquals(EventStatus.FINISHED, pastEvent.getStatus());
+        verify(eventRepository).save(pastEvent);
     }
 
     @Test

@@ -29,6 +29,8 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             @Param("role") EventRole role,
             @Param("status") EventStatus status);
 
+    List<Event> findByStatusAndDateTimeBefore(EventStatus status, java.time.LocalDateTime dateTime);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Event e WHERE e.id = :id")
     Optional<Event> findForTicketReservation(@Param("id") UUID id);

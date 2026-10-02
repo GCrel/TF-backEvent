@@ -30,6 +30,7 @@ import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -132,6 +133,16 @@ public class EventService {
     }
 
     @Transactional
+    @Scheduled(fixedDelayString = "${event.finish.retry-delay-ms:60000}")
+    public void finishPastEvents() {
+        eventRepository.findByStatusAndDateTimeBefore(EventStatus.PUBLISHED, LocalDateTime.now())
+                .forEach(event -> {
+                    event.setStatus(EventStatus.FINISHED);
+                    eventRepository.save(event);
+                });
+    }
+
+    @Transactional
     public void cancelEvent(UUID id, User organizer) {
         Event event = findEventById(id);
         validateOwnership(event, organizer);
@@ -168,7 +179,6 @@ public class EventService {
                         request.accessLink(),
                         request.platform(),
                         request.accessInstructions());
-            default -> throw new InvalidEventTypeException();
         };
     }
 

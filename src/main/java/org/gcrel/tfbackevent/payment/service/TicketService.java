@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
+import org.gcrel.tfbackevent.event.exception.EventOrganizerMissingException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
@@ -21,7 +22,6 @@ import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
 import org.gcrel.tfbackevent.payment.dto.response.TicketResponse;
 import org.gcrel.tfbackevent.payment.exception.EventCapacityExceededException;
 import org.gcrel.tfbackevent.payment.exception.InvalidTicketPurchaseException;
-import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.exception.PaymentProcessingException;
 import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
 import org.gcrel.tfbackevent.payment.exception.TicketAlreadyPurchasedException;
@@ -65,7 +65,7 @@ public class TicketService {
 
         EventParticipation organizerParticipation = eventParticipationRepository
                 .findByEventAndEventRole(event, EventRole.ORGANIZER)
-                .orElseThrow(MpAccountNotLinkedException::new);
+                .orElseThrow(EventOrganizerMissingException::new);
 
         String accessToken = mpOAuthService
                 .getValidAccessToken(organizerParticipation.getUser());
