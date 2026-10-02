@@ -11,6 +11,7 @@ import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.exception.EventAlreadyPublishedException;
 import org.gcrel.tfbackevent.event.exception.EventHasSalesException;
+import org.gcrel.tfbackevent.event.exception.EventHasTicketsException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventNotModifiableException;
 import org.gcrel.tfbackevent.event.exception.EventNotPublishableException;
@@ -135,6 +136,10 @@ public class EventService {
         Event event = findEventById(id);
         validateOwnership(event, organizer);
         validateModifiable(event);
+        if (ticketRepository.countByEventAndStatusIn(
+                event, List.of(TicketStatus.ACTIVE, TicketStatus.USED)) > 0) {
+            throw new EventHasTicketsException();
+        }
 
         event.setStatus(EventStatus.CANCELLED);
         eventRepository.save(event);

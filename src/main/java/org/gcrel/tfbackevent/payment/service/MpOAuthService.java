@@ -10,8 +10,11 @@ import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventRole;
+import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.exception.MpOAuthException;
@@ -23,6 +26,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
@@ -35,6 +39,7 @@ public class MpOAuthService {
     private final UserRepository userRepository;
     private final MpOAuthStateService oauthStateService;
     private final MpAccountLinkService accountLinkService;
+    private final EventRepository eventRepository;
     private final SecureRandom secureRandom = new SecureRandom();
 
     private static final int OAUTH_STATE_BYTES = 32;
@@ -52,11 +57,13 @@ public class MpOAuthService {
     private String redirectUri;
 
     public MpOAuthService(OrganizerMpAccountRepository mpAccountRepository, UserRepository userRepository,
-            MpOAuthStateService oauthStateService, MpAccountLinkService accountLinkService) {
+            MpOAuthStateService oauthStateService, MpAccountLinkService accountLinkService,
+            EventRepository eventRepository) {
         this.mpAccountRepository = mpAccountRepository;
         this.userRepository = userRepository;
         this.oauthStateService = oauthStateService;
         this.accountLinkService = accountLinkService;
+        this.eventRepository = eventRepository;
     }
 
     // Construye la URL de autorización para redirigir al usuario a Mercado Pago y
@@ -142,9 +149,15 @@ public class MpOAuthService {
     }
 
     // Desvincula la cuenta de Mercado Pago del usuario.
+    @Transactional
     public void unlinkAccount(User user) {
         OrganizerMpAccount account = mpAccountRepository.findByUser(user)
                 .orElseThrow(MpAccountNotLinkedException::new);
+        eventRepository.findByOrganizerAndStatus(user, EventRole.ORGANIZER, EventStatus.PUBLISHED)
+                .forEach(event -> {
+                    event.setStatus(EventStatus.DRAFT);
+                    eventRepository.save(event);
+                });
         mpAccountRepository.delete(account);
     }
 

@@ -18,8 +18,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventRole;
+import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
 import org.gcrel.tfbackevent.payment.exception.InvalidMpOAuthStateException;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
@@ -49,6 +53,8 @@ public class MpOAuthServiceTest {
     private MpOAuthStateService oauthStateService;
     @Mock
     private MpAccountLinkService accountLinkService;
+    @Mock
+    private EventRepository eventRepository;
 
     @InjectMocks
     private MpOAuthService mpOAuthService;
@@ -180,9 +186,15 @@ public class MpOAuthServiceTest {
     @Test
     void unlinkAccount_WhenLinked_DeletesAccount() {
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
+        Event publishedEvent = org.mockito.Mockito.mock(Event.class);
+        when(eventRepository.findByOrganizerAndStatus(
+                user, EventRole.ORGANIZER, EventStatus.PUBLISHED))
+                .thenReturn(java.util.List.of(publishedEvent));
 
         mpOAuthService.unlinkAccount(user);
 
+        verify(publishedEvent).setStatus(EventStatus.DRAFT);
+        verify(eventRepository).save(publishedEvent);
         verify(mpAccountRepository).delete(account);
     }
 

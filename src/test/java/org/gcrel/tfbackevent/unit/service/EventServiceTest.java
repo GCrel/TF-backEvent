@@ -20,6 +20,7 @@ import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.exception.EventHasSalesException;
+import org.gcrel.tfbackevent.event.exception.EventHasTicketsException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventNotModifiableException;
 import org.gcrel.tfbackevent.event.exception.EventNotPublishableException;
@@ -319,6 +320,34 @@ public class EventServiceTest {
         assertThrows(
                 EventNotModifiableException.class,
                 () -> eventService.cancelEvent(eventId, organizer));
+    }
+
+    @Test
+    void cancelEvent_WhenEventHasPurchasedTickets_ShouldThrowEventHasTicketsException() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Event with sales",
+                "Description",
+                eventDateTime,
+                new BigDecimal("90.00"),
+                "Venue",
+                new BigDecimal("-34.60"),
+                new BigDecimal("-58.38"),
+                30);
+        existingEvent.setStatus(EventStatus.PUBLISHED);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                existingEvent, organizer, EventRole.ORGANIZER))
+                .thenReturn(true);
+        when(ticketRepository.countByEventAndStatusIn(
+                existingEvent, List.of(TicketStatus.ACTIVE, TicketStatus.USED)))
+                .thenReturn(1L);
+
+        assertThrows(
+                EventHasTicketsException.class,
+                () -> eventService.cancelEvent(eventId, organizer));
+        verify(eventRepository, never()).save(existingEvent);
     }
 
     @Test
