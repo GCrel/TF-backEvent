@@ -8,17 +8,17 @@
 -- ---------------------------------------------------------------------
 -- 1) USERS (tabla padre: sin dependencias)
 -- ---------------------------------------------------------------------
-INSERT INTO users (id, name, email, password, system_role, date_birth, is_enabled, verification_code, verification_code_expires_at)
+INSERT INTO users (id, name, email, password, system_role, date_birth, is_enabled, verification_code, verification_code_expires_at, verification_code_failed_attempts)
 VALUES
     ('11111111-1111-1111-1111-111111111111', 'Ana García',  'ana.garcia@example.com',
-     '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'ADMIN', DATE '1990-05-12', TRUE, NULL, NULL),
+     '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'ADMIN', DATE '1990-05-12', TRUE, NULL, NULL, 0),
     ('22222222-2222-2222-2222-222222222222', 'Bruno López', 'bruno.lopez@example.com',
-     '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1995-09-23', TRUE, NULL, NULL),
+     '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1995-09-23', TRUE, NULL, NULL, 0),
     ('33333333-3333-3333-3333-333333333333', 'Carla Méndez','carla.mendez@example.com',
-     '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1998-01-30', TRUE, NULL, NULL),
+     '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1998-01-30', TRUE, NULL, NULL, 0),
     ('44444444-4444-4444-4444-444444444444', 'Diego Torres','diego.torres@example.com',
      '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '2000-11-05', FALSE,
-     'ABC123', TIMESTAMP '2030-01-01 12:00:00');
+     'ABC123', TIMESTAMP '2030-01-01 12:00:00', 0);
 
 -- ---------------------------------------------------------------------
 -- 2) EVENTS (tabla padre de la herencia JOINED; depende de nada)
@@ -66,12 +66,26 @@ VALUES
 -- 5) PAYMENTS (OneToOne con tickets)
 -- ---------------------------------------------------------------------
 INSERT INTO payments (id, transaction_id, total_amount, payment_date, payment_status,
-                      delivery_status, delivery_attempts, version, ticket_id)
+                      mp_status, status_detail,
+                      delivery_status, delivery_attempts, next_delivery_attempt_at, last_delivery_error,
+                      next_reconcile_at, version, ticket_id)
 VALUES
-    ('dddddddd-0000-0000-0000-000000000001', 'TXN-2026-000001', 150.00, TIMESTAMP '2026-07-01 10:16:30', 'APPROVED', 'SENT',         1, 0, 'cccccccc-0000-0000-0000-000000000001'),
-    ('dddddddd-0000-0000-0000-000000000002', 'TXN-2026-000002',  25.50, TIMESTAMP '2026-07-03 16:42:10', 'APPROVED', 'SENT',         1, 0, 'cccccccc-0000-0000-0000-000000000002'),
-    ('dddddddd-0000-0000-0000-000000000003', 'TXN-2026-000003',   40.00, TIMESTAMP '2026-07-10 21:06:00', 'PENDING',  'NOT_REQUIRED', 0, 0, 'cccccccc-0000-0000-0000-000000000003'),
-    ('dddddddd-0000-0000-0000-000000000004', 'TXN-2026-000004',  150.00, TIMESTAMP '2026-06-25 08:01:45', 'REJECTED', 'NOT_REQUIRED', 0, 0, 'cccccccc-0000-0000-0000-000000000004');
+    ('dddddddd-0000-0000-0000-000000000001', 'TXN-2026-000001', 150.00, TIMESTAMP '2026-07-01 10:16:30', 'APPROVED',
+     'approved', 'accredited',
+     'SENT', 1, NULL, NULL,
+     TIMESTAMP '2026-07-01 10:16:30', 0, 'cccccccc-0000-0000-0000-000000000001'),
+    ('dddddddd-0000-0000-0000-000000000002', 'TXN-2026-000002',  25.50, TIMESTAMP '2026-07-03 16:42:10', 'APPROVED',
+     'approved', 'accredited',
+     'SENT', 1, NULL, NULL,
+     TIMESTAMP '2026-07-03 16:42:10', 0, 'cccccccc-0000-0000-0000-000000000002'),
+    ('dddddddd-0000-0000-0000-000000000003', 'TXN-2026-000003',   40.00, TIMESTAMP '2026-07-10 21:06:00', 'PENDING',
+     'in_process', NULL,
+     'NOT_REQUIRED', 0, NULL, NULL,
+     TIMESTAMP '2026-07-10 21:06:00', 0, 'cccccccc-0000-0000-0000-000000000003'),
+    ('dddddddd-0000-0000-0000-000000000004', 'TXN-2026-000004',  150.00, TIMESTAMP '2026-06-25 08:01:45', 'REJECTED',
+     'rejected', 'cc_rejected_other_reason',
+     'NOT_REQUIRED', 0, NULL, NULL,
+     TIMESTAMP '2026-06-25 08:01:45', 0, 'cccccccc-0000-0000-0000-000000000004');
 
 -- ---------------------------------------------------------------------
 -- 6) REFRESH_TOKEN (depende de users)
@@ -97,3 +111,22 @@ VALUES
     ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000002', 'ATTENDEE'),
     -- Controladores de acceso
     ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000001', 'CONTROLLER');
+
+-- ---------------------------------------------------------------------
+-- 8) ORGANIZER_MP_ACCOUNTS (depende de users)
+-- ---------------------------------------------------------------------
+INSERT INTO organizer_mp_accounts (id, user_id, mp_access_token, mp_user_id, mp_email,
+                                  linked_at, mp_refresh_token, mp_token_expires_at)
+VALUES
+    ('ffffffff-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+     'TEST-ACCESS-TOKEN-ANA-1234567890', '123456789', 'ana.garcia@example.com',
+     TIMESTAMP '2026-09-01 10:00:00',
+     'TEST-REFRESH-TOKEN-ANA-0987654321',
+     TIMESTAMP '2027-09-01 10:00:00');
+
+-- ---------------------------------------------------------------------
+-- 9) MP_OAUTH_STATES (depende de users)
+-- ---------------------------------------------------------------------
+INSERT INTO mp_oauth_states (state, user_id, expires_at)
+VALUES
+    ('test-state-abc123', '22222222-2222-2222-2222-222222222222', TIMESTAMP '2026-12-31 23:59:59');
