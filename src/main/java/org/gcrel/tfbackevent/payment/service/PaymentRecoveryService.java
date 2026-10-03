@@ -60,7 +60,7 @@ public class PaymentRecoveryService {
         for (Payment payment : payments) {
             try {
                 var organizer = eventParticipationRepository
-                        .findByEventAndEventRole(payment.getTicket().getEvent(), EventRole.ORGANIZER)
+                        .findByEventAndId_EventRole(payment.getTicket().getEvent(), EventRole.ORGANIZER)
                         .orElseThrow();
                 String token = mpOAuthService.getValidAccessToken(organizer.getUser());
                 var mpPayment = mercadoPagoService.getPaymentById(payment.getTransactionId(), token);
@@ -82,7 +82,7 @@ public class PaymentRecoveryService {
         for (var ticket : tickets) {
             try {
                 var organizer = eventParticipationRepository
-                        .findByEventAndEventRole(ticket.getEvent(), EventRole.ORGANIZER)
+                        .findByEventAndId_EventRole(ticket.getEvent(), EventRole.ORGANIZER)
                         .orElseThrow();
                 String token = mpOAuthService.getValidAccessToken(organizer.getUser());
                 var mpPayment = mercadoPagoService.findPaymentByExternalReference(

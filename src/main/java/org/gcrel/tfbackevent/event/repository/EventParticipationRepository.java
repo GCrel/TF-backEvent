@@ -16,5 +16,5 @@ public interface EventParticipationRepository extends JpaRepository<EventPartici
     boolean existsByEventAndUserAndId_EventRole(Event event, User user, EventRole eventRole);
 
     @EntityGraph(attributePaths = "user")
-    Optional<EventParticipation> findByEventAndEventRole(Event event, EventRole eventRole);
+    Optional<EventParticipation> findByEventAndId_EventRole(Event event, EventRole eventRole);
 }

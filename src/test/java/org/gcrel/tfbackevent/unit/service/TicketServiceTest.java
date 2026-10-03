@@ -20,13 +20,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.service.EmailService;
-import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.config.EventWindowProperties;
+import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
-import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.EventParticipation;
+import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
@@ -142,7 +142,7 @@ public class TicketServiceTest {
     void purchase_WhenPaymentApproved_ReturnsApprovedResponse() {
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
+        when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
 
@@ -177,7 +177,7 @@ public class TicketServiceTest {
         event.setDateTime(LocalDateTime.now().plusDays(10));
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
+        when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
         when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
@@ -206,7 +206,7 @@ public class TicketServiceTest {
     void purchase_WhenPaymentRejectedExceptionThrown_CancelsTicketAndThrows() {
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
+        when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
         when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))

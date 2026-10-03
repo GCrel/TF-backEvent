@@ -4,10 +4,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventOrganizerMissingException;
-import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
@@ -31,9 +31,9 @@ import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotFoundException;
 import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.hibernate.Hibernate;
 
 @Service
 public class TicketService {
@@ -69,7 +69,7 @@ public class TicketService {
         validateEventForPurchase(event);
 
         EventParticipation organizerParticipation = eventParticipationRepository
-                .findByEventAndEventRole(event, EventRole.ORGANIZER)
+                .findByEventAndId_EventRole(event, EventRole.ORGANIZER)
                 .orElseThrow(EventOrganizerMissingException::new);
 
         String accessToken = mpOAuthService
