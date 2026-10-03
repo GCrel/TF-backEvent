@@ -100,6 +100,10 @@ public class WebhookServiceTest {
                 "Description",
                 LocalDateTime.now().plusDays(1),
                 new BigDecimal("1000.00")) {
+            @Override
+            public org.gcrel.tfbackevent.model.enums.EventType getType() {
+                return org.gcrel.tfbackevent.model.enums.EventType.IN_PERSON;
+            }
         };
 
         User organizer = new User();

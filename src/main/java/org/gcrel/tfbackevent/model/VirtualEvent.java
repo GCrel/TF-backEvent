@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import org.gcrel.tfbackevent.model.enums.EventType;
 
 @Entity
 @Table(name = "virtual_events")
@@ -20,6 +21,11 @@ public class VirtualEvent extends Event {
     private String accessInstructions;
 
     protected VirtualEvent() {
+    }
+
+    @Override
+    public EventType getType() {
+        return EventType.VIRTUAL;
     }
 
     public VirtualEvent(

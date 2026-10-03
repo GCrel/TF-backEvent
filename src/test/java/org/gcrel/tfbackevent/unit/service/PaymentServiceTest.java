@@ -64,6 +64,10 @@ public class PaymentServiceTest {
 
         Event event = new Event("Test Event", "Event Description", LocalDateTime.now().plusDays(1),
                 new BigDecimal("100.00")) {
+            @Override
+            public org.gcrel.tfbackevent.model.enums.EventType getType() {
+                return org.gcrel.tfbackevent.model.enums.EventType.IN_PERSON;
+            }
         };
 
         ticket = new Ticket(LocalDateTime.now(), event, attendee);

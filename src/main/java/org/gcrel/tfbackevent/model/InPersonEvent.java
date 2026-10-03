@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import org.gcrel.tfbackevent.model.enums.EventType;
 
 @Entity
 @Table(name = "in_person_events")
@@ -23,6 +24,11 @@ public class InPersonEvent extends Event {
     private Integer capacity;
 
     protected InPersonEvent() {
+    }
+
+    @Override
+    public EventType getType() {
+        return EventType.IN_PERSON;
     }
 
     public InPersonEvent(

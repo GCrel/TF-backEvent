@@ -24,6 +24,7 @@ import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
+import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
@@ -100,12 +101,15 @@ public class TicketServiceTest {
         organizer.setId(UUID.randomUUID());
         organizer.setEmail("organizer@test.com");
 
-        event = new Event(
+        event = new InPersonEvent(
                 "Test Event",
                 "Description",
                 LocalDateTime.now().plusDays(1),
-                new BigDecimal("1000.00")) {
-        };
+                new BigDecimal("1000.00"),
+                "Venue",
+                new BigDecimal("-34.60"),
+                new BigDecimal("-58.38"),
+                100);
         event.setId(UUID.randomUUID());
         event.setStatus(EventStatus.PUBLISHED);
 

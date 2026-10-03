@@ -16,6 +16,7 @@ import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
 import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
@@ -31,6 +32,7 @@ import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.hibernate.Hibernate;
 
 @Service
 public class TicketService {
@@ -109,7 +111,8 @@ public class TicketService {
             throw new TicketAlreadyPurchasedException();
         }
 
-        if (event instanceof InPersonEvent inPerson) {
+        if (event.getType() == EventType.IN_PERSON) {
+            InPersonEvent inPerson = (InPersonEvent) Hibernate.unproxy(event);
             long reservedTickets = ticketRepository.countByEventAndStatusIn(
                     event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED));
             if (reservedTickets >= inPerson.getCapacity()) {

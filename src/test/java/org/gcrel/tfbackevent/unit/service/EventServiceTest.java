@@ -280,7 +280,7 @@ public class EventServiceTest {
         InPersonEvent existingEvent = new InPersonEvent(
                 "Event to cancel",
                 "Description",
-                eventDateTime,
+                eventDateTime.plusDays(5),
                 new BigDecimal("90.00"),
                 "Venue",
                 new BigDecimal("-34.60"),
@@ -417,7 +417,7 @@ public class EventServiceTest {
         InPersonEvent existingEvent = new InPersonEvent(
                 "Event to publish",
                 "Description",
-                eventDateTime.plusDays(2),
+                eventDateTime.plusDays(5),
                 new BigDecimal("90.00"),
                 "Venue",
                 new BigDecimal("-34.60"),

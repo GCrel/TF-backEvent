@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -45,6 +46,8 @@ public abstract class Event {
 
     public Event() {
     }
+
+    public abstract EventType getType();
 
     public Event(String title, String description, LocalDateTime dateTime, BigDecimal basePrice) {
         this.title = title;
