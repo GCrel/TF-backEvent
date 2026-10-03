@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.gcrel.tfbackevent.auth.service.EmailService;
 import org.gcrel.tfbackevent.model.Payment;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
 import org.gcrel.tfbackevent.payment.exception.QRGenerationException;
 import org.gcrel.tfbackevent.payment.exception.TicketDeliveryException;
@@ -50,8 +51,13 @@ public class DeliveryService {
         paymentRepository.saveAndFlush(payment);
 
         try {
-            String qr = qrService.generateQRBase64(payment.getTicket().getId());
-            emailService.sendTicketEmail(payment.getTicket().getAttendee().getEmail(), payment.getTicket(), qr);
+            if (payment.getTicket().getEvent().getType() == EventType.VIRTUAL) {
+                emailService.sendVirtualTicketEmail(
+                        payment.getTicket().getAttendee().getEmail(), payment.getTicket());
+            } else {
+                String qr = qrService.generateQRBase64(payment.getTicket().getId());
+                emailService.sendTicketEmail(payment.getTicket().getAttendee().getEmail(), payment.getTicket(), qr);
+            }
             payment.setDeliveryStatus(DeliveryStatus.SENT);
             payment.setLastDeliveryError(null);
         } catch (QRGenerationException | TicketDeliveryException e) {

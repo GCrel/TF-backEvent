@@ -7,6 +7,7 @@ import org.gcrel.tfbackevent.model.Payment;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
@@ -48,7 +49,8 @@ public class PaymentService {
         paymentRepository.save(payment);
 
         String qr = null;
-        if (localStatus == PaymentStatus.APPROVED) {
+        if (localStatus == PaymentStatus.APPROVED
+                && managedTicket.getEvent().getType() == EventType.IN_PERSON) {
             try {
                 qr = qrService.generateQRBase64(managedTicket.getId());
             } catch (QRGenerationException ignored) {

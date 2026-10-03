@@ -584,7 +584,7 @@ Prefijo: `/api/v1/tickets`
 
 Compra un ticket para un evento (Requiere autenticación).
 
-El flujo reserva el cupo, procesa el pago contra MercadoPago con la cuenta del organizador y devuelve el estado resultante. El QR y el envío por correo solo se generan si el pago fue aprobado.
+El flujo reserva el cupo, procesa el pago contra MercadoPago con la cuenta del organizador y devuelve el estado resultante. Para eventos presenciales, el QR y el envío por correo solo se generan si el pago fue aprobado. Para eventos virtuales, el correo de entrega contiene la plataforma, el enlace y las instrucciones de acceso, sin QR.
 
 **Cuerpo de la petición:**
 
@@ -623,7 +623,7 @@ El flujo reserva el cupo, procesa el pago contra MercadoPago con la cuenta del o
 | `status` | Estado informado por MercadoPago: `approved`, `rejected`, `cancelled` o `pending` |
 | `statusDetail` | Detalle textual del estado informado por MercadoPago |
 | `message` | Mensaje legible según el resultado |
-| `qrCodeBase64` | QR en base64; `null` mientras el pago no esté aprobado |
+| `qrCodeBase64` | QR en base64 para eventos presenciales; `null` para eventos virtuales o mientras el pago no esté aprobado |
 
 **Errores:**
 
@@ -640,7 +640,7 @@ El flujo reserva el cupo, procesa el pago contra MercadoPago con la cuenta del o
 
 `GET /api/v1/tickets/my-tickets`
 
-Obtiene los tickets del usuario autenticado (Requiere autenticación). El QR se incluye solo para tickets `ACTIVE`.
+Obtiene los tickets del usuario autenticado (Requiere autenticación). El QR se incluye solo para tickets `ACTIVE` de eventos presenciales. Los datos de acceso de eventos virtuales se envían por correo tras la aprobación del pago.
 
 **Respuesta exitosa: `200 OK`**
 

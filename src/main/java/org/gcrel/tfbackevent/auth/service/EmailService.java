@@ -1,8 +1,10 @@
 package org.gcrel.tfbackevent.auth.service;
 
 import java.util.Base64;
+import java.time.format.DateTimeFormatter;
 
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.payment.exception.TicketDeliveryException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.hibernate.Hibernate;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -21,6 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class EmailService {
+    private static final DateTimeFormatter EVENT_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     @Value("${SMTP_FROM}")
     private String fromEmail;
 
@@ -65,6 +70,34 @@ public class EmailService {
         } catch (MessagingException | MailException e) {
             throw new TicketDeliveryException(
                     "No se pudo enviar el email de entrada para el ticket " + ticket.getId(), e);
+        }
+    }
+
+    public void sendVirtualTicketEmail(String to, Ticket ticket) {
+        MimeMessage message = mailSender.createMimeMessage();
+        try {
+            VirtualEvent event = (VirtualEvent) Hibernate.unproxy(ticket.getEvent());
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject("Tus datos de acceso para " + event.getTitle());
+            helper.setText(
+                    "<h3>¡Gracias por tu compra!</h3>"
+                            + "<p>Tu entrada corresponde a un evento virtual.</p>"
+                            + "<p><strong>Fecha y hora:</strong> "
+                            + event.getDateTime().format(EVENT_DATE_FORMAT) + "</p>"
+                            + "<p><strong>Plataforma:</strong> " + event.getPlatform() + "</p>"
+                            + "<p><strong>Enlace de acceso:</strong> "
+                            + "<a href='" + event.getAccessLink() + "'>" + event.getAccessLink() + "</a></p>"
+                            + (event.getAccessInstructions() == null
+                                    ? ""
+                                    : "<p><strong>Instrucciones:</strong><br>"
+                                            + event.getAccessInstructions().replace("\n", "<br>") + "</p>"),
+                    true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            throw new TicketDeliveryException(
+                    "No se pudo enviar el email de acceso para el ticket " + ticket.getId(), e);
         }
     }
 }

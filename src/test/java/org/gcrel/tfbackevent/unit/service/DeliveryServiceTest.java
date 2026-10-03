@@ -21,6 +21,7 @@ import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.Payment;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
 import org.gcrel.tfbackevent.payment.exception.QRGenerationException;
 import org.gcrel.tfbackevent.payment.exception.TicketDeliveryException;
@@ -129,6 +130,40 @@ public class DeliveryServiceTest {
         assertNull(paymentDue.getLastDeliveryError());
 
         verify(emailService).sendTicketEmail(attendee.getEmail(), ticket, "qr_base64");
+    }
+
+    @Test
+    void processDueDeliveries_WhenVirtualEvent_SendsAccessCredentialsWithoutQr() {
+        VirtualEvent virtualEvent = new VirtualEvent(
+                "Virtual Event",
+                "Online description",
+                LocalDateTime.now().plusDays(1),
+                new BigDecimal("100.00"),
+                "https://meet.example.com/event",
+                "Meet",
+                "Ingresá cinco minutos antes.");
+        ticket = new Ticket(LocalDateTime.now(), virtualEvent, attendee);
+        ticket.setId(UUID.randomUUID());
+        paymentDue = new Payment(
+                "tx-virtual",
+                new BigDecimal("1000.00"),
+                LocalDateTime.now(),
+                ticket);
+        paymentDue.setDeliveryStatus(DeliveryStatus.PENDING);
+
+        when(paymentRepository.findByDeliveryStatusAndNextDeliveryAttemptAtBefore(
+                eq(DeliveryStatus.PROCESSING), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(paymentRepository.findTop50ByDeliveryStatusInAndNextDeliveryAttemptAtLessThanEqual(
+                any(), any(LocalDateTime.class)))
+                .thenReturn(List.of(paymentDue));
+
+        deliveryService.processDueDeliveries();
+
+        verify(emailService).sendVirtualTicketEmail(attendee.getEmail(), ticket);
+        verify(emailService, never()).sendTicketEmail(any(), any(), any());
+        verify(qrService, never()).generateQRBase64(any());
+        assertEquals(DeliveryStatus.SENT, paymentDue.getDeliveryStatus());
     }
 
     @Test

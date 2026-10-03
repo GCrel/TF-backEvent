@@ -140,9 +140,7 @@ public class TicketService {
     public List<TicketResponse> getMyTickets(User attendee) {
         return ticketRepository.findByAttendee(attendee).stream()
                 .map(ticket -> {
-                    String qr = ticket.getStatus() == TicketStatus.ACTIVE
-                            ? qrService.generateQRBase64(ticket.getId())
-                            : null;
+                    String qr = generateQrForInPersonTicket(ticket);
                     return new TicketResponse(ticket, qr);
                 })
                 .toList();
@@ -156,11 +154,16 @@ public class TicketService {
             throw new UnauthorizedTicketAccessException();
         }
 
-        String qr = ticket.getStatus() == TicketStatus.ACTIVE
-                ? qrService.generateQRBase64(ticket.getId())
-                : null;
+        String qr = generateQrForInPersonTicket(ticket);
 
         return new TicketResponse(ticket, qr);
+    }
+
+    private String generateQrForInPersonTicket(Ticket ticket) {
+        return ticket.getStatus() == TicketStatus.ACTIVE
+                && ticket.getEvent().getType() == EventType.IN_PERSON
+                ? qrService.generateQRBase64(ticket.getId())
+                : null;
     }
 
     public void resendTicketEmail(UUID id, User attendee) {
