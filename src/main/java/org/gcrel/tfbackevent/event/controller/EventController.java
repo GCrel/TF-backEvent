@@ -10,6 +10,8 @@ import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -57,15 +59,22 @@ public class EventController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<EventResponse> getEvent(@PathVariable UUID id) {
-        EventResponse response = eventService.getEvent(id);
+    public ResponseEntity<EventResponse> getEvent(
+            @PathVariable UUID id, @AuthenticationPrincipal User viewer) {
+        EventResponse response = eventService.getEvent(id, viewer);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
-    public ResponseEntity<List<EventResponse>> getAllEvents() {
-        List<EventResponse> response = eventService.getAllEvents();
+    public ResponseEntity<List<EventResponse>> getPublishedEvents(Pageable pageable) {
+        List<EventResponse> response = eventService.getPublishedEvents(pageable);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/mine")
+    public ResponseEntity<List<EventResponse>> getMyEvents(
+            @AuthenticationPrincipal User organizer, Pageable pageable) {
+        return ResponseEntity.ok(eventService.getMyEvents(organizer, pageable));
     }
 
     @PatchMapping("/{id}/cancel")

@@ -496,7 +496,10 @@ Devuelve el `EventResponse` actualizado.
 
 `GET /api/v1/events/{id}`
 
-Obtiene un evento por su identificador (Público).
+Obtiene un evento por su identificador. Los eventos `PUBLISHED` son públicos;
+los eventos en cualquier otro estado solo son visibles para su organizador.
+Para los demás usuarios, incluidos visitantes anónimos, responde `404` para
+no revelar que el evento existe.
 
 **Parámetros de ruta:**
 
@@ -512,13 +515,15 @@ Devuelve el `EventResponse` correspondiente.
 
 | Código | Causa |
 |--------|-------|
-| `404 Not Found` | El evento no existe |
+| `404 Not Found` | El evento no existe o no es visible para el usuario actual |
 
 ### Listar eventos
 
 `GET /api/v1/events`
 
-Obtiene todos los eventos, incluidos los que están en estado `DRAFT` (Público).
+Obtiene únicamente eventos `PUBLISHED`, ordenados por `dateTime` ascendente
+(Público). La respuesta acepta paginación mediante los parámetros `page`,
+`size` y `sort`, por ejemplo `?page=0&size=20&sort=dateTime,asc`.
 
 **Respuesta exitosa: `200 OK`**
 
@@ -540,6 +545,14 @@ Obtiene todos los eventos, incluidos los que están en estado `DRAFT` (Público)
   }
 ]
 ```
+
+### Listar mis eventos
+
+`GET /api/v1/events/mine`
+
+Obtiene los eventos donde el usuario autenticado participa como organizador,
+incluidos sus borradores, cancelados y finalizados. La lista se ordena por
+`dateTime` descendente y acepta los parámetros `page`, `size` y `sort`.
 
 ### Cancelar evento
 

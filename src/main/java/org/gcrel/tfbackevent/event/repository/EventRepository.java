@@ -10,6 +10,7 @@ import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +20,19 @@ import jakarta.persistence.LockModeType;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, UUID> {
+    List<Event> findByStatusOrderByDateTimeAsc(EventStatus status, Pageable pageable);
+
+    @Query("""
+            SELECT ep.event FROM EventParticipation ep
+            WHERE ep.user = :user
+            AND ep.id.eventRole = :role
+            ORDER BY ep.event.dateTime DESC
+            """)
+    List<Event> findByParticipant(
+            @Param("user") User user,
+            @Param("role") EventRole role,
+            Pageable pageable);
+
     @Query("""
             SELECT ep.event FROM EventParticipation ep
             WHERE ep.user = :user

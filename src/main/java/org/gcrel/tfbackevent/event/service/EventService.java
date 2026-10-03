@@ -34,6 +34,7 @@ import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Pageable;
 
 @Service
 public class EventService {
@@ -128,12 +129,23 @@ public class EventService {
         }
     }
 
-    public EventResponse getEvent(UUID id) {
-        return toResponse(findEventById(id));
+    public EventResponse getEvent(UUID id, User viewer) {
+        Event event = findEventById(id);
+        if (event.getStatus() != EventStatus.PUBLISHED
+                && (viewer == null || !isOrganizer(event, viewer))) {
+            throw new EventNotFoundException(id);
+        }
+        return toResponse(event);
     }
 
-    public List<EventResponse> getAllEvents() {
-        return eventRepository.findAll().stream().map(this::toResponse).toList();
+    public List<EventResponse> getPublishedEvents(Pageable pageable) {
+        return eventRepository.findByStatusOrderByDateTimeAsc(EventStatus.PUBLISHED, pageable)
+                .stream().map(this::toResponse).toList();
+    }
+
+    public List<EventResponse> getMyEvents(User organizer, Pageable pageable) {
+        return eventRepository.findByParticipant(organizer, EventRole.ORGANIZER, pageable)
+                .stream().map(this::toResponse).toList();
     }
 
     @Transactional
@@ -234,11 +246,14 @@ public class EventService {
     }
 
     private void validateOwnership(Event event, User organizer) {
-        boolean isOwner = eventParticipationRepository.existsByEventAndUserAndId_EventRole(
-                event, organizer, EventRole.ORGANIZER);
-        if (!isOwner) {
+        if (!isOrganizer(event, organizer)) {
             throw new UnauthorizedEventAccessException();
         }
+    }
+
+    private boolean isOrganizer(Event event, User organizer) {
+        return eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                event, organizer, EventRole.ORGANIZER);
     }
 
     private void validateModifiable(Event event) {

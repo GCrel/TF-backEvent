@@ -3,6 +3,7 @@ package org.gcrel.tfbackevent.common.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -55,6 +56,8 @@ public class SecurityConfig {
                                 .requestMatchers("/api/v1/webhooks/**").permitAll()
                                 // MercadoPago OAuth callback
                                 .requestMatchers("/api/v1/mp/callback").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/v1/events/mine").authenticated()
+                                .requestMatchers(HttpMethod.GET, "/api/v1/events", "/api/v1/events/{id}").permitAll()
                                 // admin
                                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                                 // requires authentication

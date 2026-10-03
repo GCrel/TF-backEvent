@@ -44,6 +44,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.data.domain.Pageable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -287,7 +288,7 @@ public class EventControllerTest {
                 null,
                 "Meet");
 
-        when(eventService.getEvent(eventId)).thenReturn(response);
+        when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/events/{id}", eventId).with(authentication(authentication)))
                 .andExpect(status().isOk())
@@ -300,7 +301,7 @@ public class EventControllerTest {
     @Test
     void getEvent_NotFound_Returns404() throws Exception {
         UUID eventId = UUID.randomUUID();
-        when(eventService.getEvent(eventId)).thenThrow(new EventNotFoundException(eventId));
+        when(eventService.getEvent(eq(eventId), any(User.class))).thenThrow(new EventNotFoundException(eventId));
 
         mockMvc.perform(get("/api/v1/events/{id}", eventId).with(authentication(authentication)))
                 .andExpect(status().isNotFound());
@@ -335,7 +336,7 @@ public class EventControllerTest {
                 null,
                 "Zoom");
 
-        when(eventService.getAllEvents()).thenReturn(List.of(first, second));
+        when(eventService.getPublishedEvents(any(Pageable.class))).thenReturn(List.of(first, second));
 
         mockMvc.perform(get("/api/v1/events").with(authentication(authentication)))
                 .andExpect(status().isOk())

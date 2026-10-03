@@ -44,6 +44,7 @@ import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.domain.Pageable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -356,7 +357,7 @@ public class EventServiceTest {
     }
 
     @Test
-    void getAllEvents_ShouldReturnMappedResponses() {
+    void getPublishedEvents_ShouldReturnMappedResponses() {
         InPersonEvent inPersonEvent = new InPersonEvent(
                 "In-person event",
                 "Conference",
@@ -375,9 +376,10 @@ public class EventServiceTest {
                 "Zoom",
                 "Use the link");
 
-        when(eventRepository.findAll()).thenReturn(List.of(inPersonEvent, virtualEvent));
+        when(eventRepository.findByStatusOrderByDateTimeAsc(eq(EventStatus.PUBLISHED), any(Pageable.class)))
+                .thenReturn(List.of(inPersonEvent, virtualEvent));
 
-        List<EventResponse> response = eventService.getAllEvents();
+        List<EventResponse> response = eventService.getPublishedEvents(Pageable.ofSize(20));
 
         assertEquals(2, response.size());
         assertEquals("IN_PERSON", response.get(0).eventType());
@@ -389,7 +391,7 @@ public class EventServiceTest {
         UUID eventId = UUID.randomUUID();
         when(eventRepository.findById(eventId)).thenReturn(Optional.empty());
 
-        assertThrows(EventNotFoundException.class, () -> eventService.getEvent(eventId));
+        assertThrows(EventNotFoundException.class, () -> eventService.getEvent(eventId, null));
     }
 
     @Test
