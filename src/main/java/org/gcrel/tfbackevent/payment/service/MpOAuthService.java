@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -15,10 +16,13 @@ import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.exception.MpOAuthException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.exception.MpAccountHasTicketsException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -39,6 +43,7 @@ public class MpOAuthService {
     private final UserRepository userRepository;
     private final MpOAuthStateService oauthStateService;
     private final MpAccountLinkService accountLinkService;
+    private final TicketRepository ticketRepository;
     private final EventRepository eventRepository;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -58,11 +63,12 @@ public class MpOAuthService {
 
     public MpOAuthService(OrganizerMpAccountRepository mpAccountRepository, UserRepository userRepository,
             MpOAuthStateService oauthStateService, MpAccountLinkService accountLinkService,
-            EventRepository eventRepository) {
+            TicketRepository ticketRepository, EventRepository eventRepository) {
         this.mpAccountRepository = mpAccountRepository;
         this.userRepository = userRepository;
         this.oauthStateService = oauthStateService;
         this.accountLinkService = accountLinkService;
+        this.ticketRepository = ticketRepository;
         this.eventRepository = eventRepository;
     }
 
@@ -153,7 +159,15 @@ public class MpOAuthService {
     public void unlinkAccount(User user) {
         OrganizerMpAccount account = mpAccountRepository.findByUser(user)
                 .orElseThrow(MpAccountNotLinkedException::new);
-        eventRepository.findByOrganizerAndStatus(user, EventRole.ORGANIZER, EventStatus.PUBLISHED)
+        if (ticketRepository.existsByOrganizerAndStatusIn(
+                user, EventRole.ORGANIZER, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE))) {
+            throw new MpAccountHasTicketsException();
+        }
+        eventRepository.findPublishedWithoutOpenTickets(
+                user,
+                EventRole.ORGANIZER,
+                EventStatus.PUBLISHED,
+                List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED))
                 .forEach(event -> {
                     event.setStatus(EventStatus.DRAFT);
                     eventRepository.save(event);

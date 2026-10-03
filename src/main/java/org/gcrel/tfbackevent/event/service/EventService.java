@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.common.exception.BadRequestException;
+import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
@@ -40,13 +41,16 @@ public class EventService {
     private final EventParticipationRepository eventParticipationRepository;
     private final OrganizerMpAccountRepository mpAccountRepository;
     private final TicketRepository ticketRepository;
+    private final EventWindowProperties eventWindowProperties;
 
     public EventService(EventRepository eventRepository, EventParticipationRepository eventParticipationRepository,
-            OrganizerMpAccountRepository mpAccountRepository, TicketRepository ticketRepository) {
+            OrganizerMpAccountRepository mpAccountRepository, TicketRepository ticketRepository,
+            EventWindowProperties eventWindowProperties) {
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
         this.mpAccountRepository = mpAccountRepository;
         this.ticketRepository = ticketRepository;
+        this.eventWindowProperties = eventWindowProperties;
     }
 
     @Transactional
@@ -135,7 +139,8 @@ public class EventService {
     @Transactional
     @Scheduled(fixedDelayString = "${event.finish.retry-delay-ms:60000}")
     public void finishPastEvents() {
-        eventRepository.findByStatusAndDateTimeBefore(EventStatus.PUBLISHED, LocalDateTime.now())
+        eventRepository.findByStatusAndDateTimeBefore(
+                EventStatus.PUBLISHED, LocalDateTime.now().minusHours(eventWindowProperties.afterHours()))
                 .forEach(event -> {
                     event.setStatus(EventStatus.FINISHED);
                     eventRepository.save(event);

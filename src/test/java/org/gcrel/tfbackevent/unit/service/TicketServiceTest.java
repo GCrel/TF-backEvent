@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.service.EmailService;
 import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
+import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
@@ -79,6 +80,8 @@ public class TicketServiceTest {
     private PaymentService paymentService;
     @Mock
     private TransactionTemplate transactionTemplate;
+    @Mock
+    private EventWindowProperties eventWindowProperties;
 
     @InjectMocks
     private TicketService ticketService;
@@ -119,6 +122,7 @@ public class TicketServiceTest {
                 UUID.randomUUID(), "token123", 1, "test@test.com", "visa");
 
         mpPaymentMock = mock(Payment.class);
+        lenient().when(eventWindowProperties.afterHours()).thenReturn(12L);
 
         ticket = new Ticket(LocalDateTime.now(), event, attendee);
         ticket.setId(UUID.randomUUID());
@@ -159,6 +163,36 @@ public class TicketServiceTest {
     @Test
     void purchase_WhenEventNotPublished_ThrowsException() {
         event.setStatus(EventStatus.DRAFT);
+        when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+
+        assertThrows(
+                EventNotAvailableException.class,
+                () -> ticketService.purchase(purchaseRequest, attendee));
+
+        verify(ticketRepository, never()).save(any());
+    }
+
+    @Test
+    void purchase_WhenEventIsTenDaysAway_IsAllowed() {
+        event.setDateTime(LocalDateTime.now().plusDays(10));
+        when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findForTicketReservation(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
+                .thenReturn(Optional.of(organizerParticipation));
+        when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
+        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
+                .thenReturn(mpPaymentMock);
+        when(paymentService.handleNewPayment(any(), eq(mpPaymentMock), eq(attendee)))
+                .thenReturn(new PurchaseResponse(ticket.getId(), "approved", null, "approved", null));
+
+        ticketService.purchase(purchaseRequest, attendee);
+
+        verify(paymentService).handleNewPayment(any(Ticket.class), eq(mpPaymentMock), eq(attendee));
+    }
+
+    @Test
+    void purchase_WhenEventEndedThirteenHoursAgo_ThrowsException() {
+        event.setDateTime(LocalDateTime.now().minusHours(13));
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
 
         assertThrows(

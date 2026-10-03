@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.common.exception.BadRequestException;
+import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
@@ -62,6 +63,8 @@ public class EventServiceTest {
 
     @Mock
     private TicketRepository ticketRepository;
+    @Mock
+    private EventWindowProperties eventWindowProperties;
 
     @InjectMocks
     private EventService eventService;
@@ -71,6 +74,7 @@ public class EventServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(eventWindowProperties.afterHours()).thenReturn(12L);
         organizer = new User(
                 "John Doe",
                 "test@example.com",

@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -23,6 +24,20 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     long countByEventAndStatusIn(Event event, Collection<TicketStatus> statuses);
 
     boolean existsByEventAndAttendeeAndStatusIn(Event event, User attendee, Collection<TicketStatus> statuses);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END
+            FROM Ticket t
+            JOIN EventParticipation ep ON ep.event = t.event
+            WHERE ep.user = :organizer
+            AND ep.id.eventRole = :role
+            AND t.event.status = org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED
+            AND t.status IN :statuses
+            """)
+    boolean existsByOrganizerAndStatusIn(
+            @Param("organizer") User organizer,
+            @Param("role") EventRole role,
+            @Param("statuses") Collection<TicketStatus> statuses);
 
     @EntityGraph(attributePaths = { "event", "attendee" })
     @Query("SELECT t FROM Ticket t WHERE t.status = :pending AND t.boughtAt < :before "

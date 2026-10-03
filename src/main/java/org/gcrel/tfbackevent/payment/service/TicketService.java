@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventOrganizerMissingException;
+import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
@@ -45,11 +46,12 @@ public class TicketService {
     private final PaymentService paymentService;
     private final QRService qrService;
     private final TransactionTemplate transactionTemplate;
+    private final EventWindowProperties eventWindowProperties;
 
     public TicketService(TicketRepository ticketRepository, EventRepository eventRepository,
             EventParticipationRepository eventParticipationRepository, MercadoPagoService mercadoPagoService,
             MpOAuthService mpOAuthService, PaymentService paymentService, QRService qrService,
-            TransactionTemplate transactionTemplate) {
+            TransactionTemplate transactionTemplate, EventWindowProperties eventWindowProperties) {
         this.ticketRepository = ticketRepository;
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
@@ -58,6 +60,7 @@ public class TicketService {
         this.paymentService = paymentService;
         this.qrService = qrService;
         this.transactionTemplate = transactionTemplate;
+        this.eventWindowProperties = eventWindowProperties;
     }
 
     public PurchaseResponse purchase(PurchaseTicketRequest request, User attendee) {
@@ -124,7 +127,9 @@ public class TicketService {
     }
 
     private void validateEventForPurchase(Event event) {
-        if (event.getStatus() != EventStatus.PUBLISHED || !event.getDateTime().isAfter(LocalDateTime.now())) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime windowEnd = event.getDateTime().plusHours(eventWindowProperties.afterHours());
+        if (event.getStatus() != EventStatus.PUBLISHED || !now.isBefore(windowEnd)) {
             throw new EventNotAvailableException();
         }
         if (event.getBasePrice() == null || event.getBasePrice().signum() <= 0) {

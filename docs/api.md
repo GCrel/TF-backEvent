@@ -305,9 +305,22 @@ Prefijo: `/api/v1/events`
 | Estado | Descripción |
 |--------|-------------|
 | `DRAFT` | Creado por el organizador, aún no visible para la compra |
-| `PUBLISHED` | Publicado y disponible para la compra de entradas |
+| `PUBLISHED` | Publicado y disponible para comprar entradas hasta el cierre de la ventana posterior |
 | `CANCELLED` | Cancelado por el organizador |
-| `FINISHED` | La fecha del evento ya pasó (transición automática por tareas programadas) |
+| `FINISHED` | Terminó la ventana de compra posterior al evento (transición automática por tareas programadas) |
+
+La API no modela una fecha de fin (`endDateTime`). La compra se permite mientras
+el evento esté `PUBLISHED` y no hayan pasado `event.access-window.after-hours`
+horas desde `dateTime` (12 horas por defecto), por lo que se pueden comprar
+entradas con cualquier anticipación. Fuera de ese límite responde `409`.
+
+La ventana completa de ingreso va desde `event.access-window.before-hours` horas
+antes hasta `event.access-window.after-hours` horas después de `dateTime`
+(por defecto, 3 y 12 horas). La validación del ingreso debe aplicar ambos límites; la transición automática a
+`FINISHED` ocurre al cerrar la ventana posterior. La desvinculación de Mercado
+Pago se bloquea si existen tickets `PENDING` o `ACTIVE` en eventos `PUBLISHED`;
+solo los eventos publicados sin tickets `PENDING`, `ACTIVE` ni `USED` vuelven a
+`DRAFT`.
 
 ### Crear evento
 
@@ -619,7 +632,7 @@ El flujo reserva el cupo, procesa el pago contra MercadoPago con la cuenta del o
 | `400 Bad Request` | El evento tiene precio 0 o las validaciones del cuerpo fallan |
 | `402 Payment Required` | MercadoPago rechazó el pago |
 | `404 Not Found` | El evento no existe |
-| `409 Conflict` | El usuario ya tiene una compra pendiente o activa para el evento, no hay cupo disponible, o el evento no está publicado / su fecha ya pasó |
+| `409 Conflict` | El usuario ya tiene una compra pendiente o activa para el evento, no hay cupo disponible, o el evento no está `PUBLISHED` / pasaron más de `event.access-window.after-hours` horas desde `dateTime` |
 | `428 Precondition Required` | El organizador no tiene una cuenta de MercadoPago vinculada |
 | `502 Bad Gateway` | No se pudo procesar el pago con MercadoPago |
 
@@ -774,7 +787,20 @@ Cuenta sin vincular:
 
 `DELETE /api/v1/mp/disconnect`
 
-Elimina la cuenta de MercadoPago vinculada y devuelve a `DRAFT` todos los eventos publicados del usuario (Requiere autenticación).
+Elimina la cuenta de MercadoPago vinculada (Requiere autenticación). La operación
+responde `409` si el organizador tiene tickets `PENDING` o `ACTIVE` en cualquier
+evento `PUBLISHED`, porque esos pagos todavía pueden requerir el token de
+MercadoPago para el webhook o la reconciliación. En ese caso la cuenta no se
+elimina.
+
+Si no existen esos tickets abiertos, los eventos `PUBLISHED` sin tickets
+`PENDING`, `ACTIVE` ni `USED` vuelven a `DRAFT`. Los eventos que ya vendieron o
+utilizaron entradas permanecen `PUBLISHED`, aunque la cuenta se desvincule.
+
+Existe una pequeña ventana de carrera entre la comprobación de tickets abiertos
+y la reversión de eventos. Un ticket reservado exactamente durante ese intervalo
+podría quedar pendiente sin token del organizador; es una limitación conocida de
+esta operación.
 
 **Respuesta exitosa: `204 No Content`**
 
@@ -782,6 +808,7 @@ Elimina la cuenta de MercadoPago vinculada y devuelve a `DRAFT` todos los evento
 
 | Código | Causa |
 |--------|-------|
+| `409 Conflict` | El organizador tiene tickets `PENDING` o `ACTIVE` en un evento `PUBLISHED` |
 | `428 Precondition Required` | El usuario no tiene una cuenta vinculada |
 
 ---

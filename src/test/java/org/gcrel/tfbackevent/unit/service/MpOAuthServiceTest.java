@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,11 +24,12 @@ import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
-import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
 import org.gcrel.tfbackevent.payment.exception.InvalidMpOAuthStateException;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
+import org.gcrel.tfbackevent.payment.exception.MpAccountHasTicketsException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.gcrel.tfbackevent.payment.service.MpAccountLinkService;
 import org.gcrel.tfbackevent.payment.service.MpOAuthService;
 import org.gcrel.tfbackevent.payment.service.MpOAuthStateService;
@@ -53,6 +55,8 @@ public class MpOAuthServiceTest {
     private MpOAuthStateService oauthStateService;
     @Mock
     private MpAccountLinkService accountLinkService;
+    @Mock
+    private TicketRepository ticketRepository;
     @Mock
     private EventRepository eventRepository;
 
@@ -186,15 +190,13 @@ public class MpOAuthServiceTest {
     @Test
     void unlinkAccount_WhenLinked_DeletesAccount() {
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
-        Event publishedEvent = org.mockito.Mockito.mock(Event.class);
-        when(eventRepository.findByOrganizerAndStatus(
-                user, EventRole.ORGANIZER, EventStatus.PUBLISHED))
-                .thenReturn(java.util.List.of(publishedEvent));
+        when(ticketRepository.existsByOrganizerAndStatusIn(
+                eq(user), eq(EventRole.ORGANIZER), any())).thenReturn(false);
+        when(eventRepository.findPublishedWithoutOpenTickets(eq(user), eq(EventRole.ORGANIZER), any(), any()))
+                .thenReturn(java.util.List.of());
 
         mpOAuthService.unlinkAccount(user);
 
-        verify(publishedEvent).setStatus(EventStatus.DRAFT);
-        verify(eventRepository).save(publishedEvent);
         verify(mpAccountRepository).delete(account);
     }
 
@@ -203,6 +205,39 @@ public class MpOAuthServiceTest {
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.empty());
 
         assertThrows(MpAccountNotLinkedException.class, () -> mpOAuthService.unlinkAccount(user));
+    }
+
+    @Test
+    void unlinkAccount_WhenTicketsSold_ThrowsExceptionAndKeepsAccount() {
+        when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
+        when(ticketRepository.existsByOrganizerAndStatusIn(
+                eq(user), eq(EventRole.ORGANIZER), any())).thenReturn(true);
+
+        assertThrows(MpAccountHasTicketsException.class, () -> mpOAuthService.unlinkAccount(user));
+        verify(mpAccountRepository, never()).delete(account);
+    }
+
+    @Test
+    void unlinkAccount_WhenPublishedEventHasNoOpenTickets_RevertsItToDraft() {
+        org.gcrel.tfbackevent.model.InPersonEvent event = new org.gcrel.tfbackevent.model.InPersonEvent(
+                "Event", "Description", LocalDateTime.now().plusDays(2),
+                new java.math.BigDecimal("10"), "Address",
+                new java.math.BigDecimal("-34"), new java.math.BigDecimal("-58"), 10);
+        event.setStatus(org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED);
+        when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
+        when(ticketRepository.existsByOrganizerAndStatusIn(
+                eq(user), eq(EventRole.ORGANIZER), any())).thenReturn(false);
+        when(eventRepository.findPublishedWithoutOpenTickets(
+                eq(user), eq(EventRole.ORGANIZER), any(), any())).thenReturn(java.util.List.of(event));
+
+        mpOAuthService.unlinkAccount(user);
+
+        assertEquals(org.gcrel.tfbackevent.model.enums.EventStatus.DRAFT, event.getStatus());
+        verify(eventRepository).findPublishedWithoutOpenTickets(
+                eq(user), eq(EventRole.ORGANIZER), eq(org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED),
+                argThat(statuses -> statuses.contains(org.gcrel.tfbackevent.model.enums.TicketStatus.USED)));
+        verify(eventRepository).save(event);
+        verify(mpAccountRepository).delete(account);
     }
 
     @Test

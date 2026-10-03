@@ -8,6 +8,7 @@ import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -30,6 +31,23 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             @Param("status") EventStatus status);
 
     List<Event> findByStatusAndDateTimeBefore(EventStatus status, java.time.LocalDateTime dateTime);
+
+    @Query("""
+            SELECT ep.event FROM EventParticipation ep
+            WHERE ep.user = :user
+            AND ep.id.eventRole = :role
+            AND ep.event.status = :status
+            AND NOT EXISTS (
+                SELECT t.id FROM Ticket t
+                WHERE t.event = ep.event
+                AND t.status IN :openStatuses
+            )
+            """)
+    List<Event> findPublishedWithoutOpenTickets(
+            @Param("user") User user,
+            @Param("role") EventRole role,
+            @Param("status") EventStatus status,
+            @Param("openStatuses") java.util.Collection<TicketStatus> openStatuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Event e WHERE e.id = :id")
