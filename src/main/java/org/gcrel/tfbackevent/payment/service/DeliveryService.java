@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class DeliveryService {
+    private static final long DELIVERY_RESEND_COOLDOWN_MINUTES = 5;
     private final PaymentRepository paymentRepository;
     private final QRService qrService;
     private final EmailService emailService;
@@ -60,6 +61,8 @@ public class DeliveryService {
             }
             payment.setDeliveryStatus(DeliveryStatus.SENT);
             payment.setLastDeliveryError(null);
+            payment.setNextDeliveryAttemptAt(
+                    LocalDateTime.now().plusMinutes(DELIVERY_RESEND_COOLDOWN_MINUTES));
         } catch (QRGenerationException | TicketDeliveryException e) {
             payment.setDeliveryStatus(DeliveryStatus.FAILED);
             payment.setLastDeliveryError(e.getMessage());

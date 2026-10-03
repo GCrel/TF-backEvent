@@ -65,5 +65,5 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Event e WHERE e.id = :id")
-    Optional<Event> findForTicketReservation(@Param("id") UUID id);
+    Optional<Event> findByIdForUpdate(@Param("id") UUID id);
 }

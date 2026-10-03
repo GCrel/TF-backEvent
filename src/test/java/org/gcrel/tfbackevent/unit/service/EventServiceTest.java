@@ -190,7 +190,7 @@ public class EventServiceTest {
                 null,
                 null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER))
                 .thenReturn(true);
@@ -232,7 +232,7 @@ public class EventServiceTest {
                 null,
                 null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER))
                 .thenReturn(true);
@@ -269,7 +269,7 @@ public class EventServiceTest {
                 null,
                 null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER))
                 .thenReturn(false);
@@ -293,7 +293,7 @@ public class EventServiceTest {
                 30);
         existingEvent.setStatus(EventStatus.PUBLISHED);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER))
                 .thenReturn(true);
@@ -318,7 +318,7 @@ public class EventServiceTest {
                 30);
         existingEvent.setStatus(EventStatus.FINISHED);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER))
                 .thenReturn(true);
@@ -342,12 +342,12 @@ public class EventServiceTest {
                 30);
         existingEvent.setStatus(EventStatus.PUBLISHED);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER))
                 .thenReturn(true);
         when(ticketRepository.countByEventAndStatusIn(
-                existingEvent, List.of(TicketStatus.ACTIVE, TicketStatus.USED)))
+                existingEvent, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED)))
                 .thenReturn(1L);
 
         assertThrows(
@@ -455,11 +455,11 @@ public class EventServiceTest {
                 "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 2,
                 null, null, null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
         when(ticketRepository.countByEventAndStatusIn(
-                existingEvent, List.of(TicketStatus.ACTIVE, TicketStatus.USED))).thenReturn(3L);
+                existingEvent, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED))).thenReturn(3L);
 
         assertThrows(BadRequestException.class,
                 () -> eventService.updateEvent(eventId, request, organizer));
@@ -478,11 +478,11 @@ public class EventServiceTest {
                 "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30,
                 null, null, null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 existingEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
         when(ticketRepository.countByEventAndStatusIn(
-                existingEvent, List.of(TicketStatus.ACTIVE, TicketStatus.USED))).thenReturn(1L);
+                existingEvent, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED))).thenReturn(1L);
 
         assertThrows(EventHasSalesException.class,
                 () -> eventService.updateEvent(eventId, request, organizer));

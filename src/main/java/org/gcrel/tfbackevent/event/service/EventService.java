@@ -31,10 +31,10 @@ import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Pageable;
 
 @Service
 public class EventService {
@@ -89,7 +89,8 @@ public class EventService {
 
     @Transactional
     public EventResponse updateEvent(UUID id, UpdateEventRequest request, User organizer) {
-        Event event = findEventById(id);
+        Event event = eventRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EventNotFoundException(id));
         validateOwnership(event, organizer);
         validateModifiable(event);
         validateTypeSpecificFields(event, request);
@@ -117,13 +118,13 @@ public class EventService {
 
     private void validateSalesConstraints(Event event, UpdateEventRequest request) {
         long soldTickets = ticketRepository.countByEventAndStatusIn(
-                event, List.of(TicketStatus.ACTIVE, TicketStatus.USED));
+                event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED));
         if (event instanceof InPersonEvent
                 && request.capacity() != null && request.capacity() < soldTickets) {
             throw new BadRequestException("La capacidad no puede ser menor a las entradas vendidas.");
         }
         if (soldTickets > 0
-                && (!event.getBasePrice().equals(request.basePrice())
+                && (event.getBasePrice().compareTo(request.basePrice()) != 0
                         || !event.getDateTime().equals(request.dateTime()))) {
             throw new EventHasSalesException();
         }
@@ -161,14 +162,14 @@ public class EventService {
 
     @Transactional
     public void cancelEvent(UUID id, User organizer) {
-        Event event = findEventById(id);
+        Event event = eventRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EventNotFoundException(id));
         validateOwnership(event, organizer);
         validateModifiable(event);
         if (ticketRepository.countByEventAndStatusIn(
-                event, List.of(TicketStatus.ACTIVE, TicketStatus.USED)) > 0) {
+                event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED)) > 0) {
             throw new EventHasTicketsException();
         }
-
         event.setStatus(EventStatus.CANCELLED);
         eventRepository.save(event);
     }

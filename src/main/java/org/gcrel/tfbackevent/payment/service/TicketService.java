@@ -104,7 +104,7 @@ public class TicketService {
     }
 
     private Ticket reserveTicket(PurchaseTicketRequest request, User attendee) {
-        Event event = eventRepository.findForTicketReservation(request.eventId())
+        Event event = eventRepository.findByIdForUpdate(request.eventId())
                 .orElseThrow(() -> new EventNotFoundException(request.eventId()));
 
         validateEventForPurchase(event);

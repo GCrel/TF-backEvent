@@ -34,7 +34,7 @@ public record CreateEventRequest(
         @Positive @Max(100_000) Integer capacity,
 
         // Virtual Event Fields
-        @Size(max = 500) @Pattern(regexp = "^https://\\S+$", message = "must be a valid https URL") 
+        @Size(max = 500) @Pattern(regexp = "^https://[^\\s'\"<>]+$", message = "must be a valid https URL")
         String accessLink,
         @Size(max = 50) String platform,
         @Size(max = 1000) String accessInstructions

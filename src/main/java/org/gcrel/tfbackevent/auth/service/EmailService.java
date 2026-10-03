@@ -15,6 +15,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 import org.hibernate.Hibernate;
 
 import jakarta.mail.MessagingException;
@@ -77,6 +78,12 @@ public class EmailService {
         MimeMessage message = mailSender.createMimeMessage();
         try {
             VirtualEvent event = (VirtualEvent) Hibernate.unproxy(ticket.getEvent());
+            String title = HtmlUtils.htmlEscape(event.getTitle());
+            String platform = HtmlUtils.htmlEscape(event.getPlatform());
+            String link = HtmlUtils.htmlEscape(event.getAccessLink());
+            String instructions = event.getAccessInstructions() == null
+                    ? null
+                    : HtmlUtils.htmlEscape(event.getAccessInstructions()).replace("\n", "<br>");
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
             helper.setFrom(fromEmail);
             helper.setTo(to);
@@ -86,13 +93,14 @@ public class EmailService {
                             + "<p>Tu entrada corresponde a un evento virtual.</p>"
                             + "<p><strong>Fecha y hora:</strong> "
                             + event.getDateTime().format(EVENT_DATE_FORMAT) + "</p>"
-                            + "<p><strong>Plataforma:</strong> " + event.getPlatform() + "</p>"
+                            + "<p><strong>Plataforma:</strong> " + platform + "</p>"
                             + "<p><strong>Enlace de acceso:</strong> "
-                            + "<a href='" + event.getAccessLink() + "'>" + event.getAccessLink() + "</a></p>"
-                            + (event.getAccessInstructions() == null
+                            + "<a href=\"" + link + "\">" + link + "</a></p>"
+                            + (instructions == null
                                     ? ""
                                     : "<p><strong>Instrucciones:</strong><br>"
-                                            + event.getAccessInstructions().replace("\n", "<br>") + "</p>"),
+                                            + instructions + "</p>")
+                            + "<p>Si el enlace cambia, vas a encontrar el vigente en Mis entradas</p>",
                     true);
             mailSender.send(message);
         } catch (MessagingException | MailException e) {

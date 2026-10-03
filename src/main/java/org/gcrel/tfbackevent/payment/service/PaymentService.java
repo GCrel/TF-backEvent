@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PaymentService {
+    private static final long DELIVERY_RESEND_COOLDOWN_MINUTES = 5;
     private final TicketRepository ticketRepository;
     private final PaymentRepository paymentRepository;
     private final QRService qrService;
@@ -105,8 +106,11 @@ public class PaymentService {
     @Transactional
     public void requestDelivery(Ticket ticket) {
         paymentRepository.findByTicket(ticket).ifPresent(payment -> {
+            boolean cooldownElapsed = payment.getNextDeliveryAttemptAt() == null
+                    || !LocalDateTime.now().isBefore(payment.getNextDeliveryAttemptAt());
             if (payment.getPaymentStatus() == PaymentStatus.APPROVED
-                    && payment.getDeliveryStatus() != DeliveryStatus.SENT) {
+                    && (payment.getDeliveryStatus() != DeliveryStatus.SENT
+                            || cooldownElapsed)) {
                 payment.setDeliveryStatus(DeliveryStatus.PENDING);
                 payment.setNextDeliveryAttemptAt(LocalDateTime.now());
                 paymentRepository.save(payment);

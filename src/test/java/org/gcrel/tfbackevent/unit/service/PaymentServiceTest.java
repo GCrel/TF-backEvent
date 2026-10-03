@@ -202,14 +202,29 @@ public class PaymentServiceTest {
     }
 
     @Test
-    void requestDelivery_WhenPaymentIsAlreadySent_DoesNothing() {
+    void requestDelivery_WhenPaymentWasSentRecently_DoesNothing() {
         localPayment.setPaymentStatus(PaymentStatus.APPROVED);
         localPayment.setDeliveryStatus(DeliveryStatus.SENT);
+        localPayment.setNextDeliveryAttemptAt(LocalDateTime.now().plusMinutes(1));
         when(paymentRepository.findByTicket(ticket)).thenReturn(Optional.of(localPayment));
 
         paymentService.requestDelivery(ticket);
 
         assertEquals(DeliveryStatus.SENT, localPayment.getDeliveryStatus());
         verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void requestDelivery_WhenPaymentWasSentMoreThanFiveMinutesAgo_SetsDeliveryToPending() {
+        localPayment.setPaymentStatus(PaymentStatus.APPROVED);
+        localPayment.setDeliveryStatus(DeliveryStatus.SENT);
+        localPayment.setNextDeliveryAttemptAt(LocalDateTime.now().minusSeconds(1));
+        when(paymentRepository.findByTicket(ticket)).thenReturn(Optional.of(localPayment));
+
+        paymentService.requestDelivery(ticket);
+
+        assertEquals(DeliveryStatus.PENDING, localPayment.getDeliveryStatus());
+        assertNotNull(localPayment.getNextDeliveryAttemptAt());
+        verify(paymentRepository).save(localPayment);
     }
 }

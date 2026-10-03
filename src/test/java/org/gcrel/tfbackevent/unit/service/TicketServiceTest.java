@@ -141,7 +141,7 @@ public class TicketServiceTest {
     @Test
     void purchase_WhenPaymentApproved_ReturnsApprovedResponse() {
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventRepository.findForTicketReservation(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
@@ -176,7 +176,7 @@ public class TicketServiceTest {
     void purchase_WhenEventIsTenDaysAway_IsAllowed() {
         event.setDateTime(LocalDateTime.now().plusDays(10));
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventRepository.findForTicketReservation(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
@@ -205,7 +205,7 @@ public class TicketServiceTest {
     @Test
     void purchase_WhenPaymentRejectedExceptionThrown_CancelsTicketAndThrows() {
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventRepository.findForTicketReservation(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndEventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
