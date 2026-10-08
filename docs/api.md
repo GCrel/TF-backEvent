@@ -554,6 +554,87 @@ Obtiene los eventos donde el usuario autenticado participa como organizador,
 incluidos sus borradores, cancelados y finalizados. La lista se ordena por
 `dateTime` descendente y acepta los parámetros `page`, `size` y `sort`.
 
+### Gestionar controladores de acceso
+
+Los siguientes endpoints requieren autenticación y solo pueden ser utilizados
+por el organizador del evento:
+
+`POST /api/v1/events/{eventId}/controllers`
+
+Asigna como controlador a un usuario habilitado mediante su email. Devuelve
+`201 Created` con su identificador, nombre y email.
+
+`GET /api/v1/events/{eventId}/controllers`
+
+Lista los usuarios asignados como controladores. Devuelve `200 OK`.
+
+`DELETE /api/v1/events/{eventId}/controllers/{userId}`
+
+Quita un controlador del evento. Devuelve `204 No Content`.
+
+La asignación falla con `404 Not Found` si el usuario no existe o no está
+habilitado, con `409 Conflict` si ya está asignado o el evento está cancelado
+o finalizado, y con `403 Forbidden` si quien solicita la operación no es el
+organizador. El organizador no puede asignarse como controlador porque ya tiene
+permiso para validar entradas.
+
+### Mis eventos como controlador
+
+`GET /api/v1/events/mine/controllers`
+
+Obtiene los eventos `PUBLISHED` en los que el usuario autenticado está asignado
+como controlador. La lista se ordena por `dateTime` ascendente y acepta
+`page`, `size` y `sort`.
+
+### Validar ingreso presencial
+
+`POST /api/v1/access/validate-qr`
+
+Valida el QR de un ticket presencial. Requiere autenticación como organizador o
+controlador del evento y solo funciona durante la ventana de ingreso configurada
+(`event.access-window.before-hours` a `event.access-window.after-hours`).
+La validación registra el primer acceso, marca el ticket como `USED` y guarda
+quién lo validó. La actualización es atómica, por lo que dos escaneos
+simultáneos no permiten ingresar dos veces.
+
+**Cuerpo de la petición:**
+
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "qrCode": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+Devuelve `200 OK` con el ticket, el asistente, el evento y la hora de
+validación. Responde `409 Conflict` si el evento está fuera de su ventana, el
+ticket no es válido o ya fue utilizado; `400 Bad Request` si el QR no contiene
+un UUID válido o no pertenece al evento; y `403 Forbidden` si el usuario no es
+organizador ni controlador.
+
+### Obtener credenciales de un evento virtual
+
+`GET /api/v1/access/virtual/{ticketId}`
+
+Devuelve las credenciales del evento virtual para el titular autenticado del
+ticket. El ticket debe estar `ACTIVE`; este acceso no está limitado por la
+ventana de ingreso y registra la primera consulta en `accessedAt` de forma
+idempotente.
+
+Devuelve `200 OK` con el título, la fecha, la plataforma, el enlace y las
+instrucciones de acceso. Responde `401 Unauthorized` si no hay autenticación,
+`403 Forbidden` si el usuario no es el titular, `404 Not Found` si el ticket no
+existe y `409 Conflict` si el ticket no está activo o no corresponde a un
+evento virtual.
+
+### Mis eventos como controlador (módulo de acceso)
+
+`GET /api/v1/access/my-events`
+
+Obtiene los eventos `PUBLISHED` en los que el usuario autenticado está asignado
+como controlador. La lista se ordena por `dateTime` ascendente y acepta
+`page`, `size` y `sort`. Requiere autenticación.
+
 ### Cancelar evento
 
 `PATCH /api/v1/events/{id}/cancel`

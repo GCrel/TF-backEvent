@@ -145,7 +145,15 @@ public class EventService {
     }
 
     public List<EventResponse> getMyEvents(User organizer, Pageable pageable) {
-        return eventRepository.findByParticipant(organizer, EventRole.ORGANIZER, pageable)
+        return getMyEvents(organizer, EventRole.ORGANIZER, null, pageable);
+    }
+
+    public List<EventResponse> getMyEvents(
+            User user, EventRole role, EventStatus status, Pageable pageable) {
+        List<Event> events = status == null
+                ? eventRepository.findByParticipant(user, role, pageable)
+                : eventRepository.findByParticipantAndStatus(user, role, status, pageable);
+        return events
                 .stream().map(this::toResponse).toList();
     }
 

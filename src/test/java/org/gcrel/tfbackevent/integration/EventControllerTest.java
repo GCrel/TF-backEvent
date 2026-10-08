@@ -38,13 +38,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.data.domain.Pageable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -155,7 +155,7 @@ public class EventControllerTest {
         UpdateEventRequest request = new UpdateEventRequest(
                 "Updated Meetup",
                 "Updated description",
-                LocalDateTime.of(2026, 10, 5, 20, 0),
+                LocalDateTime.now().plusDays(5),
                 new BigDecimal("30.00"),
                 "Updated Address",
                 new BigDecimal("-34.6000"),
@@ -198,7 +198,7 @@ public class EventControllerTest {
         UpdateEventRequest request = new UpdateEventRequest(
                 "Updated Meetup",
                 "Updated description",
-                LocalDateTime.of(2026, 10, 5, 20, 0),
+                LocalDateTime.now().plusDays(5),
                 new BigDecimal("30.00"),
                 "Updated Address",
                 new BigDecimal("-34.6000"),

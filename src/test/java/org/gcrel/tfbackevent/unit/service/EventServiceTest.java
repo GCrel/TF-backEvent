@@ -44,11 +44,11 @@ import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.data.domain.Pageable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 public class EventServiceTest {
@@ -423,7 +423,7 @@ public class EventServiceTest {
         InPersonEvent existingEvent = new InPersonEvent(
                 "Event to publish",
                 "Description",
-                eventDateTime.plusDays(5),
+                LocalDateTime.now().plusDays(5),
                 new BigDecimal("90.00"),
                 "Venue",
                 new BigDecimal("-34.60"),

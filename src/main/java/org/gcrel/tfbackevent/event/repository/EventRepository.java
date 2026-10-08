@@ -38,6 +38,19 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             WHERE ep.user = :user
             AND ep.id.eventRole = :role
             AND ep.event.status = :status
+            ORDER BY ep.event.dateTime ASC
+            """)
+    List<Event> findByParticipantAndStatus(
+            @Param("user") User user,
+            @Param("role") EventRole role,
+            @Param("status") EventStatus status,
+            Pageable pageable);
+
+    @Query("""
+            SELECT ep.event FROM EventParticipation ep
+            WHERE ep.user = :user
+            AND ep.id.eventRole = :role
+            AND ep.event.status = :status
             """)
     List<Event> findByOrganizerAndStatus(
             @Param("user") User user,
