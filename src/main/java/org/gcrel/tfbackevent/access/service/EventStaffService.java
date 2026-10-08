@@ -9,6 +9,7 @@ import org.gcrel.tfbackevent.access.exception.ControllerAlreadyAssignedException
 import org.gcrel.tfbackevent.access.exception.ControllerNotAssignedException;
 import org.gcrel.tfbackevent.access.exception.ControllerUserNotFoundException;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.auth.service.EmailNormalizer;
 import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventNotModifiableException;
@@ -20,6 +21,7 @@ import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,7 +49,7 @@ public class EventStaffService {
             throw new EventNotModifiableException();
         }
 
-        User user = userRepository.findByEmail(request.email().trim().toLowerCase())
+        User user = userRepository.findByEmail(EmailNormalizer.normalize(request.email()))
                 .filter(User::isEnabled)
                 .orElseThrow(ControllerUserNotFoundException::new);
         if (user.getId().equals(organizer.getId())) {
@@ -58,7 +60,12 @@ public class EventStaffService {
             throw new ControllerAlreadyAssignedException();
         }
 
-        participationRepository.save(new EventParticipation(user, event, EventRole.CONTROLLER));
+        try {
+            participationRepository.saveAndFlush(
+                    new EventParticipation(user, event, EventRole.CONTROLLER));
+        } catch (DataIntegrityViolationException exception) {
+            throw new ControllerAlreadyAssignedException();
+        }
         return new ControllerResponse(user);
     }
 

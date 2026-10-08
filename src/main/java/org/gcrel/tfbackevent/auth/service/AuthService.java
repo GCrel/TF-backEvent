@@ -44,13 +44,14 @@ public class AuthService {
     }
 
     public void register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
-            throw new EmailAlreadyExistsException(request.email());
+        String email = EmailNormalizer.normalize(request.email());
+        if (userRepository.existsByEmail(email)) {
+            throw new EmailAlreadyExistsException(email);
         }
 
         User user = new User(
                 request.name(),
-                request.email(),
+                email,
                 passwordEncoder.encode(request.password()),
                 request.dateBirth());
 
@@ -58,7 +59,8 @@ public class AuthService {
     }
 
     public void resendVerificationCode(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
+                .orElseThrow(InvalidCredentialsException::new);
 
         if (user.isEnabled()) {
             throw new AccountAlreadyVerifiedException();
@@ -68,7 +70,8 @@ public class AuthService {
     }
 
     public AuthResponse verifyEmail(String email, String code) {
-        User user = userRepository.findByEmail(email).orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
+                .orElseThrow(InvalidCredentialsException::new);
 
         if (user.isEnabled()) {
             throw new AccountAlreadyVerifiedException();
@@ -97,7 +100,8 @@ public class AuthService {
     }
 
     public AuthResponse login(String email, String password) {
-        User user = userRepository.findByEmail(email).orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
+                .orElseThrow(InvalidCredentialsException::new);
 
         if (!user.isEnabled()) {
             throw new EmailNotVerifiedException();
