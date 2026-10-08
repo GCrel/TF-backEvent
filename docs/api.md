@@ -522,8 +522,8 @@ Devuelve el `EventResponse` correspondiente.
 `GET /api/v1/events`
 
 Obtiene únicamente eventos `PUBLISHED`, ordenados por `dateTime` ascendente
-(Público). La respuesta acepta paginación mediante los parámetros `page`,
-`size` y `sort`, por ejemplo `?page=0&size=20&sort=dateTime,asc`.
+(Público). La respuesta acepta paginación mediante los parámetros `page` y `size`,
+por ejemplo `?page=0&size=20`. El orden siempre es `dateTime` ascendente.
 
 **Respuesta exitosa: `200 OK`**
 
@@ -552,7 +552,7 @@ Obtiene únicamente eventos `PUBLISHED`, ordenados por `dateTime` ascendente
 
 Obtiene los eventos donde el usuario autenticado participa como organizador,
 incluidos sus borradores, cancelados y finalizados. La lista se ordena por
-`dateTime` descendente y acepta los parámetros `page`, `size` y `sort`.
+`dateTime` descendente y acepta los parámetros `page` y `size`.
 
 ### Gestionar controladores de acceso
 
@@ -564,6 +564,34 @@ por el organizador del evento:
 Asigna como controlador a un usuario habilitado mediante su email. Devuelve
 `201 Created` con su identificador, nombre y email.
 
+**Cuerpo de la petición:**
+
+```json
+{
+  "email": "controlador@example.com"
+}
+```
+
+| Campo | Tipo | Descripción |
+|------|------|-------------|
+| `email` | string | Email del usuario habilitado, obligatorio, máximo 254 caracteres |
+
+**Respuesta `201 Created`:**
+
+```json
+{
+  "userId": "550e8400-e29b-41d4-a716-446655440001",
+  "name": "Ana Control",
+  "email": "controlador@example.com"
+}
+```
+
+| Campo | Tipo | Descripción |
+|------|------|-------------|
+| `userId` | uuid | Identificador del controlador |
+| `name` | string | Nombre del controlador |
+| `email` | string | Email normalizado del controlador |
+
 `GET /api/v1/events/{eventId}/controllers`
 
 Lista los usuarios asignados como controladores. Devuelve `200 OK`.
@@ -572,19 +600,11 @@ Lista los usuarios asignados como controladores. Devuelve `200 OK`.
 
 Quita un controlador del evento. Devuelve `204 No Content`.
 
-La asignación falla con `404 Not Found` si el usuario no existe o no está
-habilitado, con `409 Conflict` si ya está asignado o el evento está cancelado
-o finalizado, y con `403 Forbidden` si quien solicita la operación no es el
-organizador. El organizador no puede asignarse como controlador porque ya tiene
-permiso para validar entradas.
-
-### Mis eventos como controlador
-
-`GET /api/v1/events/mine/controllers`
-
-Obtiene los eventos `PUBLISHED` en los que el usuario autenticado está asignado
-como controlador. La lista se ordena por `dateTime` ascendente y acepta
-`page`, `size` y `sort`.
+La asignación falla con `404 Not Found` si el evento, el usuario no existe o el
+usuario no está habilitado, con `400 Bad Request` si el organizador intenta
+asignarse a sí mismo, con `409 Conflict` si ya está asignado o el evento está
+cancelado o finalizado, y con `403 Forbidden` si quien solicita la operación no
+es el organizador.
 
 ### Validar ingreso presencial
 
@@ -606,10 +626,34 @@ simultáneos no permiten ingresar dos veces.
 }
 ```
 
+| Campo | Tipo | Descripción |
+|------|------|-------------|
+| `eventId` | uuid | Evento del ticket, obligatorio |
+| `qrCode` | string | UUID del ticket codificado en el QR, obligatorio, máximo 64 caracteres |
+
+**Respuesta `200 OK`:**
+
+```json
+{
+  "ticketId": "550e8400-e29b-41d4-a716-446655440001",
+  "attendeeName": "Juan Pérez",
+  "eventTitle": "Conferencia de tecnología",
+  "validatedAt": "2026-10-15T17:05:00"
+}
+```
+
+| Campo | Tipo | Descripción |
+|------|------|-------------|
+| `ticketId` | uuid | Ticket validado |
+| `attendeeName` | string | Nombre del asistente |
+| `eventTitle` | string | Título del evento |
+| `validatedAt` | date-time | Momento de la validación |
+
 Devuelve `200 OK` con el ticket, el asistente, el evento y la hora de
 validación. Responde `409 Conflict` si el evento está fuera de su ventana, el
 ticket no es válido o ya fue utilizado; `400 Bad Request` si el QR no contiene
-un UUID válido o no pertenece al evento; y `403 Forbidden` si el usuario no es
+un UUID válido, no pertenece al evento o el evento es virtual; `404 Not Found`
+si el evento o el ticket no existen; y `403 Forbidden` si el usuario no es
 organizador ni controlador.
 
 ### Obtener credenciales de un evento virtual
@@ -622,10 +666,30 @@ ventana de ingreso y registra la primera consulta en `accessedAt` de forma
 idempotente.
 
 Devuelve `200 OK` con el título, la fecha, la plataforma, el enlace y las
-instrucciones de acceso. Responde `401 Unauthorized` si no hay autenticación,
-`403 Forbidden` si el usuario no es el titular, `404 Not Found` si el ticket no
-existe y `409 Conflict` si el ticket no está activo o no corresponde a un
-evento virtual.
+instrucciones de acceso.
+
+```json
+{
+  "eventTitle": "Conferencia de tecnología",
+  "dateTime": "2026-10-15T18:00:00",
+  "platform": "Zoom",
+  "accessLink": "https://zoom.example.com/event",
+  "accessInstructions": "Ingresar con el nombre usado en la compra."
+}
+```
+
+| Campo | Tipo | Descripción |
+|------|------|-------------|
+| `eventTitle` | string | Título del evento |
+| `dateTime` | date-time | Fecha y hora del evento |
+| `platform` | string | Plataforma de acceso |
+| `accessLink` | string | Enlace HTTPS del evento |
+| `accessInstructions` | string | Instrucciones del organizador |
+
+Responde `401 Unauthorized` si no hay autenticación, `403 Forbidden` si el
+usuario no es el titular, `404 Not Found` si el ticket no existe y `409
+Conflict` si el ticket no está activo. Si el evento no es virtual, responde
+`400 Bad Request`.
 
 ### Mis eventos como controlador (módulo de acceso)
 
@@ -633,7 +697,7 @@ evento virtual.
 
 Obtiene los eventos `PUBLISHED` en los que el usuario autenticado está asignado
 como controlador. La lista se ordena por `dateTime` ascendente y acepta
-`page`, `size` y `sort`. Requiere autenticación.
+`page` y `size`. Requiere autenticación.
 
 ### Cancelar evento
 

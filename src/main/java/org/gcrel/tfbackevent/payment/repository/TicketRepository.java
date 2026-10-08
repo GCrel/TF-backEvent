@@ -44,7 +44,7 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     @EntityGraph(attributePaths = { "event", "attendee" })
     Optional<Ticket> findWithEventAndAttendeeById(UUID id);
 
-    // Para explicar por qué falló el UPDATE (ver nota abajo)
+    // Consulta de solo columnas: evita la caché de la sesión tras el UPDATE.
     @Query("SELECT new org.gcrel.tfbackevent.payment.repository.dto.TicketAccessState(t.status, t.accessedAt) "
             + "FROM Ticket t WHERE t.id = :id")
     Optional<TicketAccessState> findAccessStateById(@Param("id") UUID id);

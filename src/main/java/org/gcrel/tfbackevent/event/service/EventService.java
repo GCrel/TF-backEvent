@@ -31,6 +31,7 @@ import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -140,7 +141,8 @@ public class EventService {
     }
 
     public List<EventResponse> getPublishedEvents(Pageable pageable) {
-        return eventRepository.findByStatusOrderByDateTimeAsc(EventStatus.PUBLISHED, pageable)
+        return eventRepository.findByStatusOrderByDateTimeAsc(
+                EventStatus.PUBLISHED, withoutSort(pageable))
                 .stream().map(this::toResponse).toList();
     }
 
@@ -151,10 +153,15 @@ public class EventService {
     public List<EventResponse> getMyEvents(
             User user, EventRole role, EventStatus status, Pageable pageable) {
         List<Event> events = status == null
-                ? eventRepository.findByParticipant(user, role, pageable)
-                : eventRepository.findByParticipantAndStatus(user, role, status, pageable);
+                ? eventRepository.findByParticipant(user, role, withoutSort(pageable))
+                : eventRepository.findByParticipantAndStatus(
+                        user, role, status, withoutSort(pageable));
         return events
                 .stream().map(this::toResponse).toList();
+    }
+
+    private Pageable withoutSort(Pageable pageable) {
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }
 
     @Transactional

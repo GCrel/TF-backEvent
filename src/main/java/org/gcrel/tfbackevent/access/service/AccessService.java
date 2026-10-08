@@ -10,22 +10,23 @@ import org.gcrel.tfbackevent.access.exception.AccessWindowClosedException;
 import org.gcrel.tfbackevent.access.exception.TicketAlreadyUsedException;
 import org.gcrel.tfbackevent.access.exception.TicketEventMismatchException;
 import org.gcrel.tfbackevent.access.exception.TicketNotValidException;
+import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.config.EventWindowProperties;
-import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.InvalidEventTypeException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
-import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.model.enums.EventRole;
+import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotFoundException;
+import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.gcrel.tfbackevent.payment.repository.dto.TicketAccessState;
 import org.hibernate.Hibernate;
@@ -37,23 +38,16 @@ public class AccessService {
     private final TicketRepository ticketRepository;
     private final EventAuthorizationService authorization;
     private final EventWindowProperties windowProperties;
-    private final EventService eventService;
 
     public AccessService(
             EventRepository eventRepository,
             TicketRepository ticketRepository,
             EventAuthorizationService authorization,
-            EventWindowProperties windowProperties,
-            EventService eventService) {
+            EventWindowProperties windowProperties) {
         this.eventRepository = eventRepository;
         this.ticketRepository = ticketRepository;
         this.authorization = authorization;
         this.windowProperties = windowProperties;
-        this.eventService = eventService;
-    }
-
-    public java.util.List<EventResponse> getMyEvents(User controller, org.springframework.data.domain.Pageable pageable) {
-        return eventService.getMyEvents(controller, EventRole.CONTROLLER, EventStatus.PUBLISHED, pageable);
     }
 
     public AccessValidationResponse validateQr(ValidateQrRequest request, User staff) {
@@ -93,12 +87,12 @@ public class AccessService {
         Ticket ticket = ticketRepository.findWithEventAndAttendeeById(ticketId)
                 .orElseThrow(() -> new TicketNotFoundException(ticketId));
         if (!ticket.getAttendee().getId().equals(user.getId())) {
-            throw new org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException();
+            throw new UnauthorizedTicketAccessException();
         }
         if (ticket.getStatus() != TicketStatus.ACTIVE) {
-            throw new org.gcrel.tfbackevent.payment.exception.TicketNotActiveException();
+            throw new TicketNotActiveException();
         }
-        if (!(Hibernate.unproxy(ticket.getEvent()) instanceof org.gcrel.tfbackevent.model.VirtualEvent event)) {
+        if (!(Hibernate.unproxy(ticket.getEvent()) instanceof VirtualEvent event)) {
             throw new InvalidEventTypeException();
         }
         ticketRepository.markFirstAccess(ticketId, LocalDateTime.now());
@@ -114,7 +108,7 @@ public class AccessService {
         try {
             return UUID.fromString(qrCode.trim());
         } catch (IllegalArgumentException ex) {
-            throw new org.gcrel.tfbackevent.common.exception.BadRequestException(
+            throw new BadRequestException(
                     "El código QR no contiene un identificador de ticket válido.");
         }
     }
