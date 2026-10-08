@@ -41,6 +41,13 @@ public class Ticket {
     @JoinColumn(name = "attendee_id", nullable = false)
     private User attendee;
 
+    @Column(name = "accessed_at")
+    private LocalDateTime accessedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "validated_by_id")
+    private User validatedBy;
+
     protected Ticket() {
     }
 
@@ -84,6 +91,14 @@ public class Ticket {
         return boughtAt;
     }
 
+    public User getValidatedBy() {
+        return validatedBy;
+    }
+
+    public LocalDateTime getAccessedAt() {
+        return accessedAt;
+    }
+
     public void setId(UUID id) {
         this.id = id;
     }
@@ -94,5 +109,21 @@ public class Ticket {
 
     public void setAttendee(User attendee) {
         this.attendee = attendee;
+    }
+
+    public void setBoughtAt(LocalDateTime boughtAt) {
+        this.boughtAt = boughtAt;
+    }
+
+    public void setEvent(Event event) {
+        this.event = event;
+    }
+
+    public void setAccessedAt(LocalDateTime accessedAt) {
+        this.accessedAt = accessedAt;
+    }
+
+    public void setValidatedBy(User validatedBy) {
+        this.validatedBy = validatedBy;
     }
 }
