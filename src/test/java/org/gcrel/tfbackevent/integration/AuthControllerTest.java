@@ -95,7 +95,8 @@ public class AuthControllerTest {
 
     @Test
     void register_EmailAlreadyExists_Returns409() throws Exception {
-        RegisterRequest request = new RegisterRequest("John Doe", "test@example.com", "password", LocalDate.now());
+        RegisterRequest request = new RegisterRequest("John Doe", "test@example.com", "password",
+                LocalDate.of(1990, 1, 1));
 
         doThrow(new EmailAlreadyExistsException(request.email()))
                 .when(authService)
@@ -119,7 +120,7 @@ public class AuthControllerTest {
 
     @Test
     void verifyEmail_Success_Returns200AndTokens() throws Exception {
-        VerifyEmailRequest request = new VerifyEmailRequest("test@example.com", "123456");
+        VerifyEmailRequest request = new VerifyEmailRequest("123456", "test@example.com");
         AuthResponse authResponse = new AuthResponse("access_token", "refresh_token");
 
         when(authService.verifyEmail(anyString(), anyString())).thenReturn(authResponse);
@@ -145,7 +146,7 @@ public class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Código incorrecto"))
+                .andExpect(jsonPath("$.error").value("Validation failed"))
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.timestamp").exists());
     }
@@ -211,7 +212,7 @@ public class AuthControllerTest {
 
     @Test
     void logout_Success_Returns204() throws Exception {
-        RefreshTokenRequest request = new RefreshTokenRequest("refresh_token_valid");
+        RefreshTokenRequest request = new RefreshTokenRequest("123e4567-e89b-12d3-a456-426614174000");
         Authentication authentication = new UsernamePasswordAuthenticationToken(testUser, null,
                 testUser.getAuthorities());
 
