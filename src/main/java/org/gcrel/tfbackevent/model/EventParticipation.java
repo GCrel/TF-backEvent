@@ -54,4 +54,12 @@ public class EventParticipation {
     public User getUser() {
         return this.user;
     }
+
+    public Event getEvent() {
+        return this.event;
+    }
+
+    public EventParticipationId getId() {
+        return this.id;
+    }
 }

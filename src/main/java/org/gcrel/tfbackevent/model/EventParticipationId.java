@@ -33,6 +33,10 @@ public class EventParticipationId implements Serializable {
         this.eventRole = eventRole;
     }
 
+    public EventRole getEventRole() {
+        return eventRole;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass())
