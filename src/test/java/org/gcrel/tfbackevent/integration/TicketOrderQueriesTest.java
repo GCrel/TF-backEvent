@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -134,6 +135,32 @@ class TicketOrderQueriesTest {
 
         assertEquals(account.getId(), mpAccountRepository
                 .findByPaymentTransactionId("333", EventRole.ORGANIZER).orElseThrow().getId());
+    }
+
+    @Test
+    void unlinkQueries_IgnoreFreeEvents() {
+        InPersonEvent freeEvent = new InPersonEvent(
+                "Free", "Description", LocalDateTime.now().plusDays(1),
+                BigDecimal.ZERO, "Address",
+                new BigDecimal("-34.60"), new BigDecimal("-58.38"), 100);
+        freeEvent.setStatus(EventStatus.PUBLISHED);
+        eventRepository.save(freeEvent);
+        participationRepository.save(new EventParticipation(organizer, freeEvent, EventRole.ORGANIZER));
+        TicketOrder freeOrder = orderRepository.save(
+                new TicketOrder(buyer, freeEvent, 1, BigDecimal.ZERO, LocalDateTime.now()));
+        Ticket freeTicket = new Ticket(freeOrder);
+        freeTicket.setStatus(TicketStatus.ACTIVE);
+        ticketRepository.save(freeTicket);
+        entityManager.flush();
+
+        // Las entradas gratuitas activas no bloquean la desvinculación...
+        assertFalse(ticketRepository.existsInPaidEventsByOrganizerAndStatusIn(
+                organizer, EventRole.ORGANIZER, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE)));
+        // ...y el evento gratuito no vuelve a DRAFT; solo el de pago sin ventas.
+        assertEquals(List.of(event.getId()), eventRepository.findPaidPublishedWithoutOpenTickets(
+                organizer, EventRole.ORGANIZER, EventStatus.PUBLISHED,
+                List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED))
+                .stream().map(e -> e.getId()).toList());
     }
 
     private TicketOrder orderWithTickets(LocalDateTime createdAt, int quantity, TicketStatus status) {

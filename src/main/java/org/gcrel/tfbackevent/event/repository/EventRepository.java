@@ -9,8 +9,8 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -64,13 +64,14 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             WHERE ep.user = :user
             AND ep.id.eventRole = :role
             AND ep.event.status = :status
+            AND ep.event.basePrice > 0
             AND NOT EXISTS (
                 SELECT t.id FROM Ticket t
                 WHERE t.event = ep.event
                 AND t.status IN :openStatuses
             )
             """)
-    List<Event> findPublishedWithoutOpenTickets(
+    List<Event> findPaidPublishedWithoutOpenTickets(
             @Param("user") User user,
             @Param("role") EventRole role,
             @Param("status") EventStatus status,

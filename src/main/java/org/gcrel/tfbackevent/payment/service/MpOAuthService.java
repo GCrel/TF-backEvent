@@ -18,11 +18,11 @@ import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
+import org.gcrel.tfbackevent.payment.exception.MpAccountHasTicketsException;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.exception.MpOAuthException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
-import org.gcrel.tfbackevent.payment.exception.MpAccountHasTicketsException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -159,11 +159,11 @@ public class MpOAuthService {
     public void unlinkAccount(User user) {
         OrganizerMpAccount account = mpAccountRepository.findByUser(user)
                 .orElseThrow(MpAccountNotLinkedException::new);
-        if (ticketRepository.existsByOrganizerAndStatusIn(
+        if (ticketRepository.existsInPaidEventsByOrganizerAndStatusIn(
                 user, EventRole.ORGANIZER, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE))) {
             throw new MpAccountHasTicketsException();
         }
-        eventRepository.findPublishedWithoutOpenTickets(
+        eventRepository.findPaidPublishedWithoutOpenTickets(
                 user,
                 EventRole.ORGANIZER,
                 EventStatus.PUBLISHED,

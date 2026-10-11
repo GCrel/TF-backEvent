@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -20,14 +20,13 @@ import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
-import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
 import org.gcrel.tfbackevent.payment.exception.InvalidMpOAuthStateException;
-import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.exception.MpAccountHasTicketsException;
+import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.gcrel.tfbackevent.payment.service.MpAccountLinkService;
@@ -190,9 +189,9 @@ public class MpOAuthServiceTest {
     @Test
     void unlinkAccount_WhenLinked_DeletesAccount() {
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
-        when(ticketRepository.existsByOrganizerAndStatusIn(
+        when(ticketRepository.existsInPaidEventsByOrganizerAndStatusIn(
                 eq(user), eq(EventRole.ORGANIZER), any())).thenReturn(false);
-        when(eventRepository.findPublishedWithoutOpenTickets(eq(user), eq(EventRole.ORGANIZER), any(), any()))
+        when(eventRepository.findPaidPublishedWithoutOpenTickets(eq(user), eq(EventRole.ORGANIZER), any(), any()))
                 .thenReturn(java.util.List.of());
 
         mpOAuthService.unlinkAccount(user);
@@ -210,7 +209,7 @@ public class MpOAuthServiceTest {
     @Test
     void unlinkAccount_WhenTicketsSold_ThrowsExceptionAndKeepsAccount() {
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
-        when(ticketRepository.existsByOrganizerAndStatusIn(
+        when(ticketRepository.existsInPaidEventsByOrganizerAndStatusIn(
                 eq(user), eq(EventRole.ORGANIZER), any())).thenReturn(true);
 
         assertThrows(MpAccountHasTicketsException.class, () -> mpOAuthService.unlinkAccount(user));
@@ -225,15 +224,15 @@ public class MpOAuthServiceTest {
                 new java.math.BigDecimal("-34"), new java.math.BigDecimal("-58"), 10);
         event.setStatus(org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED);
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
-        when(ticketRepository.existsByOrganizerAndStatusIn(
+        when(ticketRepository.existsInPaidEventsByOrganizerAndStatusIn(
                 eq(user), eq(EventRole.ORGANIZER), any())).thenReturn(false);
-        when(eventRepository.findPublishedWithoutOpenTickets(
+        when(eventRepository.findPaidPublishedWithoutOpenTickets(
                 eq(user), eq(EventRole.ORGANIZER), any(), any())).thenReturn(java.util.List.of(event));
 
         mpOAuthService.unlinkAccount(user);
 
         assertEquals(org.gcrel.tfbackevent.model.enums.EventStatus.DRAFT, event.getStatus());
-        verify(eventRepository).findPublishedWithoutOpenTickets(
+        verify(eventRepository).findPaidPublishedWithoutOpenTickets(
                 eq(user), eq(EventRole.ORGANIZER), eq(org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED),
                 argThat(statuses -> statuses.contains(org.gcrel.tfbackevent.model.enums.TicketStatus.USED)));
         verify(eventRepository).save(event);

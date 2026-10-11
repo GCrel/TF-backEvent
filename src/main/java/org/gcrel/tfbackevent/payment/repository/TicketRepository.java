@@ -59,9 +59,10 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
             WHERE ep.user = :organizer
             AND ep.id.eventRole = :role
             AND t.event.status = org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED
+            AND t.event.basePrice > 0
             AND t.status IN :statuses
             """)
-    boolean existsByOrganizerAndStatusIn(
+    boolean existsInPaidEventsByOrganizerAndStatusIn(
             @Param("organizer") User organizer,
             @Param("role") EventRole role,
             @Param("statuses") Collection<TicketStatus> statuses);

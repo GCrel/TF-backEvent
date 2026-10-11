@@ -39,6 +39,7 @@ import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -504,5 +505,63 @@ public class EventServiceTest {
         assertThrows(EventNotPublishableException.class,
                 () -> eventService.publishEvent(eventId, organizer));
         verify(eventRepository, never()).save(existingEvent);
+    }
+
+    @Test
+    void publishEvent_WhenEventIsFree_DoesNotRequireMpAccount() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent freeEvent = new InPersonEvent(
+                "Free event", "Description", LocalDateTime.now().plusDays(5),
+                BigDecimal.ZERO, "Venue", new BigDecimal("-34.60"),
+                new BigDecimal("-58.38"), 30);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(freeEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                freeEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+
+        EventResponse response = eventService.publishEvent(eventId, organizer);
+
+        assertEquals("PUBLISHED", response.status());
+        verify(mpAccountRepository, never()).existsByUser(any());
+    }
+
+    @Test
+    void publishEvent_WhenEventIsPaidAndMpNotLinked_ThrowsPreconditionRequired() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent paidEvent = new InPersonEvent(
+                "Paid event", "Description", LocalDateTime.now().plusDays(5),
+                new BigDecimal("90.00"), "Venue", new BigDecimal("-34.60"),
+                new BigDecimal("-58.38"), 30);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(paidEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                paidEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(mpAccountRepository.existsByUser(organizer)).thenReturn(false);
+
+        assertThrows(MpAccountNotLinkedException.class,
+                () -> eventService.publishEvent(eventId, organizer));
+        verify(eventRepository, never()).save(paidEvent);
+    }
+
+    @Test
+    void updateEvent_WhenPublishedFreeEventBecomesPaidWithoutMp_ThrowsPreconditionRequired() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent freeEvent = new InPersonEvent(
+                "Event", "Description", eventDateTime, BigDecimal.ZERO,
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30);
+        freeEvent.setStatus(EventStatus.PUBLISHED);
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Event", "Description", eventDateTime, new BigDecimal("50.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30,
+                null, null, null);
+
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(freeEvent));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                freeEvent, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(mpAccountRepository.existsByUser(organizer)).thenReturn(false);
+
+        assertThrows(MpAccountNotLinkedException.class,
+                () -> eventService.updateEvent(eventId, request, organizer));
+        verify(eventRepository, never()).save(freeEvent);
     }
 }

@@ -28,6 +28,7 @@ import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
@@ -35,6 +36,7 @@ import org.gcrel.tfbackevent.payment.config.TicketPurchaseProperties;
 import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
 import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
 import org.gcrel.tfbackevent.payment.exception.EventCapacityExceededException;
+import org.gcrel.tfbackevent.payment.exception.EventPriceChangedException;
 import org.gcrel.tfbackevent.payment.exception.InvalidTicketPurchaseException;
 import org.gcrel.tfbackevent.payment.exception.PaymentProcessingException;
 import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
@@ -332,5 +334,77 @@ public class TicketServiceTest {
     private PurchaseTicketRequest purchaseRequest(int quantity) {
         UUID eventId = purchaseRequest == null ? UUID.randomUUID() : purchaseRequest.eventId();
         return new PurchaseTicketRequest(eventId, quantity, "token123", 1, "test@test.com", "visa");
+    }
+
+    @Test
+    void purchase_WhenEventIsFree_IssuesActiveTicketsWithoutMercadoPago() {
+        event.setBasePrice(BigDecimal.ZERO);
+        PurchaseTicketRequest freeRequest = new PurchaseTicketRequest(
+                purchaseRequest.eventId(), 2, null, null, null, null);
+        when(eventRepository.findById(freeRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(freeRequest.eventId())).thenReturn(Optional.of(event));
+        when(ticketRepository.findByOrder(any(TicketOrder.class))).thenAnswer(invocation -> {
+            TicketOrder order = invocation.getArgument(0);
+            return List.of(activeTicket(order), activeTicket(order));
+        });
+        when(qrService.generateQRBase64(any(UUID.class))).thenReturn("qr");
+
+        PurchaseResponse response = ticketService.purchase(freeRequest, attendee);
+
+        assertEquals("approved", response.status());
+        assertEquals("free", response.statusDetail());
+        assertEquals(2, response.tickets().size());
+        response.tickets().forEach(purchased -> assertEquals("qr", purchased.qrCodeBase64()));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Ticket>> ticketsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(ticketRepository).saveAll(ticketsCaptor.capture());
+        ticketsCaptor.getValue().forEach(created -> assertEquals(TicketStatus.ACTIVE, created.getStatus()));
+
+        ArgumentCaptor<TicketOrder> orderCaptor = ArgumentCaptor.forClass(TicketOrder.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        assertEquals(DeliveryStatus.PENDING, orderCaptor.getValue().getDeliveryStatus());
+
+        verify(mpOAuthService, never()).getValidAccessToken(any(User.class));
+        verify(mercadoPagoService, never()).processPayment(any(), any(), any(), any(), any(), any(), any());
+        verify(paymentService, never()).handleNewPayment(any(), any());
+    }
+
+    @Test
+    void purchase_WhenEventIsPaidAndPaymentDataMissing_ThrowsBadRequest() {
+        PurchaseTicketRequest withoutPayment = new PurchaseTicketRequest(
+                purchaseRequest.eventId(), 1, null, null, null, null);
+        when(eventRepository.findById(withoutPayment.eventId())).thenReturn(Optional.of(event));
+
+        assertThrows(
+                InvalidTicketPurchaseException.class,
+                () -> ticketService.purchase(withoutPayment, attendee));
+
+        verify(orderRepository, never()).save(any());
+        verify(mercadoPagoService, never()).processPayment(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void purchase_WhenPriceChangesBeforeReservation_ThrowsConflict() {
+        InPersonEvent lockedEvent = new InPersonEvent(
+                "Test Event", "Description", event.getDateTime(), BigDecimal.ZERO,
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 100);
+        lockedEvent.setStatus(EventStatus.PUBLISHED);
+        stubPurchasableEvent();
+        when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(lockedEvent));
+
+        assertThrows(
+                EventPriceChangedException.class,
+                () -> ticketService.purchase(purchaseRequest, attendee));
+
+        verify(orderRepository, never()).save(any());
+        verify(mercadoPagoService, never()).processPayment(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    private Ticket activeTicket(TicketOrder order) {
+        Ticket created = new Ticket(order);
+        created.setId(UUID.randomUUID());
+        created.setStatus(TicketStatus.ACTIVE);
+        return created;
     }
 }

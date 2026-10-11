@@ -79,9 +79,7 @@ public class EventService {
             throw new EventNotPublishableException();
         }
 
-        if (!mpAccountRepository.existsByUser(organizer)) {
-            throw new MpAccountNotLinkedException();
-        }
+        requireMpAccountIfPaid(event.getBasePrice(), organizer);
         event.setStatus(EventStatus.PUBLISHED);
         eventRepository.save(event);
 
@@ -96,6 +94,9 @@ public class EventService {
         validateModifiable(event);
         validateTypeSpecificFields(event, request);
         validateSalesConstraints(event, request);
+        if (event.getStatus() == EventStatus.PUBLISHED) {
+            requireMpAccountIfPaid(request.basePrice(), organizer);
+        }
 
         event.setTitle(request.title());
         event.setDescription(request.description());
@@ -115,6 +116,12 @@ public class EventService {
 
         eventRepository.save(event);
         return toResponse(event);
+    }
+
+    private void requireMpAccountIfPaid(BigDecimal price, User organizer) {
+        if (price.signum() > 0 && !mpAccountRepository.existsByUser(organizer)) {
+            throw new MpAccountNotLinkedException();
+        }
     }
 
     private void validateSalesConstraints(Event event, UpdateEventRequest request) {

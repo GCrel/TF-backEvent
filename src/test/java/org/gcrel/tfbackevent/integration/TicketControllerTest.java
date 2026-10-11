@@ -104,6 +104,37 @@ public class TicketControllerTest {
     }
 
     @Test
+    void purchase_WithoutPaymentData_PassesValidation() throws Exception {
+        // Para eventos gratuitos los datos de pago se omiten; el servicio decide si son
+        // obligatorios.
+        String body = "{\"eventId\": \"" + UUID.randomUUID() + "\", \"quantity\": 1}";
+        UUID orderId = UUID.randomUUID();
+        when(ticketService.purchase(any(PurchaseTicketRequest.class), any(User.class)))
+                .thenReturn(new PurchaseResponse(orderId, "approved", "free", "Entradas emitidas.", List.of()));
+
+        mockMvc.perform(
+                post("/api/v1/tickets/purchase")
+                        .with(authentication(authentication))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.statusDetail").value("free"));
+    }
+
+    @Test
+    void purchase_WithoutQuantity_Returns400() throws Exception {
+        String body = "{\"eventId\": \"" + UUID.randomUUID() + "\"}";
+
+        mockMvc.perform(
+                post("/api/v1/tickets/purchase")
+                        .with(authentication(authentication))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.quantity").exists());
+    }
+
+    @Test
     void getMyTickets_Success_Returns200AndList() throws Exception {
         TicketResponse first = new TicketResponse(
                 UUID.randomUUID(),
