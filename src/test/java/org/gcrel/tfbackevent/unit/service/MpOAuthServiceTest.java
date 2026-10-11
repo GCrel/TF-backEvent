@@ -252,6 +252,8 @@ public class MpOAuthServiceTest {
     @Test
     void getValidAccessToken_WhenTokenIsExpiring_RefreshesToken() {
         account.setMpTokenExpiresAt(LocalDateTime.now().plusHours(2));
+        LocalDateTime linkedAt = LocalDateTime.now().minusDays(30);
+        account.setLinkedAt(linkedAt);
         when(mpAccountRepository.findByUser(user)).thenReturn(Optional.of(account));
 
         Map<String, Object> refreshResponseBody = new HashMap<>();
@@ -270,6 +272,7 @@ public class MpOAuthServiceTest {
 
             assertEquals("refreshed_access_token", token);
             assertEquals("new_refresh_token", account.getMpRefreshToken());
+            assertEquals(linkedAt, account.getLinkedAt());
             verify(mpAccountRepository).save(account);
         }
     }

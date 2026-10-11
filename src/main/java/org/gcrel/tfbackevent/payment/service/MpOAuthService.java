@@ -241,7 +241,7 @@ public class MpOAuthService {
             account.setMpTokenExpiresAt(
                     LocalDateTime.now().plusSeconds(
                             ((Number) responseBody.get("expires_in")).longValue()));
-            account.setLinkedAt(LocalDateTime.now());
+            // linkedAt conserva la fecha de vinculación: renovar el token no es volver a vincular.
             mpAccountRepository.save(account);
 
         } catch (Exception e) {

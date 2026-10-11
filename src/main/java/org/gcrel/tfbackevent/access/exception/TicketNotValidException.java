@@ -4,6 +4,6 @@ import org.gcrel.tfbackevent.common.exception.ConflictException;
 
 public class TicketNotValidException extends ConflictException {
     public TicketNotValidException() {
-        super("Ticket no es valido: (Caselado o, no comprado, o ya usado)");
+        super("El ticket no es válido: está cancelado o su pago aún no fue confirmado.");
     }
 }
