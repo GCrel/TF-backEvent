@@ -28,7 +28,7 @@ Los endpoints protegidos devuelven `401 Unauthorized` si no se envía el token o
 | `200 OK` | La petición se completó correctamente |
 | `201 Created` | El recurso fue creado correctamente |
 | `204 No Content` | La petición se completó correctamente sin contenido en el cuerpo |
-| `302 Found` | Redirección (usado en el flujo OAuth de MercadoPago) |
+| `302 Found` | Redirección (callback OAuth de MercadoPago hacia el frontend) |
 | `400 Bad Request` | La petición tiene datos inválidos o faltantes |
 | `401 Unauthorized` | Falta autenticación, el token es inválido o la firma del webhook no valida |
 | `402 Payment Required` | El pago fue rechazado |
@@ -145,7 +145,7 @@ Verifica el correo del usuario con el código recibido por correo (Público). Al
 
 | Código | Causa |
 |--------|-------|
-| `400 Bad Request` | Código incorrecto o expirado |
+| `400 Bad Request` | Código incorrecto, vencido o invalidado tras 5 intentos fallidos (en los dos últimos casos hay que pedir un código nuevo), o el cuerpo no cumple las validaciones |
 | `401 Unauthorized` | El correo no existe |
 | `409 Conflict` | La cuenta ya está verificada |
 
@@ -169,10 +169,13 @@ Reenvía el código de verificación al correo (Público).
 
 **Respuesta exitosa: `204 No Content`**
 
+Genera un código nuevo (15 minutos) y reinicia el contador de intentos fallidos.
+
 **Errores:**
 
 | Código | Causa |
 |--------|-------|
+| `400 Bad Request` | El email falta o no tiene formato válido |
 | `401 Unauthorized` | El correo no existe |
 | `409 Conflict` | La cuenta ya está verificada |
 
@@ -209,10 +212,14 @@ Inicia sesión con las credenciales (Público).
 
 | Código | Causa |
 |--------|-------|
-| `401 Unauthorized` | Credenciales inválidas |
-| `403 Forbidden` | El correo no fue verificado |
+| `401 Unauthorized` | Credenciales inválidas (email inexistente o contraseña incorrecta) |
+| `403 Forbidden` | La contraseña es correcta pero el correo no fue verificado |
 
-> Cada inicio de sesión revoca los refresh tokens anteriores del usuario y emite un par nuevo.
+> La contraseña se valida antes que el estado de la cuenta: con una contraseña
+> incorrecta siempre se responde `401`, sin revelar si la cuenta existe o está
+> pendiente de verificación.
+>
+> Cada inicio de sesión elimina los refresh tokens anteriores del usuario y emite un par nuevo.
 
 ### Refrescar token
 
@@ -316,11 +323,11 @@ entradas con cualquier anticipación. Fuera de ese límite responde `409`.
 
 La ventana completa de ingreso va desde `event.access-window.before-hours` horas
 antes hasta `event.access-window.after-hours` horas después de `dateTime`
-(por defecto, 3 y 12 horas). La validación del ingreso debe aplicar ambos límites; la transición automática a
-`FINISHED` ocurre al cerrar la ventana posterior. La desvinculación de Mercado
-Pago se bloquea si existen tickets `PENDING` o `ACTIVE` en eventos `PUBLISHED`;
-solo los eventos publicados sin tickets `PENDING`, `ACTIVE` ni `USED` vuelven a
-`DRAFT`.
+(por defecto, 3 y 12 horas). La validación del ingreso aplica ambos límites; la
+transición automática a `FINISHED` ocurre al cerrar la ventana posterior.
+
+Un evento con `basePrice` igual a `0` es **gratuito**: se puede publicar sin cuenta
+de MercadoPago y sus entradas se emiten sin pago (ver [Comprar entradas](#comprar-entradas)).
 
 ### Crear evento
 
@@ -371,7 +378,7 @@ Crea un nuevo evento en estado `DRAFT` y registra al usuario autenticado como or
 | `title` | string | Sí | máx. 150 caracteres | Título del evento |
 | `description` | string | No | máx. 2000 caracteres | Descripción del evento |
 | `dateTime` | string (datetime) | Sí | debe estar en el futuro, formato `yyyy-MM-ddTHH:mm:ss` | Fecha y hora del evento |
-| `basePrice` | number | Sí | ≥ 0, hasta 8 dígitos enteros y 2 decimales | Precio base del evento |
+| `basePrice` | number | Sí | ≥ 0, hasta 8 dígitos enteros y 2 decimales | Precio por entrada; `0` = evento gratuito |
 | `eventType` | string | Sí | `IN_PERSON` o `VIRTUAL` | Tipo de evento |
 | `address` | string | Solo `IN_PERSON` | máx. 255 caracteres, no vacío | Dirección |
 | `latitude` | number | Solo `IN_PERSON` | entre -90 y 90 | Latitud |
@@ -433,7 +440,7 @@ Devuelve el `EventResponse` del evento publicado.
 | `403 Forbidden` | El usuario no es el organizador del evento |
 | `404 Not Found` | El evento no existe |
 | `409 Conflict` | El evento ya está publicado, o está cancelado/finalizado |
-| `428 Precondition Required` | El organizador no tiene una cuenta de MercadoPago vinculada |
+| `428 Precondition Required` | El evento tiene precio y el organizador no tiene una cuenta de MercadoPago vinculada |
 
 ### Actualizar evento
 
@@ -491,6 +498,7 @@ Devuelve el `EventResponse` actualizado.
 | `403 Forbidden` | El usuario no es el organizador del evento |
 | `404 Not Found` | El evento no existe |
 | `409 Conflict` | El evento está cancelado/finalizado, o tiene entradas vendidas y se intenta cambiar el precio o la fecha |
+| `428 Precondition Required` | El evento está publicado, el nuevo precio es mayor que 0 y el organizador no tiene cuenta de MercadoPago vinculada |
 
 ### Obtener evento
 
@@ -554,10 +562,38 @@ Obtiene los eventos donde el usuario autenticado participa como organizador,
 incluidos sus borradores, cancelados y finalizados. La lista se ordena por
 `dateTime` descendente y acepta los parámetros `page` y `size`.
 
-### Gestionar controladores de acceso
+### Cancelar evento
+
+`PATCH /api/v1/events/{id}/cancel`
+
+Cambia el estado del evento a `CANCELLED` (Requiere autenticación, solo el organizador).
+
+**Parámetros de ruta:**
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `id` | uuid | Identificador del evento |
+
+**Respuesta exitosa: `204 No Content`**
+
+**Errores:**
+
+| Código | Causa |
+|--------|-------|
+| `403 Forbidden` | El usuario no es el organizador del evento |
+| `404 Not Found` | El evento no existe |
+| `409 Conflict` | El evento está cancelado/finalizado, o ya tiene entradas compradas |
+
+---
+
+## Controladores de acceso
+
+Prefijo: `/api/v1/events/{eventId}/controllers`
 
 Los siguientes endpoints requieren autenticación y solo pueden ser utilizados
 por el organizador del evento:
+
+### Asignar controlador
 
 `POST /api/v1/events/{eventId}/controllers`
 
@@ -592,19 +628,30 @@ Asigna como controlador a un usuario habilitado mediante su email. Devuelve
 | `name` | string | Nombre del controlador |
 | `email` | string | Email normalizado del controlador |
 
+### Listar controladores
+
 `GET /api/v1/events/{eventId}/controllers`
 
 Lista los usuarios asignados como controladores. Devuelve `200 OK`.
 
+### Quitar controlador
+
 `DELETE /api/v1/events/{eventId}/controllers/{userId}`
 
-Quita un controlador del evento. Devuelve `204 No Content`.
+Quita un controlador del evento. Devuelve `204 No Content`, o `404 Not Found` si
+el usuario no estaba asignado como controlador.
 
 La asignación falla con `404 Not Found` si el evento, el usuario no existe o el
 usuario no está habilitado, con `400 Bad Request` si el organizador intenta
 asignarse a sí mismo, con `409 Conflict` si ya está asignado o el evento está
 cancelado o finalizado, y con `403 Forbidden` si quien solicita la operación no
 es el organizador.
+
+---
+
+## Control de acceso
+
+Prefijo: `/api/v1/access`
 
 ### Validar ingreso presencial
 
@@ -691,35 +738,13 @@ usuario no es el titular, `404 Not Found` si el ticket no existe y `409
 Conflict` si el ticket no está activo. Si el evento no es virtual, responde
 `400 Bad Request`.
 
-### Mis eventos como controlador (módulo de acceso)
+### Mis eventos como controlador
 
 `GET /api/v1/access/my-events`
 
 Obtiene los eventos `PUBLISHED` en los que el usuario autenticado está asignado
 como controlador. La lista se ordena por `dateTime` ascendente y acepta
 `page` y `size`. Requiere autenticación.
-
-### Cancelar evento
-
-`PATCH /api/v1/events/{id}/cancel`
-
-Cambia el estado del evento a `CANCELLED` (Requiere autenticación, solo el organizador).
-
-**Parámetros de ruta:**
-
-| Parámetro | Tipo | Descripción |
-|-----------|------|-------------|
-| `id` | uuid | Identificador del evento |
-
-**Respuesta exitosa: `204 No Content`**
-
-**Errores:**
-
-| Código | Causa |
-|--------|-------|
-| `403 Forbidden` | El usuario no es el organizador del evento |
-| `404 Not Found` | El evento no existe |
-| `409 Conflict` | El evento está cancelado/finalizado, o ya tiene entradas compradas |
 
 ---
 
@@ -732,23 +757,39 @@ Prefijo: `/api/v1/tickets`
 | Estado | Descripción |
 |--------|-------------|
 | `PENDING` | El pago todavía no fue confirmado |
-| `ACTIVE` | El pago fue aprobado y el ticket habilita el acceso |
-| `USED` | El ticket fue utilizado en el evento |
-| `CANCELLED` | El pago fue rechazado o el ticket fue cancelado |
+| `ACTIVE` | El pago fue aprobado (o el evento es gratuito) y el ticket habilita el acceso |
+| `USED` | El ticket presencial fue validado en la puerta |
+| `CANCELLED` | El pago fue rechazado o la orden quedó sin pago |
 
-### Comprar ticket
+### Órdenes de compra
+
+Cada compra genera una **orden** con una o más entradas (`quantity`). Todas las
+entradas de una orden pertenecen al mismo comprador, pero cada una tiene su propio
+identificador y su propio QR, y se valida por separado en la puerta. El pago (si el
+evento tiene precio) y el envío por email se hacen una sola vez por orden.
+
+### Comprar entradas
 
 `POST /api/v1/tickets/purchase`
 
-Compra un ticket para un evento (Requiere autenticación).
+Compra una o más entradas para un evento (Requiere autenticación).
 
-El flujo reserva el cupo, procesa el pago contra MercadoPago con la cuenta del organizador y devuelve el estado resultante. Para eventos presenciales, el QR y el envío por correo solo se generan si el pago fue aprobado. Para eventos virtuales, el correo de entrega contiene la plataforma, el enlace y las instrucciones de acceso, sin QR.
+- **Evento con precio:** reserva el cupo, cobra `basePrice × quantity` en un único
+  pago de MercadoPago con la cuenta del organizador y devuelve el estado resultante.
+  Las entradas solo quedan `ACTIVE` (y con QR) si el pago fue aprobado.
+- **Evento gratuito (`basePrice` = 0):** emite las entradas directamente en
+  `ACTIVE`, sin pasar por MercadoPago. Los datos de pago se omiten.
 
-**Cuerpo de la petición:**
+En ambos casos, las entradas aprobadas se envían por email: para eventos
+presenciales con un QR por entrada; para eventos virtuales con la plataforma, el
+enlace y las instrucciones de acceso.
+
+**Cuerpo de la petición (evento con precio):**
 
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "quantity": 2,
   "cardToken": "tok_card_1a2b3c",
   "installments": 1,
   "payerEmail": "juan@example.com",
@@ -756,49 +797,75 @@ El flujo reserva el cupo, procesa el pago contra MercadoPago con la cuenta del o
 }
 ```
 
+**Cuerpo de la petición (evento gratuito):**
+
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "quantity": 2
+}
+```
+
 | Campo | Tipo | Requerido | Restricciones | Descripción |
 |-------|------|-----------|---------------|-------------|
 | `eventId` | uuid | Sí | — | Identificador del evento |
-| `cardToken` | string | Sí | máx. 255 caracteres | Token de la tarjeta del pagador |
-| `installments` | integer | Sí | entre 1 y 12 | Número de cuotas |
-| `payerEmail` | string | Sí | email válido, máx. 254 caracteres | Correo del pagador |
-| `paymentMethodId` | string | Sí | máx. 50 caracteres, solo `[a-z0-9_]` | Identificador del método de pago |
+| `quantity` | integer | Sí | ≥ 1, máximo `ticket.purchase.max-quantity` (10 por defecto) | Cantidad de entradas |
+| `cardToken` | string | Solo eventos con precio | máx. 255 caracteres | Token de la tarjeta del pagador |
+| `installments` | integer | Solo eventos con precio | entre 1 y 12 | Número de cuotas |
+| `payerEmail` | string | Solo eventos con precio | email válido, máx. 254 caracteres | Correo del pagador |
+| `paymentMethodId` | string | Solo eventos con precio | máx. 50 caracteres, solo `[a-z0-9_]` | Identificador del método de pago |
 
 **Respuesta exitosa: `201 Created`**
 
 ```json
 {
-  "ticketId": "550e8400-e29b-41d4-a716-446655440001",
+  "orderId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   "status": "approved",
   "statusDetail": "accredited",
-  "message": "Pago aprobado. Tu entrada será enviada por email.",
-  "qrCodeBase64": "<qr-code-base64>"
+  "message": "Pago aprobado. Tus entradas serán enviadas por email.",
+  "tickets": [
+    { "ticketId": "550e8400-e29b-41d4-a716-446655440001", "qrCodeBase64": "<qr-code-base64>" },
+    { "ticketId": "550e8400-e29b-41d4-a716-446655440002", "qrCodeBase64": "<qr-code-base64>" }
+  ]
 }
 ```
 
 | Campo | Descripción |
 |-------|-------------|
-| `status` | Estado informado por MercadoPago: `approved`, `rejected`, `cancelled` o `pending` |
-| `statusDetail` | Detalle textual del estado informado por MercadoPago |
+| `orderId` | Identificador de la orden de compra |
+| `status` | Estado informado por MercadoPago: `approved`, `rejected`, `cancelled`, `pending` o `in_process`. En eventos gratuitos es siempre `approved` |
+| `statusDetail` | Detalle del estado informado por MercadoPago; `free` en eventos gratuitos |
 | `message` | Mensaje legible según el resultado |
-| `qrCodeBase64` | QR en base64 para eventos presenciales; `null` para eventos virtuales o mientras el pago no esté aprobado |
+| `tickets` | Entradas de la orden; `qrCodeBase64` solo se informa para eventos presenciales con la orden aprobada |
+
+> Un pago **rechazado por la evaluación de MercadoPago** (por ejemplo, fondos
+> insuficientes) se responde con `201` y `status: "rejected"`; las entradas quedan
+> `CANCELLED`. El código `402` se usa cuando MercadoPago rechaza la solicitud de
+> pago en sí (datos de tarjeta inválidos, por ejemplo).
 
 **Errores:**
 
 | Código | Causa |
 |--------|-------|
-| `400 Bad Request` | El evento tiene precio 0 o las validaciones del cuerpo fallan |
-| `402 Payment Required` | MercadoPago rechazó el pago |
+| `400 Bad Request` | Las validaciones del cuerpo fallan, `quantity` supera el máximo por orden, o faltan los datos de pago en un evento con precio |
+| `402 Payment Required` | MercadoPago rechazó la solicitud de pago |
 | `404 Not Found` | El evento no existe |
-| `409 Conflict` | El usuario ya tiene una compra pendiente o activa para el evento, no hay cupo disponible, o el evento no está `PUBLISHED` / pasaron más de `event.access-window.after-hours` horas desde `dateTime` |
-| `428 Precondition Required` | El organizador no tiene una cuenta de MercadoPago vinculada |
-| `502 Bad Gateway` | No se pudo procesar el pago con MercadoPago |
+| `409 Conflict` | No hay cupo para la cantidad pedida, el evento no está `PUBLISHED` o pasaron más de `event.access-window.after-hours` horas desde `dateTime`, o el precio del evento cambió durante la compra |
+| `428 Precondition Required` | El evento tiene precio y el organizador no tiene una cuenta de MercadoPago vinculada |
+| `502 Bad Gateway` | No se pudo procesar el pago con MercadoPago o renovar el token del organizador |
+
+Si MercadoPago no responde o devuelve un error 5xx, el resultado del cobro es
+incierto: la orden queda `PENDING` y la reconciliación automática la resuelve
+(aprobándola o cancelándola) en los minutos siguientes.
 
 ### Listar mis tickets
 
 `GET /api/v1/tickets/my-tickets`
 
-Obtiene los tickets del usuario autenticado (Requiere autenticación). El QR se incluye solo para tickets `ACTIVE` de eventos presenciales. Los datos de acceso de eventos virtuales se envían por correo tras la aprobación del pago.
+Obtiene todas las entradas del usuario autenticado, de todas sus órdenes (Requiere
+autenticación). El QR se incluye solo para tickets `ACTIVE` de eventos presenciales.
+Los datos de acceso de eventos virtuales se obtienen con
+[`GET /api/v1/access/virtual/{ticketId}`](#obtener-credenciales-de-un-evento-virtual).
 
 **Respuesta exitosa: `200 OK`**
 
@@ -819,7 +886,7 @@ Obtiene los tickets del usuario autenticado (Requiere autenticación). El QR se 
 
 `GET /api/v1/tickets/{id}`
 
-Obtiene un ticket por su identificador (Requiere autenticación, solo el propietario).
+Obtiene un ticket por su identificador (Requiere autenticación, solo el titular).
 
 **Parámetros de ruta:**
 
@@ -838,17 +905,23 @@ Devuelve el `TicketResponse` correspondiente.
 | `403 Forbidden` | El ticket pertenece a otro usuario |
 | `404 Not Found` | El ticket no existe |
 
-### Reenviar ticket por correo
+### Reenviar entradas por correo
 
 `POST /api/v1/tickets/{id}/resend-email`
 
-Vuelve a encolar el envío del ticket al correo del titular (Requiere autenticación, solo el propietario). El ticket debe estar `ACTIVE`.
+Vuelve a encolar el envío por email de la **orden completa** a la que pertenece el
+ticket (Requiere autenticación, solo el titular). El ticket debe estar `ACTIVE`; el
+email incluye solo las entradas de la orden que sigan activas.
+
+Si la orden se envió con éxito hace menos de 5 minutos, o hay un envío en curso, la
+solicitud se acepta pero no genera un nuevo envío. Si los reintentos automáticos se
+habían agotado, inicia un nuevo ciclo de intentos.
 
 **Parámetros de ruta:**
 
 | Parámetro | Tipo | Descripción |
 |-----------|------|-------------|
-| `id` | uuid | Identificador del ticket |
+| `id` | uuid | Identificador de cualquier ticket de la orden |
 
 **Respuesta exitosa: `204 No Content`**
 
@@ -866,27 +939,42 @@ Vuelve a encolar el envío del ticket al correo del titular (Requiere autenticac
 
 Prefijo: `/api/v1/mp`
 
-El organizador debe vincular su cuenta de MercadoPago para poder publicar eventos y recibir el importe de las entradas vendidas.
+El organizador debe vincular su cuenta de MercadoPago para publicar eventos con
+precio y recibir el importe de las entradas vendidas. Los eventos gratuitos no lo
+requieren.
+
+**Flujo de vinculación (desde el frontend):**
+
+1. El frontend llama a `GET /api/v1/mp/connect` con el token del usuario y recibe
+   la URL de autorización.
+2. El frontend navega a esa URL (`window.location.href`); el organizador autoriza
+   en MercadoPago.
+3. MercadoPago redirige el navegador a `GET /api/v1/mp/callback`; el backend vincula
+   la cuenta y redirige al frontend (`mercadopago.frontend-return-url`) con el
+   resultado en la query.
 
 ### Conectar cuenta
 
 `GET /api/v1/mp/connect`
 
-Genera un `state` de un solo uso (válido 10 minutos) y redirige al usuario a la pantalla de autorización de MercadoPago (Requiere autenticación).
+Genera un `state` de un solo uso (válido 10 minutos) y devuelve la URL de
+autorización de MercadoPago (Requiere autenticación).
 
-**Respuesta exitosa: `302 Found`**
+**Respuesta exitosa: `200 OK`**
 
-Devuelve la URL de autorización de MercadoPago en el header `Location`:
-
-```
-Location: https://auth.mercadopago.com/authorization?client_id=...&response_type=code&platform_id=mp&redirect_uri=...&state=...
+```json
+{
+  "authorizationUrl": "https://auth.mercadopago.com/authorization?client_id=...&response_type=code&platform_id=mp&redirect_uri=...&state=..."
+}
 ```
 
 ### Callback de autorización
 
 `GET /api/v1/mp/callback`
 
-Callback de redirección de MercadoPago. Es el único endpoint público del recurso porque lo invoca el proveedor (no el usuario).
+Callback de redirección de MercadoPago. Es público porque lo abre el navegador del
+organizador al volver de MercadoPago (sin el token de la API); el usuario se
+identifica por el `state`.
 
 **Parámetros de query:**
 
@@ -894,24 +982,26 @@ Callback de redirección de MercadoPago. Es el único endpoint público del recu
 |-----------|------|-----------|-------------|
 | `code` | string | Sí | Código de autorización devuelto por MercadoPago |
 | `state` | string | Sí | Valor `state` generado en `/connect` |
-| `error` | string | No | Parámetro de error de MercadoPago; si viene presente la operación falla |
+| `error` | string | No | Parámetro de error de MercadoPago; si viene presente la vinculación falla |
 
-**Respuesta exitosa: `200 OK`**
+**Respuesta: `302 Found`**
 
-```json
-{
-  "linked": true,
-  "mpEmail": "organizador@example.com",
-  "linkedAt": "2026-10-03T18:30:00"
-}
+Siempre redirige a la URL configurada en `mercadopago.frontend-return-url`
+(variable `MERCADO_PAGO_FRONTEND_RETURN_URL` en producción), con el resultado en la
+query:
+
+| Redirección | Significado |
+|-------------|-------------|
+| `?status=linked` | La cuenta quedó vinculada |
+| `?status=error&reason=cancelled` | El organizador canceló la autorización, o faltan `code`/`state` |
+| `?status=error&reason=invalid_state` | El `state` es inválido, ya fue usado o venció |
+| `?status=error&reason=link_failed` | Falló el intercambio de tokens con MercadoPago |
+
+Ejemplo:
+
 ```
-
-**Errores:**
-
-| Código | Causa |
-|--------|-------|
-| `400 Bad Request` | La autorización fue cancelada, o el `state` es inválido/expirado |
-| `502 Bad Gateway` | Error al vincular la cuenta con MercadoPago |
+Location: https://app.dominio.com/organizer/mercadopago?status=linked
+```
 
 ### Consultar estado de la cuenta
 
@@ -946,14 +1036,15 @@ Cuenta sin vincular:
 `DELETE /api/v1/mp/disconnect`
 
 Elimina la cuenta de MercadoPago vinculada (Requiere autenticación). La operación
-responde `409` si el organizador tiene tickets `PENDING` o `ACTIVE` en cualquier
-evento `PUBLISHED`, porque esos pagos todavía pueden requerir el token de
-MercadoPago para el webhook o la reconciliación. En ese caso la cuenta no se
-elimina.
+responde `409` si el organizador tiene tickets `PENDING` o `ACTIVE` en algún
+evento `PUBLISHED` **con precio**, porque esos pagos todavía pueden requerir el
+token de MercadoPago para el webhook o la reconciliación. En ese caso la cuenta no
+se elimina.
 
-Si no existen esos tickets abiertos, los eventos `PUBLISHED` sin tickets
-`PENDING`, `ACTIVE` ni `USED` vuelven a `DRAFT`. Los eventos que ya vendieron o
-utilizaron entradas permanecen `PUBLISHED`, aunque la cuenta se desvincule.
+Si no existen esos tickets abiertos, los eventos `PUBLISHED` con precio y sin
+tickets `PENDING`, `ACTIVE` ni `USED` vuelven a `DRAFT`. Los eventos que ya
+vendieron o utilizaron entradas permanecen `PUBLISHED`, aunque la cuenta se
+desvincule. Los eventos gratuitos no se ven afectados.
 
 Existe una pequeña ventana de carrera entre la comprobación de tickets abiertos
 y la reversión de eventos. Un ticket reservado exactamente durante ese intervalo
@@ -966,7 +1057,7 @@ esta operación.
 
 | Código | Causa |
 |--------|-------|
-| `409 Conflict` | El organizador tiene tickets `PENDING` o `ACTIVE` en un evento `PUBLISHED` |
+| `409 Conflict` | El organizador tiene tickets `PENDING` o `ACTIVE` en un evento `PUBLISHED` con precio |
 | `428 Precondition Required` | El usuario no tiene una cuenta vinculada |
 
 ---
@@ -1021,15 +1112,17 @@ id:<data.id>;request-id:<x-request-id>;ts:<ts>;
 
 **Respuesta exitosa: `200 OK`**
 
-Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya resueltos, se responden con `200` sin hacer nada.
+Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya resueltos, se responden con `200` sin hacer nada. Un pago aprobado activa todas las entradas de su orden y programa el envío por email; uno rechazado las cancela.
 
 **Errores:**
 
 | Código | Causa |
 |--------|-------|
-| `400 Bad Request` | Faltan headers, el cuerpo es inválido o `data.id` no coincide con el query |
-| `401 Unauthorized` | La firma es inválida o el timestamp tiene más de 5 minutos de antigüedad |
-| `409 Conflict` | El pago notificado todavía no está registrado localmente |
+| `400 Bad Request` | Faltan headers o el cuerpo es inválido |
+| `401 Unauthorized` | La firma es inválida, `data.id` está ausente o no coincide con el query, o el timestamp tiene más de 5 minutos de antigüedad |
+| `409 Conflict` | El pago notificado todavía no está registrado localmente (MercadoPago reintentará) |
+| `428 Precondition Required` | El organizador del evento ya no tiene cuenta de MercadoPago vinculada |
+| `502 Bad Gateway` | No se pudo consultar el pago en MercadoPago |
 
 ---
 
@@ -1090,18 +1183,21 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) solo s
 
 ```json
 {
-  "ticketId": "uuid",
+  "orderId": "uuid",
   "status": "string",
   "statusDetail": "string",
   "message": "string",
-  "qrCodeBase64": "string"
+  "tickets": [
+    { "ticketId": "uuid", "qrCodeBase64": "string" }
+  ]
 }
 ```
 
 | Campo | Valores |
 |-------|---------|
-| `status` | `approved`, `rejected`, `cancelled` o `pending` (según MercadoPago) |
-| `qrCodeBase64` | `null` si el pago no fue aprobado |
+| `status` | Estado de MercadoPago (`approved`, `rejected`, `cancelled`, `pending`, `in_process`); `approved` en eventos gratuitos |
+| `statusDetail` | Detalle de MercadoPago; `free` en eventos gratuitos |
+| `tickets[].qrCodeBase64` | `null` si la orden no fue aprobada o el evento es virtual |
 
 ### TicketResponse
 
@@ -1119,7 +1215,48 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) solo s
 | Campo | Valores |
 |-------|---------|
 | `status` | `PENDING`, `ACTIVE`, `USED` o `CANCELLED` |
-| `qrCodeBase64` | `null` si el ticket no está `ACTIVE` |
+| `qrCodeBase64` | `null` si el ticket no está `ACTIVE` o el evento es virtual |
+
+### ControllerResponse
+
+```json
+{
+  "userId": "uuid",
+  "name": "string",
+  "email": "string"
+}
+```
+
+### AccessValidationResponse
+
+```json
+{
+  "ticketId": "uuid",
+  "attendeeName": "string",
+  "eventTitle": "string",
+  "validatedAt": "datetime"
+}
+```
+
+### VirtualAccessResponse
+
+```json
+{
+  "eventTitle": "string",
+  "dateTime": "datetime",
+  "platform": "string",
+  "accessLink": "string",
+  "accessInstructions": "string"
+}
+```
+
+### MpAuthorizationUrlResponse
+
+```json
+{
+  "authorizationUrl": "string"
+}
+```
 
 ### MpAccountStatusResponse
 
