@@ -169,15 +169,19 @@ Reenvía el código de verificación al correo (Público).
 
 **Respuesta exitosa: `204 No Content`**
 
-Genera un código nuevo (15 minutos) y reinicia el contador de intentos fallidos.
+Si existe una cuenta pendiente de verificación con ese email, genera un código nuevo
+(15 minutos), reinicia el contador de intentos fallidos y lo envía por correo.
+
+La respuesta es **siempre `204`**, exista o no la cuenta y esté o no verificada,
+para no revelar qué emails están registrados. El frontend debería mostrar un
+mensaje genérico (por ejemplo, "Si el email está registrado y pendiente de
+verificación, te enviamos un código nuevo").
 
 **Errores:**
 
 | Código | Causa |
 |--------|-------|
 | `400 Bad Request` | El email falta o no tiene formato válido |
-| `401 Unauthorized` | El correo no existe |
-| `409 Conflict` | La cuenta ya está verificada |
 
 ### Iniciar sesión
 
@@ -255,13 +259,14 @@ Obtiene un nuevo access token usando el refresh token (Público).
 | Código | Causa |
 |--------|-------|
 | `400 Bad Request` | El token no tiene formato UUID |
-| `401 Unauthorized` | El token no existe, fue revocado o expiró |
+| `401 Unauthorized` | El token no existe (por ejemplo, tras un logout o un nuevo login) o expiró |
 
 ### Cerrar sesión
 
 `POST /api/v1/auth/logout`
 
-Elimina el refresh token indicado (Requiere autenticación).
+Elimina el refresh token indicado (Requiere autenticación). El token debe pertenecer
+al usuario autenticado.
 
 **Cuerpo de la petición:**
 
@@ -281,7 +286,7 @@ Elimina el refresh token indicado (Requiere autenticación).
 
 | Código | Causa |
 |--------|-------|
-| `401 Unauthorized` | El token no existe |
+| `401 Unauthorized` | Falta autenticación, o el token no existe o pertenece a otro usuario |
 
 ### Obtener usuario actual
 

@@ -258,7 +258,8 @@ POST /auth/verify { email, code }
   └─ código correcto → habilita la cuenta → devuelve par de tokens.
 
 POST /auth/resend-verification { email }
-  └─ genera un código nuevo y reinicia el contador de intentos.
+  └─ si hay una cuenta pendiente, genera un código nuevo y reinicia el contador
+     de intentos. Responde siempre 204 (no revela si el email existe).
 ```
 
 ### 2. Login, refresh y logout
@@ -266,11 +267,14 @@ POST /auth/resend-verification { email }
 ```text
 POST /auth/login      → valida la contraseña y luego que la cuenta esté verificada
                         (una contraseña incorrecta siempre responde 401, sin revelar
-                        el estado de la cuenta). Elimina los refresh tokens previos
-                        y emite un par nuevo.
-POST /auth/refresh    → valida el refresh token (existe, vigente, no revocado) y
+                        el estado de la cuenta; si el email no existe se compara
+                        igual contra un hash ficticio para no delatarlo por el
+                        tiempo de respuesta). Elimina los refresh tokens previos y
+                        emite un par nuevo.
+POST /auth/refresh    → valida el refresh token (existe y está vigente) y
                         emite un nuevo access token. El refresh token NO rota.
-POST /auth/logout     → elimina el refresh token indicado.
+POST /auth/logout     → elimina el refresh token indicado si pertenece al usuario
+                        autenticado (si no, 401).
 ```
 
 ### 3. Creación y publicación de evento
