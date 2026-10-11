@@ -23,6 +23,7 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.payment.controller.MpController;
 import org.gcrel.tfbackevent.payment.dto.response.MpAccountStatusResponse;
 import org.gcrel.tfbackevent.payment.exception.InvalidMpOAuthStateException;
+import org.gcrel.tfbackevent.payment.exception.MpOAuthException;
 import org.gcrel.tfbackevent.payment.service.MpOAuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,10 +37,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = MpController.class)
+@WebMvcTest(controllers = MpController.class, properties = "mercadopago.frontend-return-url="
+        + MpControllerTest.FRONTEND_URL)
 @Import({ GlobalExceptionHandler.class, SecurityConfig.class })
 @AutoConfigureMockMvc
 public class MpControllerTest {
+    static final String FRONTEND_URL = "http://localhost:4200/organizer/mercadopago";
 
     @Autowired
     private MockMvc mockMvc;
@@ -67,53 +70,58 @@ public class MpControllerTest {
     }
 
     @Test
-    void connect_Success_Returns302AndLocationHeader() throws Exception {
+    void connect_Success_Returns200WithAuthorizationUrl() throws Exception {
         String expectedAuthUrl = "https://auth.mercadopago.com/authorization?client_id=test&state=random-state";
 
         when(mpOAuthService.buildAuthorizationUrl(testUser.getId())).thenReturn(expectedAuthUrl);
 
         mockMvc.perform(get("/api/v1/mp/connect").with(authentication(authentication)))
-                .andExpect(status().isFound()) // Código 302
-                .andExpect(header().string("Location", expectedAuthUrl));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authorizationUrl").value(expectedAuthUrl));
     }
 
     @Test
-    void callback_Success_Returns200AndBody() throws Exception {
-        String state = "random-state";
-        String authCode = "AUTH_CODE_123";
-
-        MpAccountStatusResponse expectedResponse = new MpAccountStatusResponse(
-                true,
-                "organizer@mp.com",
-                LocalDateTime.now());
-
-        when(mpOAuthService.linkAccount(eq(authCode), eq(state))).thenReturn(expectedResponse);
+    void callback_Success_RedirectsToFrontendWithLinkedStatus() throws Exception {
+        when(mpOAuthService.linkAccount(eq("AUTH_CODE_123"), eq("random-state")))
+                .thenReturn(new MpAccountStatusResponse(true, "organizer@mp.com", LocalDateTime.now()));
 
         mockMvc.perform(get("/api/v1/mp/callback")
-                .param("code", authCode)
-                .param("state", state)
-                .with(authentication(authentication)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.linked").value(true))
-                .andExpect(jsonPath("$.mpEmail").value("organizer@mp.com"));
+                .param("code", "AUTH_CODE_123")
+                .param("state", "random-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", FRONTEND_URL + "?status=linked"));
     }
 
     @Test
-    void callback_InvalidState_Returns400() throws Exception {
+    void callback_InvalidState_RedirectsToFrontendWithError() throws Exception {
         when(mpOAuthService.linkAccount(eq("AUTH_CODE_123"), eq("not-a-valid-state")))
                 .thenThrow(new InvalidMpOAuthStateException());
 
         mockMvc.perform(get("/api/v1/mp/callback")
                 .param("code", "AUTH_CODE_123")
                 .param("state", "not-a-valid-state"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", FRONTEND_URL + "?status=error&reason=invalid_state"));
     }
 
     @Test
-    void callback_Cancelled_Returns400() throws Exception {
+    void callback_LinkFails_RedirectsToFrontendWithError() throws Exception {
+        when(mpOAuthService.linkAccount(eq("AUTH_CODE_123"), eq("random-state")))
+                .thenThrow(new MpOAuthException("timeout"));
+
+        mockMvc.perform(get("/api/v1/mp/callback")
+                .param("code", "AUTH_CODE_123")
+                .param("state", "random-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", FRONTEND_URL + "?status=error&reason=link_failed"));
+    }
+
+    @Test
+    void callback_Cancelled_RedirectsToFrontendWithError() throws Exception {
         mockMvc.perform(get("/api/v1/mp/callback")
                 .param("error", "access_denied"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", FRONTEND_URL + "?status=error&reason=cancelled"));
     }
 
     @Test
