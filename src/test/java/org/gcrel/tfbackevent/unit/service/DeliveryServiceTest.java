@@ -3,6 +3,7 @@ package org.gcrel.tfbackevent.unit.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -29,6 +30,7 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.config.TicketDeliveryProperties;
 import org.gcrel.tfbackevent.payment.exception.QRGenerationException;
 import org.gcrel.tfbackevent.payment.exception.TicketDeliveryException;
 import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
@@ -54,6 +56,8 @@ public class DeliveryServiceTest {
     private QRService qrService;
     @Mock
     private EmailService emailService;
+    @Mock
+    private TicketDeliveryProperties deliveryProperties;
 
     @InjectMocks
     private DeliveryService deliveryService;
@@ -87,6 +91,10 @@ public class DeliveryServiceTest {
         // gestionada).
         lenient().when(orderRepository.saveAndFlush(any(TicketOrder.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+
+        lenient().when(deliveryProperties.maxAttempts()).thenReturn(8);
+        lenient().when(deliveryProperties.initialBackoffMinutes()).thenReturn(1L);
+        lenient().when(deliveryProperties.maxBackoffMinutes()).thenReturn(60L);
     }
 
     @Test
@@ -245,6 +253,117 @@ public class DeliveryServiceTest {
 
         assertEquals(DeliveryStatus.PENDING, orderDue.getDeliveryStatus());
         verify(orderRepository).save(orderDue);
+    }
+
+    @Test
+    void processDueDeliveries_WhenFailing_RetriesWithExponentialBackoff() {
+        // Intentos previos -> espera esperada tras el siguiente fallo: 1, 2, 4, 8...
+        // minutos.
+        int[] previousAttempts = { 0, 1, 2, 3 };
+        long[] expectedMinutes = { 1, 2, 4, 8 };
+        for (int i = 0; i < previousAttempts.length; i++) {
+            orderDue.scheduleDelivery(LocalDateTime.now());
+            orderDue.setDeliveryAttempts(previousAttempts[i]);
+
+            failNextDelivery();
+
+            assertEquals(DeliveryStatus.FAILED, orderDue.getDeliveryStatus());
+            assertRetryIn(orderDue, expectedMinutes[i]);
+        }
+    }
+
+    @Test
+    void processDueDeliveries_BackoffIsCappedAtMaximum() {
+        orderDue.setDeliveryAttempts(6); // el 7mo intento esperaría 64 min sin tope
+
+        failNextDelivery();
+
+        assertRetryIn(orderDue, 60);
+    }
+
+    @Test
+    void processDueDeliveries_WhenMaxAttemptsReached_StopsRetrying() {
+        orderDue.setDeliveryAttempts(7); // este es el 8vo y último intento
+
+        failNextDelivery();
+
+        assertEquals(DeliveryStatus.FAILED, orderDue.getDeliveryStatus());
+        assertEquals(8, orderDue.getDeliveryAttempts());
+        assertNull(orderDue.getNextDeliveryAttemptAt());
+    }
+
+    @Test
+    void processDueDeliveries_WhenStaleDeliveryExhaustsAttempts_StopsRetrying() {
+        TicketOrder stale = order(orderDue.getEvent(), 1);
+        stale.setDeliveryStatus(DeliveryStatus.PROCESSING);
+        stale.setDeliveryAttempts(8);
+        stubDueOrders();
+        when(orderRepository.findByDeliveryStatusAndNextDeliveryAttemptAtBefore(
+                eq(DeliveryStatus.PROCESSING), any(LocalDateTime.class)))
+                .thenReturn(List.of(stale));
+
+        deliveryService.processDueDeliveries();
+
+        assertEquals(DeliveryStatus.FAILED, stale.getDeliveryStatus());
+        assertNull(stale.getNextDeliveryAttemptAt());
+    }
+
+    @Test
+    void processDueDeliveries_WhenOneOrderFailsUnexpectedly_ContinuesWithTheRest() {
+        TicketOrder broken = order(orderDue.getEvent(), 1);
+        stubDueOrders(broken, orderDue);
+        when(ticketRepository.findByOrderAndStatus(broken, TicketStatus.ACTIVE))
+                .thenThrow(new IllegalStateException("boom"));
+        when(ticketRepository.findByOrderAndStatus(orderDue, TicketStatus.ACTIVE))
+                .thenReturn(List.of(firstTicket));
+        when(qrService.generateQRBase64(firstTicket.getId())).thenReturn("qr_1");
+
+        deliveryService.processDueDeliveries();
+
+        assertEquals(DeliveryStatus.SENT, orderDue.getDeliveryStatus());
+    }
+
+    @Test
+    void requestDelivery_WhenAttemptsExhausted_StartsANewCycle() {
+        orderDue.setDeliveryStatus(DeliveryStatus.FAILED);
+        orderDue.setDeliveryAttempts(8);
+        orderDue.setNextDeliveryAttemptAt(null);
+        when(orderRepository.findById(orderDue.getId())).thenReturn(Optional.of(orderDue));
+
+        deliveryService.requestDelivery(orderDue.getId());
+
+        assertEquals(DeliveryStatus.PENDING, orderDue.getDeliveryStatus());
+        assertEquals(0, orderDue.getDeliveryAttempts());
+        assertNotNull(orderDue.getNextDeliveryAttemptAt());
+    }
+
+    @Test
+    void requestDelivery_WhenDeliveryInProgress_DoesNothing() {
+        orderDue.setDeliveryStatus(DeliveryStatus.PROCESSING);
+        when(orderRepository.findById(orderDue.getId())).thenReturn(Optional.of(orderDue));
+
+        deliveryService.requestDelivery(orderDue.getId());
+
+        assertEquals(DeliveryStatus.PROCESSING, orderDue.getDeliveryStatus());
+        verify(orderRepository, never()).save(any());
+    }
+
+    private void failNextDelivery() {
+        stubDueOrders(orderDue);
+        when(ticketRepository.findByOrderAndStatus(orderDue, TicketStatus.ACTIVE))
+                .thenReturn(List.of(firstTicket));
+        // doThrow evita invocar el mock al volver a hacer stub dentro de un bucle.
+        doThrow(new QRGenerationException()).when(qrService).generateQRBase64(firstTicket.getId());
+
+        deliveryService.processDueDeliveries();
+    }
+
+    private void assertRetryIn(TicketOrder order, long minutes) {
+        LocalDateTime expected = LocalDateTime.now().plusMinutes(minutes);
+        LocalDateTime next = order.getNextDeliveryAttemptAt();
+        assertNotNull(next);
+        assertTrue(Math.abs(java.time.Duration.between(expected, next).toSeconds()) < 5,
+                "Se esperaba reintento en " + minutes + " min, pero fue " + next);
     }
 
     private void stubDueOrders(TicketOrder... orders) {

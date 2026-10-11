@@ -81,9 +81,11 @@ public class TicketOrder {
         this.deliveryAttempts = 0;
     }
 
-    // Programa el envío de las entradas lo antes posible.
+    // Programa el envío de las entradas lo antes posible e inicia un nuevo ciclo
+    // de reintentos.
     public void scheduleDelivery(LocalDateTime now) {
         this.deliveryStatus = DeliveryStatus.PENDING;
+        this.deliveryAttempts = 0;
         this.nextDeliveryAttemptAt = now;
         this.lastDeliveryError = null;
     }
