@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
-import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 
 import jakarta.persistence.Column;
@@ -49,19 +48,6 @@ public class Payment {
     @Column(name = "status_detail")
     private String statusDetail;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "delivery_status", nullable = false)
-    private DeliveryStatus deliveryStatus;
-
-    @Column(name = "delivery_attempts", nullable = false)
-    private int deliveryAttempts;
-
-    @Column(name = "next_delivery_attempt_at")
-    private LocalDateTime nextDeliveryAttemptAt;
-
-    @Column(name = "last_delivery_error")
-    private String lastDeliveryError;
-
     @Column(name = "next_reconcile_at")
     private LocalDateTime nextReconcileAt;
 
@@ -70,8 +56,8 @@ public class Payment {
     private long version;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ticket_id", nullable = false)
-    private Ticket ticket;
+    @JoinColumn(name = "order_id", nullable = false, unique = true)
+    private TicketOrder order;
 
     protected Payment() {
     }
@@ -80,14 +66,12 @@ public class Payment {
             String transactionId,
             BigDecimal totalAmount,
             LocalDateTime paymentDate,
-            Ticket ticket) {
+            TicketOrder order) {
         this.transactionId = transactionId;
         this.totalAmount = totalAmount;
         this.paymentDate = paymentDate;
         this.paymentStatus = PaymentStatus.PENDING;
-        this.deliveryStatus = DeliveryStatus.NOT_REQUIRED;
-        this.deliveryAttempts = 0;
-        this.ticket = ticket;
+        this.order = order;
         this.nextReconcileAt = paymentDate;
     }
 
@@ -116,16 +100,16 @@ public class Payment {
         return paymentDate;
     }
 
-    public Ticket getTicket() {
-        return ticket;
+    public TicketOrder getOrder() {
+        return order;
     }
 
     public String getTransactionId() {
         return transactionId;
     }
 
-    public void setTicket(Ticket ticket) {
-        this.ticket = ticket;
+    public void setOrder(TicketOrder order) {
+        this.order = order;
     }
 
     public void setPaymentStatus(PaymentStatus paymentStatus) {
@@ -144,21 +128,9 @@ public class Payment {
         return statusDetail;
     }
 
-    public DeliveryStatus getDeliveryStatus() {
-        return deliveryStatus;
-    }
 
-    public int getDeliveryAttempts() {
-        return deliveryAttempts;
-    }
 
-    public LocalDateTime getNextDeliveryAttemptAt() {
-        return nextDeliveryAttemptAt;
-    }
 
-    public String getLastDeliveryError() {
-        return lastDeliveryError;
-    }
 
     public LocalDateTime getNextReconcileAt() {
         return nextReconcileAt;
@@ -172,21 +144,9 @@ public class Payment {
         this.statusDetail = statusDetail;
     }
 
-    public void setDeliveryStatus(DeliveryStatus deliveryStatus) {
-        this.deliveryStatus = deliveryStatus;
-    }
 
-    public void setDeliveryAttempts(int deliveryAttempts) {
-        this.deliveryAttempts = deliveryAttempts;
-    }
 
-    public void setNextDeliveryAttemptAt(LocalDateTime nextDeliveryAttemptAt) {
-        this.nextDeliveryAttemptAt = nextDeliveryAttemptAt;
-    }
 
-    public void setLastDeliveryError(String lastDeliveryError) {
-        this.lastDeliveryError = lastDeliveryError;
-    }
 
     public void setNextReconcileAt(LocalDateTime nextReconcileAt) {
         this.nextReconcileAt = nextReconcileAt;

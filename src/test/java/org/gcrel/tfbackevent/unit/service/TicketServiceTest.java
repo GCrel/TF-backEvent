@@ -4,42 +4,45 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.gcrel.tfbackevent.auth.service.EmailService;
 import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.exception.EventNotAvailableException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
-import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.config.TicketPurchaseProperties;
 import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
 import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
+import org.gcrel.tfbackevent.payment.exception.EventCapacityExceededException;
+import org.gcrel.tfbackevent.payment.exception.InvalidTicketPurchaseException;
+import org.gcrel.tfbackevent.payment.exception.PaymentProcessingException;
 import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
 import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException;
-import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
-import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.service.DeliveryService;
 import org.gcrel.tfbackevent.payment.service.MercadoPagoService;
 import org.gcrel.tfbackevent.payment.service.MpOAuthService;
 import org.gcrel.tfbackevent.payment.service.PaymentService;
@@ -48,6 +51,7 @@ import org.gcrel.tfbackevent.payment.service.TicketService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -61,13 +65,11 @@ public class TicketServiceTest {
     @Mock
     private TicketRepository ticketRepository;
     @Mock
-    private PaymentRepository paymentRepository;
+    private TicketOrderRepository orderRepository;
     @Mock
     private EventRepository eventRepository;
     @Mock
     private EventParticipationRepository eventParticipationRepository;
-    @Mock
-    private OrganizerMpAccountRepository mpAccountRepository;
     @Mock
     private MpOAuthService mpOAuthService;
     @Mock
@@ -75,13 +77,15 @@ public class TicketServiceTest {
     @Mock
     private QRService qrService;
     @Mock
-    private EmailService emailService;
-    @Mock
     private PaymentService paymentService;
+    @Mock
+    private DeliveryService deliveryService;
     @Mock
     private TransactionTemplate transactionTemplate;
     @Mock
     private EventWindowProperties eventWindowProperties;
+    @Mock
+    private TicketPurchaseProperties purchaseProperties;
 
     @InjectMocks
     private TicketService ticketService;
@@ -89,7 +93,7 @@ public class TicketServiceTest {
     private User attendee;
     private User organizer;
     private EventParticipation organizerParticipation;
-    private Event event;
+    private InPersonEvent event;
     private PurchaseTicketRequest purchaseRequest;
     private Payment mpPaymentMock;
     private Ticket ticket;
@@ -118,21 +122,22 @@ public class TicketServiceTest {
 
         organizerParticipation = new EventParticipation(organizer, event, EventRole.ORGANIZER);
 
-        purchaseRequest = new PurchaseTicketRequest(
-                UUID.randomUUID(), "token123", 1, "test@test.com", "visa");
+        purchaseRequest = purchaseRequest(1);
 
         mpPaymentMock = mock(Payment.class);
         lenient().when(eventWindowProperties.afterHours()).thenReturn(12L);
+        lenient().when(purchaseProperties.maxQuantity()).thenReturn(10);
 
-        ticket = new Ticket(LocalDateTime.now(), event, attendee);
+        TicketOrder order = new TicketOrder(attendee, event, 1, event.getBasePrice(), LocalDateTime.now());
+        order.setId(UUID.randomUUID());
+        ticket = new Ticket(order);
         ticket.setId(UUID.randomUUID());
         ticket.setStatus(TicketStatus.ACTIVE);
 
         lenient().when(transactionTemplate.execute(any(TransactionCallback.class)))
                 .thenAnswer(invocation -> ((TransactionCallback<?>) invocation.getArgument(0)).doInTransaction(null));
-        lenient().when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        lenient().when(ticketRepository.save(argThat(saved -> saved.getId() == null))).thenAnswer(invocation -> {
-            Ticket saved = invocation.getArgument(0);
+        lenient().when(orderRepository.save(any(TicketOrder.class))).thenAnswer(invocation -> {
+            TicketOrder saved = invocation.getArgument(0);
             saved.setId(UUID.randomUUID());
             return saved;
         });
@@ -140,24 +145,83 @@ public class TicketServiceTest {
 
     @Test
     void purchase_WhenPaymentApproved_ReturnsApprovedResponse() {
+        stubPurchasableEvent();
+        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
+                .thenReturn(mpPaymentMock);
+        PurchaseResponse expected = new PurchaseResponse(
+                UUID.randomUUID(), "approved", null, "approved",
+                List.of(new PurchaseResponse.PurchasedTicket(ticket.getId(), "qr_base64_string")));
+        when(paymentService.handleNewPayment(any(TicketOrder.class), eq(mpPaymentMock))).thenReturn(expected);
+
+        PurchaseResponse response = ticketService.purchase(purchaseRequest, attendee);
+
+        assertEquals("approved", response.status());
+        assertEquals("qr_base64_string", response.tickets().get(0).qrCodeBase64());
+    }
+
+    @Test
+    void purchase_WithQuantity_CreatesOneTicketPerUnitAndChargesTotal() {
+        stubPurchasableEvent();
+        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
+                .thenReturn(mpPaymentMock);
+
+        ticketService.purchase(purchaseRequest(3), attendee);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Ticket>> ticketsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(ticketRepository).saveAll(ticketsCaptor.capture());
+        assertEquals(3, ticketsCaptor.getValue().size());
+        ticketsCaptor.getValue().forEach(created -> {
+            assertEquals(TicketStatus.PENDING, created.getStatus());
+            assertEquals(attendee, created.getAttendee());
+        });
+
+        ArgumentCaptor<TicketOrder> orderCaptor = ArgumentCaptor.forClass(TicketOrder.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        TicketOrder order = orderCaptor.getValue();
+        assertEquals(3, order.getQuantity());
+        assertEquals(0, new BigDecimal("3000.00").compareTo(order.getTotalAmount()));
+
+        verify(mercadoPagoService).processPayment(
+                any(), eq(order.getTotalAmount()), anyInt(), any(), any(), any(), eq(order.getId().toString()));
+    }
+
+    @Test
+    void purchase_WhenUserAlreadyHasTickets_IsAllowed() {
+        stubPurchasableEvent();
+        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
+                .thenReturn(mpPaymentMock);
+
+        ticketService.purchase(purchaseRequest, attendee);
+        ticketService.purchase(purchaseRequest, attendee);
+
+        verify(orderRepository, org.mockito.Mockito.times(2)).save(any(TicketOrder.class));
+    }
+
+    @Test
+    void purchase_WhenQuantityExceedsMax_ThrowsAndDoesNotReserve() {
+        assertThrows(
+                InvalidTicketPurchaseException.class,
+                () -> ticketService.purchase(purchaseRequest(11), attendee));
+
+        verify(orderRepository, never()).save(any());
+        verify(ticketRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void purchase_WhenQuantityExceedsRemainingCapacity_ThrowsCapacityExceeded() {
         when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
         when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
                 .thenReturn(Optional.of(organizerParticipation));
         when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
+        when(ticketRepository.countByEventAndStatusIn(eq(event), anyList())).thenReturn(98L);
 
-        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
-                .thenReturn(mpPaymentMock);
-        PurchaseResponse expected = new PurchaseResponse(
-                ticket.getId(), "approved", null, "approved", "qr_base64_string");
-        when(paymentService.handleNewPayment(any(), eq(mpPaymentMock), eq(attendee))).thenReturn(expected);
+        assertThrows(
+                EventCapacityExceededException.class,
+                () -> ticketService.purchase(purchaseRequest(3), attendee));
 
-        PurchaseResponse response = ticketService.purchase(purchaseRequest, attendee);
-
-        assertEquals("approved", response.status());
-        assertEquals("qr_base64_string", response.qrCodeBase64());
-
-        verify(paymentService).handleNewPayment(any(Ticket.class), eq(mpPaymentMock), eq(attendee));
+        verify(orderRepository, never()).save(any());
     }
 
     @Test
@@ -169,25 +233,19 @@ public class TicketServiceTest {
                 EventNotAvailableException.class,
                 () -> ticketService.purchase(purchaseRequest, attendee));
 
-        verify(ticketRepository, never()).save(any());
+        verify(orderRepository, never()).save(any());
     }
 
     @Test
     void purchase_WhenEventIsTenDaysAway_IsAllowed() {
         event.setDateTime(LocalDateTime.now().plusDays(10));
-        when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
-                .thenReturn(Optional.of(organizerParticipation));
-        when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
+        stubPurchasableEvent();
         when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
                 .thenReturn(mpPaymentMock);
-        when(paymentService.handleNewPayment(any(), eq(mpPaymentMock), eq(attendee)))
-                .thenReturn(new PurchaseResponse(ticket.getId(), "approved", null, "approved", null));
 
         ticketService.purchase(purchaseRequest, attendee);
 
-        verify(paymentService).handleNewPayment(any(Ticket.class), eq(mpPaymentMock), eq(attendee));
+        verify(paymentService).handleNewPayment(any(TicketOrder.class), eq(mpPaymentMock));
     }
 
     @Test
@@ -199,16 +257,12 @@ public class TicketServiceTest {
                 EventNotAvailableException.class,
                 () -> ticketService.purchase(purchaseRequest, attendee));
 
-        verify(ticketRepository, never()).save(any());
+        verify(orderRepository, never()).save(any());
     }
 
     @Test
-    void purchase_WhenPaymentRejectedExceptionThrown_CancelsTicketAndThrows() {
-        when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
-        when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
-                .thenReturn(Optional.of(organizerParticipation));
-        when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
+    void purchase_WhenPaymentRejectedExceptionThrown_CancelsReservationAndThrows() {
+        stubPurchasableEvent();
         when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
                 .thenThrow(new PaymentRejectedException("Rejected"));
 
@@ -216,19 +270,31 @@ public class TicketServiceTest {
                 PaymentRejectedException.class,
                 () -> ticketService.purchase(purchaseRequest, attendee));
 
-        verify(ticketRepository, times(2))
-                .save(
-                        argThat(
-                                t -> t.getStatus() == TicketStatus.CANCELLED
-                                        || t.getStatus() == null));
+        verify(ticketRepository).cancelPendingWithoutPayment(
+                any(TicketOrder.class), eq(TicketStatus.PENDING), eq(TicketStatus.CANCELLED));
+        verify(paymentService, never()).handleNewPayment(any(), any());
     }
 
     @Test
-    void resendTicketEmail_WhenValid_SendsEmail() {
+    void purchase_WhenPaymentOutcomeUnknown_KeepsReservationPending() {
+        stubPurchasableEvent();
+        when(mercadoPagoService.processPayment(any(), any(), anyInt(), any(), any(), any(), anyString()))
+                .thenThrow(new PaymentProcessingException("timeout", new RuntimeException(), true));
+
+        assertThrows(
+                PaymentProcessingException.class,
+                () -> ticketService.purchase(purchaseRequest, attendee));
+
+        verify(ticketRepository, never()).cancelPendingWithoutPayment(any(), any(), any());
+    }
+
+    @Test
+    void resendTicketEmail_WhenValid_RequestsOrderDelivery() {
         when(ticketRepository.findById(ticket.getId())).thenReturn(Optional.of(ticket));
+
         ticketService.resendTicketEmail(ticket.getId(), attendee);
 
-        verify(paymentService).requestDelivery(ticket);
+        verify(deliveryService).requestDelivery(ticket.getOrder().getId());
     }
 
     @Test
@@ -242,7 +308,7 @@ public class TicketServiceTest {
                 UnauthorizedTicketAccessException.class,
                 () -> ticketService.resendTicketEmail(ticket.getId(), otherUser));
 
-        verify(emailService, never()).sendTicketEmail(anyString(), any(), anyString());
+        verify(deliveryService, never()).requestDelivery(any());
     }
 
     @Test
@@ -253,5 +319,18 @@ public class TicketServiceTest {
         assertThrows(
                 TicketNotActiveException.class,
                 () -> ticketService.resendTicketEmail(ticket.getId(), attendee));
+    }
+
+    private void stubPurchasableEvent() {
+        when(eventRepository.findById(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(purchaseRequest.eventId())).thenReturn(Optional.of(event));
+        when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
+                .thenReturn(Optional.of(organizerParticipation));
+        when(mpOAuthService.getValidAccessToken(organizer)).thenReturn("ORGANIZER-TOKEN");
+    }
+
+    private PurchaseTicketRequest purchaseRequest(int quantity) {
+        UUID eventId = purchaseRequest == null ? UUID.randomUUID() : purchaseRequest.eventId();
+        return new PurchaseTicketRequest(eventId, quantity, "token123", 1, "test@test.com", "visa");
     }
 }

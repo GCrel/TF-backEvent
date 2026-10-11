@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
@@ -26,7 +27,9 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     long countByEventAndStatusIn(Event event, Collection<TicketStatus> statuses);
 
-    boolean existsByEventAndAttendeeAndStatusIn(Event event, User attendee, Collection<TicketStatus> statuses);
+    List<Ticket> findByOrder(TicketOrder order);
+
+    List<Ticket> findByOrderAndStatus(TicketOrder order, TicketStatus status);
 
     @Modifying
     @Transactional
@@ -63,20 +66,13 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
             @Param("role") EventRole role,
             @Param("statuses") Collection<TicketStatus> statuses);
 
-    @EntityGraph(attributePaths = { "event", "attendee" })
-    @Query("SELECT t FROM Ticket t WHERE t.status = :pending AND t.boughtAt < :before "
-            + "AND NOT EXISTS (SELECT p.id FROM Payment p WHERE p.ticket = t)")
-    List<Ticket> findPendingOrphans(
-            @Param("pending") TicketStatus pending,
-            @Param("before") java.time.LocalDateTime before);
-
     @Modifying
     @Transactional
     @Query("UPDATE Ticket t SET t.status = :cancelled "
-            + "WHERE t.id = :id AND t.status = :pending "
-            + "AND NOT EXISTS (SELECT p.id FROM Payment p WHERE p.ticket = t)")
-    int cancelIfPendingWithoutPayment(
-            @Param("id") UUID id,
+            + "WHERE t.order = :order AND t.status = :pending "
+            + "AND NOT EXISTS (SELECT p.id FROM Payment p WHERE p.order = t.order)")
+    int cancelPendingWithoutPayment(
+            @Param("order") TicketOrder order,
             @Param("pending") TicketStatus pending,
             @Param("cancelled") TicketStatus cancelled);
 }

@@ -12,6 +12,8 @@ import jakarta.validation.constraints.Size;
 
 public record PurchaseTicketRequest(
         @NotNull UUID eventId,
+        // El máximo por orden se valida en el servicio (ticket.purchase.max-quantity).
+        @NotNull @Min(1) Integer quantity,
         @NotBlank @Size(max = 255) String cardToken,
         @NotNull @Min(1) @Max(12) Integer installments,
         @NotBlank @Email @Size(max = 254) String payerEmail,

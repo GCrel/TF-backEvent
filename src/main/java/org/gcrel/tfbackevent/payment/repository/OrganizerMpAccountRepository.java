@@ -17,11 +17,9 @@ public interface OrganizerMpAccountRepository extends JpaRepository<OrganizerMpA
 
     @Query("""
                 SELECT a FROM OrganizerMpAccount a
-                JOIN a.user u
-                JOIN EventParticipation ep ON ep.user = u
-                JOIN ep.event e
-                JOIN Ticket t ON t.event = e
-                JOIN Payment p ON p.ticket = t
+                JOIN EventParticipation ep ON ep.user = a.user
+                JOIN TicketOrder o ON o.event = ep.event
+                JOIN Payment p ON p.order = o
                 WHERE p.transactionId = :transactionId
                 AND ep.id.eventRole = :role
             """)

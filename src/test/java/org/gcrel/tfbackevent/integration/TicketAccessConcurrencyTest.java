@@ -21,10 +21,12 @@ import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -59,13 +61,18 @@ class TicketAccessConcurrencyTest {
     @Autowired
     private EventParticipationRepository participationRepository;
 
+    @Autowired
+    private TicketOrderRepository orderRepository;
+
     private final List<UUID> createdUserIds = new ArrayList<>();
     private final List<UUID> createdEventIds = new ArrayList<>();
     private final List<UUID> createdTicketIds = new ArrayList<>();
+    private final List<UUID> createdOrderIds = new ArrayList<>();
 
     @AfterEach
     void cleanUp() {
         ticketRepository.deleteAllById(createdTicketIds);
+        orderRepository.deleteAllById(createdOrderIds);
         participationRepository.deleteAll();
         eventRepository.deleteAllById(createdEventIds);
         userRepository.deleteAllById(createdUserIds);
@@ -151,7 +158,10 @@ class TicketAccessConcurrencyTest {
         createdEventIds.add(savedEvent.getId());
         participationRepository.save(new EventParticipation(controller, event, EventRole.CONTROLLER));
 
-        Ticket ticket = new Ticket(LocalDateTime.now(), event, attendee);
+        TicketOrder order = orderRepository.save(
+                new TicketOrder(attendee, savedEvent, 1, savedEvent.getBasePrice(), LocalDateTime.now()));
+        createdOrderIds.add(order.getId());
+        Ticket ticket = new Ticket(order);
         ticket.setStatus(TicketStatus.ACTIVE);
         Ticket savedTicket = ticketRepository.saveAndFlush(ticket);
         createdTicketIds.add(savedTicket.getId());

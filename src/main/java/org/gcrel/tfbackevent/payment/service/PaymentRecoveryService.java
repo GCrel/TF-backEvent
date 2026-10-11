@@ -5,10 +5,12 @@ import java.util.List;
 
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.model.Payment;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentRecoveryService {
     private final PaymentRepository paymentRepository;
     private final TicketRepository ticketRepository;
+    private final TicketOrderRepository orderRepository;
     private final EventParticipationRepository eventParticipationRepository;
     private final MpOAuthService mpOAuthService;
     private final MercadoPagoService mercadoPagoService;
@@ -35,10 +38,12 @@ public class PaymentRecoveryService {
     private long orphanAfterMinutes;
 
     public PaymentRecoveryService(PaymentRepository paymentRepository, TicketRepository ticketRepository,
-            EventParticipationRepository eventParticipationRepository, MpOAuthService mpOAuthService,
+            TicketOrderRepository orderRepository, EventParticipationRepository eventParticipationRepository,
+            MpOAuthService mpOAuthService,
             MercadoPagoService mercadoPagoService, PaymentService paymentService) {
         this.paymentRepository = paymentRepository;
         this.ticketRepository = ticketRepository;
+        this.orderRepository = orderRepository;
         this.eventParticipationRepository = eventParticipationRepository;
         this.mpOAuthService = mpOAuthService;
         this.mercadoPagoService = mercadoPagoService;
@@ -48,7 +53,7 @@ public class PaymentRecoveryService {
     @Scheduled(fixedDelayString = "${payment.recovery.retry-delay-ms:60000}")
     public void recoverPayments() {
         reconcilePendingPayments();
-        cancelOrphanTickets();
+        cancelOrphanOrders();
     }
 
     private void reconcilePendingPayments() {
@@ -60,7 +65,7 @@ public class PaymentRecoveryService {
         for (Payment payment : payments) {
             try {
                 var organizer = eventParticipationRepository
-                        .findByEventAndId_EventRole(payment.getTicket().getEvent(), EventRole.ORGANIZER)
+                        .findByEventAndId_EventRole(payment.getOrder().getEvent(), EventRole.ORGANIZER)
                         .orElseThrow();
                 String token = mpOAuthService.getValidAccessToken(organizer.getUser());
                 var mpPayment = mercadoPagoService.getPaymentById(payment.getTransactionId(), token);
@@ -76,27 +81,27 @@ public class PaymentRecoveryService {
         }
     }
 
-    protected void cancelOrphanTickets() {
-        List<org.gcrel.tfbackevent.model.Ticket> tickets = ticketRepository.findPendingOrphans(
+    protected void cancelOrphanOrders() {
+        List<TicketOrder> orders = orderRepository.findPendingOrphans(
                 TicketStatus.PENDING, LocalDateTime.now().minusMinutes(orphanAfterMinutes));
-        for (var ticket : tickets) {
+        for (TicketOrder order : orders) {
             try {
                 var organizer = eventParticipationRepository
-                        .findByEventAndId_EventRole(ticket.getEvent(), EventRole.ORGANIZER)
+                        .findByEventAndId_EventRole(order.getEvent(), EventRole.ORGANIZER)
                         .orElseThrow();
                 String token = mpOAuthService.getValidAccessToken(organizer.getUser());
                 var mpPayment = mercadoPagoService.findPaymentByExternalReference(
-                        ticket.getId().toString(), token);
+                        order.getId().toString(), token);
                 if (mpPayment.isPresent()) {
-                    paymentService.handleNewPayment(ticket, mpPayment.get(), ticket.getAttendee());
+                    paymentService.handleNewPayment(order, mpPayment.get());
                 } else {
-                    ticketRepository.cancelIfPendingWithoutPayment(
-                            ticket.getId(), TicketStatus.PENDING, TicketStatus.CANCELLED);
+                    ticketRepository.cancelPendingWithoutPayment(
+                            order, TicketStatus.PENDING, TicketStatus.CANCELLED);
                 }
             } catch (ObjectOptimisticLockingFailureException e) {
-                log.debug("El ticket {} ya fue procesado por otro proceso", ticket.getId());
+                log.debug("La orden {} ya fue procesada por otro proceso", order.getId());
             } catch (RuntimeException e) {
-                log.warn("No se pudo reconciliar el ticket huérfano {}", ticket.getId(), e);
+                log.warn("No se pudo reconciliar la orden huérfana {}", order.getId(), e);
             }
         }
     }

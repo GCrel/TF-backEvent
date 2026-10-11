@@ -23,6 +23,7 @@ import org.gcrel.tfbackevent.auth.service.EmailService;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
@@ -117,12 +118,13 @@ public class WebhookServiceTest {
                 "organizer@webhook.com",
                 LocalDateTime.now().plusDays(1));
 
-        ticket = new Ticket(LocalDateTime.now(), event, attendee);
+        TicketOrder order = new TicketOrder(attendee, event, 1, new BigDecimal("1000.00"), LocalDateTime.now());
+        ticket = new Ticket(order);
         ticket.setId(UUID.randomUUID());
         ticket.setStatus(TicketStatus.ACTIVE);
 
         localPayment = new org.gcrel.tfbackevent.model.Payment(
-                PAYMENT_ID, new BigDecimal("1000.00"), LocalDateTime.now(), ticket);
+                PAYMENT_ID, new BigDecimal("1000.00"), LocalDateTime.now(), order);
 
         mpPaymentMock = mock(Payment.class);
     }

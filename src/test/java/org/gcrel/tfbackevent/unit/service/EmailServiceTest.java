@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import java.util.Objects;
 
 import org.gcrel.tfbackevent.auth.service.EmailService;
+import org.gcrel.tfbackevent.auth.service.dto.TicketQr;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,14 +76,16 @@ public class EmailServiceTest {
                 "pwd",
                 java.time.LocalDate.of(1995, 6, 15));
 
-        org.gcrel.tfbackevent.model.Ticket ticket = new org.gcrel.tfbackevent.model.Ticket(
-                java.time.LocalDateTime.now(), event, attendee);
+        org.gcrel.tfbackevent.model.TicketOrder order = new org.gcrel.tfbackevent.model.TicketOrder(
+                attendee, event, 2, event.getBasePrice(), java.time.LocalDateTime.now());
 
         // a simple base64 string representing an image (may be empty content for the
         // test)
         String qrBase64 = java.util.Base64.getEncoder().encodeToString(new byte[] { 1, 2, 3 });
 
-        emailService.sendTicketEmail(to, ticket, qrBase64);
+        emailService.sendTicketEmail(to, order, java.util.List.of(
+                new TicketQr(java.util.UUID.randomUUID(), qrBase64),
+                new TicketQr(java.util.UUID.randomUUID(), qrBase64)));
 
         // verify that the JavaMailSender created and sent the MimeMessage
         verify(mailSender).createMimeMessage();

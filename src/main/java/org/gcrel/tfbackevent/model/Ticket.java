@@ -34,6 +34,10 @@ public class Ticket {
     private TicketStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private TicketOrder order;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
@@ -51,11 +55,12 @@ public class Ticket {
     protected Ticket() {
     }
 
-    public Ticket(LocalDateTime boughtAt, Event event, User attendee) {
-        this.boughtAt = boughtAt;
+    public Ticket(TicketOrder order) {
+        this.order = order;
+        this.boughtAt = order.getCreatedAt();
         this.status = TicketStatus.PENDING;
-        this.event = event;
-        this.attendee = attendee;
+        this.event = order.getEvent();
+        this.attendee = order.getBuyer();
     }
 
     @Override
@@ -77,6 +82,10 @@ public class Ticket {
 
     public TicketStatus getStatus() {
         return status;
+    }
+
+    public TicketOrder getOrder() {
+        return order;
     }
 
     public User getAttendee() {

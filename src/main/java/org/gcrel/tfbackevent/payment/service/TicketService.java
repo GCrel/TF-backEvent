@@ -1,6 +1,7 @@
 package org.gcrel.tfbackevent.payment.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,11 +15,13 @@ import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.config.TicketPurchaseProperties;
 import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
 import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
 import org.gcrel.tfbackevent.payment.dto.response.TicketResponse;
@@ -26,10 +29,10 @@ import org.gcrel.tfbackevent.payment.exception.EventCapacityExceededException;
 import org.gcrel.tfbackevent.payment.exception.InvalidTicketPurchaseException;
 import org.gcrel.tfbackevent.payment.exception.PaymentProcessingException;
 import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
-import org.gcrel.tfbackevent.payment.exception.TicketAlreadyPurchasedException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotFoundException;
 import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException;
+import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
@@ -39,31 +42,46 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class TicketService {
 
     private final TicketRepository ticketRepository;
+    private final TicketOrderRepository orderRepository;
     private final EventRepository eventRepository;
     private final EventParticipationRepository eventParticipationRepository;
     private final MercadoPagoService mercadoPagoService;
     private final MpOAuthService mpOAuthService;
     private final PaymentService paymentService;
+    private final DeliveryService deliveryService;
     private final QRService qrService;
     private final TransactionTemplate transactionTemplate;
     private final EventWindowProperties eventWindowProperties;
+    private final TicketPurchaseProperties purchaseProperties;
 
-    public TicketService(TicketRepository ticketRepository, EventRepository eventRepository,
-            EventParticipationRepository eventParticipationRepository, MercadoPagoService mercadoPagoService,
-            MpOAuthService mpOAuthService, PaymentService paymentService, QRService qrService,
-            TransactionTemplate transactionTemplate, EventWindowProperties eventWindowProperties) {
+    public TicketService(TicketRepository ticketRepository, TicketOrderRepository orderRepository,
+            EventRepository eventRepository, EventParticipationRepository eventParticipationRepository,
+            MercadoPagoService mercadoPagoService, MpOAuthService mpOAuthService,
+            PaymentService paymentService, DeliveryService deliveryService, QRService qrService,
+            TransactionTemplate transactionTemplate, EventWindowProperties eventWindowProperties,
+            TicketPurchaseProperties purchaseProperties) {
         this.ticketRepository = ticketRepository;
+        this.orderRepository = orderRepository;
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
         this.mercadoPagoService = mercadoPagoService;
         this.mpOAuthService = mpOAuthService;
         this.paymentService = paymentService;
+        this.deliveryService = deliveryService;
         this.qrService = qrService;
         this.transactionTemplate = transactionTemplate;
         this.eventWindowProperties = eventWindowProperties;
+        this.purchaseProperties = purchaseProperties;
     }
 
-    public PurchaseResponse purchase(PurchaseTicketRequest request, User attendee) {
+    public PurchaseResponse purchase(PurchaseTicketRequest request, User buyer) {
+        int quantity = request.quantity();
+        if (quantity > purchaseProperties.maxQuantity()) {
+            throw new InvalidTicketPurchaseException(
+                    "Se pueden comprar como máximo " + purchaseProperties.maxQuantity()
+                            + " entradas por orden.");
+        }
+
         Event event = eventRepository.findById(request.eventId())
                 .orElseThrow(() -> new EventNotFoundException(request.eventId()));
         validateEventForPurchase(event);
@@ -75,55 +93,60 @@ public class TicketService {
         String accessToken = mpOAuthService
                 .getValidAccessToken(organizerParticipation.getUser());
 
-        Ticket ticket = transactionTemplate.execute(status -> reserveTicket(request, attendee));
-        event = ticket.getEvent();
+        TicketOrder order = transactionTemplate.execute(
+                status -> reserveOrder(request.eventId(), quantity, buyer));
 
         com.mercadopago.resources.payment.Payment mpPayment;
         try {
             mpPayment = mercadoPagoService.processPayment(
                     request.cardToken(),
-                    event.getBasePrice(),
+                    order.getTotalAmount(),
                     request.installments(),
                     request.payerEmail(),
                     request.paymentMethodId(),
                     accessToken,
-                    ticket.getId().toString());
+                    order.getId().toString());
         } catch (PaymentRejectedException e) {
-            ticket.setStatus(TicketStatus.CANCELLED);
-            ticketRepository.save(ticket);
+            cancelReservation(order);
             throw e;
         } catch (PaymentProcessingException e) {
+            // Si el resultado es incierto, la reconciliación resolverá la orden.
             if (!e.isOutcomeUnknown()) {
-                ticket.setStatus(TicketStatus.CANCELLED);
-                ticketRepository.save(ticket);
+                cancelReservation(order);
             }
             throw e;
         }
 
-        return paymentService.handleNewPayment(ticket, mpPayment, attendee);
+        return paymentService.handleNewPayment(order, mpPayment);
     }
 
-    private Ticket reserveTicket(PurchaseTicketRequest request, User attendee) {
-        Event event = eventRepository.findByIdForUpdate(request.eventId())
-                .orElseThrow(() -> new EventNotFoundException(request.eventId()));
+    private TicketOrder reserveOrder(UUID eventId, int quantity, User buyer) {
+        Event event = eventRepository.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new EventNotFoundException(eventId));
 
         validateEventForPurchase(event);
-
-        List<TicketStatus> activeStatuses = List.of(TicketStatus.PENDING, TicketStatus.ACTIVE);
-        if (ticketRepository.existsByEventAndAttendeeAndStatusIn(event, attendee, activeStatuses)) {
-            throw new TicketAlreadyPurchasedException();
-        }
 
         if (event.getType() == EventType.IN_PERSON) {
             InPersonEvent inPerson = (InPersonEvent) Hibernate.unproxy(event);
             long reservedTickets = ticketRepository.countByEventAndStatusIn(
                     event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED));
-            if (reservedTickets >= inPerson.getCapacity()) {
+            if (reservedTickets + quantity > inPerson.getCapacity()) {
                 throw new EventCapacityExceededException();
             }
         }
 
-        return ticketRepository.save(new Ticket(LocalDateTime.now(), event, attendee));
+        TicketOrder order = orderRepository.save(
+                new TicketOrder(buyer, event, quantity, event.getBasePrice(), LocalDateTime.now()));
+        List<Ticket> tickets = new ArrayList<>(quantity);
+        for (int i = 0; i < quantity; i++) {
+            tickets.add(new Ticket(order));
+        }
+        ticketRepository.saveAll(tickets);
+        return order;
+    }
+
+    private void cancelReservation(TicketOrder order) {
+        ticketRepository.cancelPendingWithoutPayment(order, TicketStatus.PENDING, TicketStatus.CANCELLED);
     }
 
     private void validateEventForPurchase(Event event) {
@@ -162,8 +185,8 @@ public class TicketService {
     private String generateQrForInPersonTicket(Ticket ticket) {
         return ticket.getStatus() == TicketStatus.ACTIVE
                 && ticket.getEvent().getType() == EventType.IN_PERSON
-                ? qrService.generateQRBase64(ticket.getId())
-                : null;
+                        ? qrService.generateQRBase64(ticket.getId())
+                        : null;
     }
 
     public void resendTicketEmail(UUID id, User attendee) {
@@ -178,6 +201,6 @@ public class TicketService {
             throw new TicketNotActiveException();
         }
 
-        paymentService.requestDelivery(ticket);
+        deliveryService.requestDelivery(ticket.getOrder().getId());
     }
 }

@@ -76,11 +76,15 @@ public class TicketControllerTest {
     @Test
     void purchase_Success_Returns201AndBody() throws Exception {
         UUID eventId = UUID.randomUUID();
-        PurchaseTicketRequest request = new PurchaseTicketRequest(eventId, "card_tok", 1, "payer@example.com", "visa");
+        PurchaseTicketRequest request = new PurchaseTicketRequest(
+                eventId, 2, "card_tok", 1, "payer@example.com", "visa");
 
+        UUID orderId = UUID.randomUUID();
         UUID ticketId = UUID.randomUUID();
-        PurchaseResponse response = new PurchaseResponse(ticketId, "approved", "accredited", "Compra aceptada",
-                "dGVzdA==");
+        PurchaseResponse response = new PurchaseResponse(orderId, "approved", "accredited", "Compra aceptada",
+                List.of(
+                        new PurchaseResponse.PurchasedTicket(ticketId, "dGVzdA=="),
+                        new PurchaseResponse.PurchasedTicket(UUID.randomUUID(), "dGVzdA==")));
 
         when(ticketService.purchase(any(PurchaseTicketRequest.class), any(User.class)))
                 .thenReturn(response);
@@ -91,7 +95,9 @@ public class TicketControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ticketId").value(ticketId.toString()))
+                .andExpect(jsonPath("$.orderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.tickets.length()").value(2))
+                .andExpect(jsonPath("$.tickets[0].ticketId").value(ticketId.toString()))
                 .andExpect(jsonPath("$.status").value("approved"))
                 // 2. AÑADIDO: Verificamos que el nuevo campo llegue al cliente
                 .andExpect(jsonPath("$.statusDetail").value("accredited"));

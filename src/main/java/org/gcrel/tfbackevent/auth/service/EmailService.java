@@ -1,11 +1,15 @@
 package org.gcrel.tfbackevent.auth.service;
 
-import java.util.Base64;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
+import java.util.List;
 
-import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.auth.service.dto.TicketQr;
+import org.gcrel.tfbackevent.model.Event;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.payment.exception.TicketDeliveryException;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -16,7 +20,6 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
-import org.hibernate.Hibernate;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -25,8 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class EmailService {
-    private static final DateTimeFormatter EVENT_DATE_FORMAT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter EVENT_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     @Value("${SMTP_FROM}")
     private String fromEmail;
 
@@ -52,33 +54,43 @@ public class EmailService {
         }
     }
 
-    public void sendTicketEmail(String to, Ticket ticket, String qrBase64) {
+    public void sendTicketEmail(String to, TicketOrder order, List<TicketQr> qrs) {
         MimeMessage message = mailSender.createMimeMessage();
         try {
+            Event event = order.getEvent();
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
             helper.setFrom(fromEmail);
             helper.setTo(to);
-            helper.setSubject("Tu entrada para " + ticket.getEvent().getTitle());
-            helper.setText(
-                    "<h3>¡Gracias por tu compra!</h3>"
-                            + "<p>Presentá este código QR en la puerta del evento:</p><br>"
-                            + "<img src='cid:qrImage' style='width: 250px; border-radius: 8px;'>",
-                    true);
-            byte[] qrBytes = Base64.getDecoder().decode(qrBase64);
-            helper.addInline("qrImage", new ByteArrayResource(qrBytes), "image/png");
+            helper.setSubject("Tus entradas para " + event.getTitle());
+
+            StringBuilder html = new StringBuilder()
+                    .append("<h3>¡Gracias por tu compra!</h3>")
+                    .append("<p>Cada entrada tiene su propio código QR. Presentá uno por persona ")
+                    .append("en la puerta del evento:</p>");
+            for (int i = 0; i < qrs.size(); i++) {
+                html.append("<p><strong>Entrada ").append(i + 1).append(" de ").append(qrs.size())
+                        .append("</strong></p>")
+                        .append("<img src='cid:qr").append(i)
+                        .append("' style='width: 250px; border-radius: 8px;'><br>");
+            }
+            helper.setText(html.toString(), true);
+
+            for (int i = 0; i < qrs.size(); i++) {
+                byte[] qrBytes = Base64.getDecoder().decode(qrs.get(i).qrBase64());
+                helper.addInline("qr" + i, new ByteArrayResource(qrBytes), "image/png");
+            }
 
             mailSender.send(message);
         } catch (MessagingException | MailException e) {
             throw new TicketDeliveryException(
-                    "No se pudo enviar el email de entrada para el ticket " + ticket.getId(), e);
+                    "No se pudo enviar el email de entradas para la orden " + order.getId(), e);
         }
     }
 
-    public void sendVirtualTicketEmail(String to, Ticket ticket) {
+    public void sendVirtualTicketEmail(String to, TicketOrder order, int ticketCount) {
         MimeMessage message = mailSender.createMimeMessage();
         try {
-            VirtualEvent event = (VirtualEvent) Hibernate.unproxy(ticket.getEvent());
-            String title = HtmlUtils.htmlEscape(event.getTitle());
+            VirtualEvent event = (VirtualEvent) Hibernate.unproxy(order.getEvent());
             String platform = HtmlUtils.htmlEscape(event.getPlatform());
             String link = HtmlUtils.htmlEscape(event.getAccessLink());
             String instructions = event.getAccessInstructions() == null
@@ -90,7 +102,9 @@ public class EmailService {
             helper.setSubject("Tus datos de acceso para " + event.getTitle());
             helper.setText(
                     "<h3>¡Gracias por tu compra!</h3>"
-                            + "<p>Tu entrada corresponde a un evento virtual.</p>"
+                            + "<p>Tu compra corresponde a un evento virtual"
+                            + (ticketCount > 1 ? " e incluye " + ticketCount + " entradas" : "")
+                            + ".</p>"
                             + "<p><strong>Fecha y hora:</strong> "
                             + event.getDateTime().format(EVENT_DATE_FORMAT) + "</p>"
                             + "<p><strong>Plataforma:</strong> " + platform + "</p>"
@@ -105,7 +119,7 @@ public class EmailService {
             mailSender.send(message);
         } catch (MessagingException | MailException e) {
             throw new TicketDeliveryException(
-                    "No se pudo enviar el email de acceso para el ticket " + ticket.getId(), e);
+                    "No se pudo enviar el email de acceso para la orden " + order.getId(), e);
         }
     }
 }

@@ -31,6 +31,7 @@ import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
@@ -306,7 +307,9 @@ class AccessServiceTest {
     }
 
     private Ticket ticket(UUID id, org.gcrel.tfbackevent.model.Event event, TicketStatus status) {
-        Ticket ticket = new Ticket(LocalDateTime.now().minusHours(1), event, attendee);
+        TicketOrder order = new TicketOrder(
+                attendee, event, 1, event.getBasePrice(), LocalDateTime.now().minusHours(1));
+        Ticket ticket = new Ticket(order);
         ticket.setId(id);
         ticket.setStatus(status);
         return ticket;

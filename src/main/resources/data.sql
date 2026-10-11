@@ -53,39 +53,44 @@ VALUES
      'Se enviará el código de sala por email un día antes del taller.');
 
 -- ---------------------------------------------------------------------
--- 4) TICKETS (depende de users y events)
+-- 4a) TICKET_ORDERS (depende de users y events; una orden por compra)
 -- ---------------------------------------------------------------------
-INSERT INTO tickets (id, bought_at, status, event_id, attendee_id)
+INSERT INTO ticket_orders (id, buyer_id, event_id, quantity, unit_price, total_amount, created_at,
+                           delivery_status, delivery_attempts, next_delivery_attempt_at, last_delivery_error, version)
 VALUES
-    ('cccccccc-0000-0000-0000-000000000001', TIMESTAMP '2026-07-01 10:15:00', 'ACTIVE',    'aaaaaaaa-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222'),
-    ('cccccccc-0000-0000-0000-000000000002', TIMESTAMP '2026-07-03 16:40:00', 'USED',      'aaaaaaaa-0000-0000-0000-000000000002', '33333333-3333-3333-3333-333333333333'),
-    ('cccccccc-0000-0000-0000-000000000003', TIMESTAMP '2026-07-10 21:05:00', 'ACTIVE',    'bbbbbbbb-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333'),
-    ('cccccccc-0000-0000-0000-000000000004', TIMESTAMP '2026-06-25 08:00:00', 'CANCELLED', 'aaaaaaaa-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333');
+    ('99999999-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-0000-0000-000000000001',
+     1, 150.00, 150.00, TIMESTAMP '2026-07-01 10:15:00', 'SENT', 1, NULL, NULL, 0),
+    ('99999999-0000-0000-0000-000000000002', '33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000002',
+     1, 25.50, 25.50, TIMESTAMP '2026-07-03 16:40:00', 'SENT', 1, NULL, NULL, 0),
+    ('99999999-0000-0000-0000-000000000003', '33333333-3333-3333-3333-333333333333', 'bbbbbbbb-0000-0000-0000-000000000001',
+     1, 40.00, 40.00, TIMESTAMP '2026-07-10 21:05:00', 'NOT_REQUIRED', 0, NULL, NULL, 0),
+    ('99999999-0000-0000-0000-000000000004', '33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000001',
+     1, 150.00, 150.00, TIMESTAMP '2026-06-25 08:00:00', 'NOT_REQUIRED', 0, NULL, NULL, 0);
 
 -- ---------------------------------------------------------------------
--- 5) PAYMENTS (OneToOne con tickets)
+-- 4b) TICKETS (depende de ticket_orders, users y events)
+-- ---------------------------------------------------------------------
+INSERT INTO tickets (id, bought_at, status, order_id, event_id, attendee_id)
+VALUES
+    ('cccccccc-0000-0000-0000-000000000001', TIMESTAMP '2026-07-01 10:15:00', 'ACTIVE',    '99999999-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222'),
+    ('cccccccc-0000-0000-0000-000000000002', TIMESTAMP '2026-07-03 16:40:00', 'USED',      '99999999-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000002', '33333333-3333-3333-3333-333333333333'),
+    ('cccccccc-0000-0000-0000-000000000003', TIMESTAMP '2026-07-10 21:05:00', 'ACTIVE',    '99999999-0000-0000-0000-000000000003', 'bbbbbbbb-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333'),
+    ('cccccccc-0000-0000-0000-000000000004', TIMESTAMP '2026-06-25 08:00:00', 'CANCELLED', '99999999-0000-0000-0000-000000000004', 'aaaaaaaa-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333');
+
+-- ---------------------------------------------------------------------
+-- 5) PAYMENTS (OneToOne con ticket_orders)
 -- ---------------------------------------------------------------------
 INSERT INTO payments (id, transaction_id, total_amount, payment_date, payment_status,
-                      mp_status, status_detail,
-                      delivery_status, delivery_attempts, next_delivery_attempt_at, last_delivery_error,
-                      next_reconcile_at, version, ticket_id)
+                      mp_status, status_detail, next_reconcile_at, version, order_id)
 VALUES
     ('dddddddd-0000-0000-0000-000000000001', 'TXN-2026-000001', 150.00, TIMESTAMP '2026-07-01 10:16:30', 'APPROVED',
-     'approved', 'accredited',
-     'SENT', 1, NULL, NULL,
-     TIMESTAMP '2026-07-01 10:16:30', 0, 'cccccccc-0000-0000-0000-000000000001'),
+     'approved', 'accredited', TIMESTAMP '2026-07-01 10:16:30', 0, '99999999-0000-0000-0000-000000000001'),
     ('dddddddd-0000-0000-0000-000000000002', 'TXN-2026-000002',  25.50, TIMESTAMP '2026-07-03 16:42:10', 'APPROVED',
-     'approved', 'accredited',
-     'SENT', 1, NULL, NULL,
-     TIMESTAMP '2026-07-03 16:42:10', 0, 'cccccccc-0000-0000-0000-000000000002'),
-    ('dddddddd-0000-0000-0000-000000000003', 'TXN-2026-000003',   40.00, TIMESTAMP '2026-07-10 21:06:00', 'PENDING',
-     'in_process', NULL,
-     'NOT_REQUIRED', 0, NULL, NULL,
-     TIMESTAMP '2026-07-10 21:06:00', 0, 'cccccccc-0000-0000-0000-000000000003'),
-    ('dddddddd-0000-0000-0000-000000000004', 'TXN-2026-000004',  150.00, TIMESTAMP '2026-06-25 08:01:45', 'REJECTED',
-     'rejected', 'cc_rejected_other_reason',
-     'NOT_REQUIRED', 0, NULL, NULL,
-     TIMESTAMP '2026-06-25 08:01:45', 0, 'cccccccc-0000-0000-0000-000000000004');
+     'approved', 'accredited', TIMESTAMP '2026-07-03 16:42:10', 0, '99999999-0000-0000-0000-000000000002'),
+    ('dddddddd-0000-0000-0000-000000000003', 'TXN-2026-000003',  40.00, TIMESTAMP '2026-07-10 21:06:00', 'PENDING',
+     'in_process', NULL, TIMESTAMP '2026-07-10 21:06:00', 0, '99999999-0000-0000-0000-000000000003'),
+    ('dddddddd-0000-0000-0000-000000000004', 'TXN-2026-000004', 150.00, TIMESTAMP '2026-06-25 08:01:45', 'REJECTED',
+     'rejected', 'cc_rejected_other_reason', TIMESTAMP '2026-06-25 08:01:45', 0, '99999999-0000-0000-0000-000000000004');
 
 -- ---------------------------------------------------------------------
 -- 6) REFRESH_TOKEN (depende de users)
