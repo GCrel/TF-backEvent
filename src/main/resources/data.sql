@@ -95,11 +95,11 @@ VALUES
 -- ---------------------------------------------------------------------
 -- 6) REFRESH_TOKEN (depende de users)
 -- ---------------------------------------------------------------------
-INSERT INTO refresh_token (id, token, expires_at, revoked, user_id)
+INSERT INTO refresh_token (id, token, expires_at, user_id)
 VALUES
-    ('eeeeeeee-0000-0000-0000-000000000001', 'refresh-token-admin-ana',      TIMESTAMP '2026-12-31 23:59:59', FALSE, '11111111-1111-1111-1111-111111111111'),
-    ('eeeeeeee-0000-0000-0000-000000000002', 'refresh-token-bruno-vigente',  TIMESTAMP '2026-12-31 23:59:59', FALSE, '22222222-2222-2222-2222-222222222222'),
-    ('eeeeeeee-0000-0000-0000-000000000003', 'refresh-token-carla-revocada', TIMESTAMP '2026-08-01 00:00:00', TRUE,  '33333333-3333-3333-3333-333333333333');
+    ('eeeeeeee-0000-0000-0000-000000000001', 'refresh-token-admin-ana',      TIMESTAMP '2026-12-31 23:59:59', '11111111-1111-1111-1111-111111111111'),
+    ('eeeeeeee-0000-0000-0000-000000000002', 'refresh-token-bruno-vigente',  TIMESTAMP '2026-12-31 23:59:59', '22222222-2222-2222-2222-222222222222'),
+    ('eeeeeeee-0000-0000-0000-000000000003', 'refresh-token-carla-vencido', TIMESTAMP '2026-08-01 00:00:00',  '33333333-3333-3333-3333-333333333333');
 
 -- ---------------------------------------------------------------------
 -- 7) EVENT_PARTICIPATIONS (PK compuesta user_id + event_id + event_role;

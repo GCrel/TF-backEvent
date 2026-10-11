@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.dto.request.RefreshTokenRequest;
 import org.gcrel.tfbackevent.auth.dto.request.RegisterRequest;
@@ -64,6 +65,7 @@ public class AuthServiceTest {
     @BeforeEach
     void setUp() {
         testUser = new User("John Doe", TEST_EMAIL, "encoded_password", LocalDate.of(1990, 1, 1));
+        testUser.setId(UUID.randomUUID());
     }
 
     // ==========================================
@@ -289,8 +291,54 @@ public class AuthServiceTest {
         when(refreshTokenRepository.findByToken("valid_refresh_token"))
                 .thenReturn(Optional.of(token));
 
-        authService.logout(request);
+        authService.logout(request, testUser);
 
         verify(refreshTokenRepository).delete(token);
+    }
+
+    @Test
+    void logout_WhenTokenBelongsToAnotherUser_ThrowsInvalidTokenAndKeepsIt() {
+        User otherUser = new User("Jane Doe", "jane@example.com", "encoded", LocalDate.of(1990, 1, 1));
+        otherUser.setId(UUID.randomUUID());
+        RefreshTokenRequest request = new RefreshTokenRequest("valid_refresh_token");
+        RefreshToken token = new RefreshToken("valid_refresh_token", LocalDateTime.now().plusDays(1), otherUser);
+
+        when(refreshTokenRepository.findByToken("valid_refresh_token"))
+                .thenReturn(Optional.of(token));
+
+        assertThrows(InvalidTokenException.class, () -> authService.logout(request, testUser));
+        verify(refreshTokenRepository, never()).delete(any(RefreshToken.class));
+    }
+
+    @Test
+    void resendVerificationCode_WhenEmailDoesNotExist_DoesNothingSilently() {
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
+
+        authService.resendVerificationCode(TEST_EMAIL);
+
+        verify(emailService, never()).sendVerificationEmail(anyString(), anyString());
+    }
+
+    @Test
+    void resendVerificationCode_WhenAccountAlreadyVerified_DoesNothingSilently() {
+        testUser.setEnabled(true);
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+
+        authService.resendVerificationCode(TEST_EMAIL);
+
+        verify(emailService, never()).sendVerificationEmail(anyString(), anyString());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void login_WhenEmailDoesNotExist_StillComparesAPasswordHash() {
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
+
+        assertThrows(InvalidCredentialsException.class,
+                () -> authService.login(TEST_EMAIL, TEST_PASSWORD));
+
+        // Comparar contra el hash ficticio iguala el tiempo de respuesta con una cuenta
+        // existente.
+        verify(passwordEncoder).matches(eq(TEST_PASSWORD), any());
     }
 }

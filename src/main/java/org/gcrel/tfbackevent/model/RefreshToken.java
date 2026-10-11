@@ -28,9 +28,6 @@ public class RefreshToken {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
-    @Column(nullable = false)
-    private boolean revoked = false;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -42,10 +39,6 @@ public class RefreshToken {
         this.token = token;
         this.expiresAt = expiresAt;
         this.user = user;
-    }
-
-    public boolean isRevoked() {
-        return revoked;
     }
 
     public boolean isExpired() {

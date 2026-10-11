@@ -216,7 +216,7 @@ public class AuthControllerTest {
         Authentication authentication = new UsernamePasswordAuthenticationToken(testUser, null,
                 testUser.getAuthorities());
 
-        doNothing().when(authService).logout(any(RefreshTokenRequest.class));
+        doNothing().when(authService).logout(any(RefreshTokenRequest.class), any(User.class));
 
         mockMvc.perform(
                 post("/api/v1/auth/logout")

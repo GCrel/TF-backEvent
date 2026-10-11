@@ -29,6 +29,11 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    // Hash de referencia para comparar cuando el email no existe, de modo que el
+    // login
+    // tarde lo mismo con o sin cuenta y no permita deducir qué emails están
+    // registrados.
+    private final String dummyPasswordHash;
 
     public AuthService(
             UserRepository userRepository,
@@ -41,6 +46,7 @@ public class AuthService {
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.dummyPasswordHash = passwordEncoder.encode("dummy-password-for-timing");
     }
 
     public void register(RegisterRequest request) {
@@ -58,15 +64,13 @@ public class AuthService {
         sendVerificationEmail(user);
     }
 
+    // Responde igual exista o no la cuenta (y esté o no verificada) para no revelar
+    // qué emails están registrados; solo envía el código si hay una cuenta
+    // pendiente.
     public void resendVerificationCode(String email) {
-        User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
-                .orElseThrow(InvalidCredentialsException::new);
-
-        if (user.isEnabled()) {
-            throw new AccountAlreadyVerifiedException();
-        }
-
-        sendVerificationEmail(user);
+        userRepository.findByEmail(EmailNormalizer.normalize(email))
+                .filter(user -> !user.isEnabled())
+                .ifPresent(this::sendVerificationEmail);
     }
 
     public AuthResponse verifyEmail(String email, String code) {
@@ -101,8 +105,11 @@ public class AuthService {
     }
 
     public AuthResponse login(String email, String password) {
-        User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
-                .orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(EmailNormalizer.normalize(email)).orElse(null);
+        if (user == null) {
+            passwordEncoder.matches(password, dummyPasswordHash);
+            throw new InvalidCredentialsException();
+        }
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new InvalidCredentialsException();
@@ -121,7 +128,7 @@ public class AuthService {
                 .findByToken(request.refreshToken())
                 .orElseThrow(InvalidTokenException::new);
 
-        if (refreshToken.isRevoked() || refreshToken.isExpired()) {
+        if (refreshToken.isExpired()) {
             throw new InvalidTokenException();
         }
 
@@ -130,9 +137,11 @@ public class AuthService {
         return new AuthResponse(newAccessToken, refreshToken.getToken());
     }
 
-    public void logout(RefreshTokenRequest request) {
+    public void logout(RefreshTokenRequest request, User user) {
         RefreshToken refreshToken = refreshTokenRepository
                 .findByToken(request.refreshToken())
+                // Un token ajeno se trata como inexistente para no confirmar que es válido.
+                .filter(token -> token.getUser().getId().equals(user.getId()))
                 .orElseThrow(InvalidTokenException::new);
 
         refreshTokenRepository.delete(refreshToken);
