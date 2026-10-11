@@ -104,12 +104,12 @@ public class AuthService {
         User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
                 .orElseThrow(InvalidCredentialsException::new);
 
-        if (!user.isEnabled()) {
-            throw new EmailNotVerifiedException();
-        }
-
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new InvalidCredentialsException();
+        }
+
+        if (!user.isEnabled()) {
+            throw new EmailNotVerifiedException();
         }
 
         refreshTokenRepository.deleteAllByUser(user);

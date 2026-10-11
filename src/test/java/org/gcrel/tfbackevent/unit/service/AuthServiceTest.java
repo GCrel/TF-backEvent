@@ -216,10 +216,24 @@ public class AuthServiceTest {
         testUser.setEnabled(false); // As verified
 
         when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.matches(TEST_PASSWORD, testUser.getPassword())).thenReturn(true);
 
         assertThrows(
                 EmailNotVerifiedException.class,
                 () -> authService.login(TEST_EMAIL, TEST_PASSWORD));
+    }
+
+    @Test
+    void login_UnverifiedAccountWithBadPassword_ThrowsInvalidCredentialsException() {
+        testUser.setEnabled(false);
+
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.matches("wrong_password", testUser.getPassword())).thenReturn(false);
+
+        // No debe revelar que la cuenta existe y está sin verificar.
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> authService.login(TEST_EMAIL, "wrong_password"));
     }
 
     @Test
