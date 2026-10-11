@@ -136,19 +136,33 @@ Con `SPRING_PROFILES_ACTIVE=dev`:
 - Hibernate recrea el esquema en cada arranque (`ddl-auto=create`).
 - Se carga `src/main/resources/data.sql` con usuarios, eventos, órdenes, tickets,
   pagos y participaciones de ejemplo.
+- Las fechas son **relativas al momento del arranque**, así que los escenarios
+  (evento próximo, evento en curso, evento finalizado) siempre están vigentes.
 - La contraseña de **todos** los usuarios sembrados es `password`.
 
-Usuarios destacados:
+Usuarios:
 
-| Email | Rol de sistema | Notas |
-|-------|----------------|-------|
-| `ana.garcia@example.com` | `ADMIN` | Organizadora y con cuenta de MercadoPago vinculada. |
-| `bruno.lopez@example.com` | `USER` | Organizador y asistente. |
-| `carla.mendez@example.com` | `USER` | Asistente y controladora. |
-| `diego.torres@example.com` | `USER` | Cuenta **no verificada**. Su código sembrado (`ABC123`) no cumple el formato de 6 dígitos: para verificarla, pedí un código nuevo con `/auth/resend-verification`. |
+| Email | Rol de sistema | Para probar |
+|-------|----------------|-------------|
+| `ana.garcia@example.com` | `ADMIN` | Organizadora de TechConf (presencial, pago, en 30 días), del Webinar (virtual, pago, en 7 días) y del Hackathon (finalizado). Tiene MercadoPago vinculado con tokens ficticios. Tiene 2 entradas gratuitas activas del Meetup. |
+| `bruno.lopez@example.com` | `USER` | Organizador del Meetup (gratuito, **en curso**: la ventana de ingreso está abierta) y del Workshop (borrador pago: publicarlo devuelve `428` porque no tiene MercadoPago). Tiene 2 entradas activas de TechConf. |
+| `carla.mendez@example.com` | `USER` | Controladora de TechConf y del Meetup: puede validar ahora los QR activos del Meetup. Tiene una entrada del Webinar (acceso virtual), una entrada usada del Meetup y una compra rechazada de TechConf. |
+| `diego.torres@example.com` | `USER` | Cuenta **sin verificar**; código `482913`, válido por 1 día desde el arranque. |
 
-> `data.sql` está pendiente de revisión: las fechas de los eventos y los tokens
-> sembrados pueden no reflejar escenarios vigentes.
+Identificadores útiles:
+
+| Recurso | Id |
+|---------|----|
+| Meetup (en curso, gratuito) | `aaaaaaaa-0000-0000-0000-000000000002` |
+| Entradas activas del Meetup (QR) | `cccccccc-0000-0000-0000-000000000005`, `cccccccc-0000-0000-0000-000000000006` |
+| Entrada del Webinar de Carla | `cccccccc-0000-0000-0000-000000000004` |
+| Refresh token vigente de Ana / Bruno | `5f0c6a1e-2b7d-4c3a-9e8f-1a2b3c4d5e01` / `...5e02` |
+| Refresh token vencido de Carla | `5f0c6a1e-2b7d-4c3a-9e8f-1a2b3c4d5e03` |
+
+> Los tokens de MercadoPago sembrados son ficticios: comprar entradas de eventos
+> pagos sembrados falla al contactar a MercadoPago. Para probar cobros reales,
+> vinculá una cuenta de prueba con `/api/v1/mp/connect`. Los eventos gratuitos se
+> pueden comprar sin MercadoPago.
 
 > En el perfil `prod` Hibernate usa `ddl-auto=validate` y **no** se cargan datos de
 > prueba (`spring.sql.init.mode=never`). El esquema de producción se gestiona
