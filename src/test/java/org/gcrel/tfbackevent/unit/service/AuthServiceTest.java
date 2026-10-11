@@ -157,6 +157,26 @@ public class AuthServiceTest {
     }
 
     @Test
+    void verifyEmail_AfterCodeInvalidated_ThrowsVerificationCodeExpiredException() {
+        testUser.setVerificationCode("123456");
+        testUser.setVerificationCodeExpiresAt(LocalDateTime.now().plusMinutes(10));
+        testUser.setEnabled(false);
+
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            assertThrows(
+                    InvalidVerificationCodeException.class,
+                    () -> authService.verifyEmail(TEST_EMAIL, "000000"));
+        }
+
+        assertThrows(
+                VerificationCodeExpiredException.class,
+                () -> authService.verifyEmail(TEST_EMAIL, "123456"));
+        assertEquals(5, testUser.getVerificationCodeFailedAttempts());
+    }
+
+    @Test
     void resendVerificationCode_ResetsFailedAttempts() {
         testUser.setVerificationCode("123456");
         testUser.setVerificationCodeFailedAttempts(4);

@@ -76,11 +76,12 @@ public class AuthService {
         if (user.isEnabled()) {
             throw new AccountAlreadyVerifiedException();
         }
-        if (user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
+        if (user.getVerificationCode() == null
+                || user.getVerificationCodeExpiresAt() == null
+                || user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
             throw new VerificationCodeExpiredException();
         }
-        if (user.getVerificationCode() == null
-                || !user.getVerificationCode().equals(code)) {
+        if (!user.getVerificationCode().equals(code)) {
             int failedAttempts = user.getVerificationCodeFailedAttempts() + 1;
             user.setVerificationCodeFailedAttempts(failedAttempts);
             if (failedAttempts >= MAX_VERIFICATION_CODE_ATTEMPTS) {
