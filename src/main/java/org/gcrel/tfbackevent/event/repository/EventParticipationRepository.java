@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.EventParticipationId;
@@ -29,6 +30,12 @@ public interface EventParticipationRepository extends JpaRepository<EventPartici
 
     @EntityGraph(attributePaths = "user")
     List<EventParticipation> findAllByEventAndId_EventRole(Event event, EventRole role);
+
+    @Query("SELECT new org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName(ep.event.id, ep.user.name) "
+            + "FROM EventParticipation ep WHERE ep.event IN :events AND ep.id.eventRole = :role")
+    List<EventOrganizerName> findNamesByEventInAndRole(
+            @Param("events") Collection<? extends Event> events,
+            @Param("role") EventRole role);
 
     @Modifying
     @Transactional

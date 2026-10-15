@@ -31,6 +31,7 @@ import org.gcrel.tfbackevent.event.exception.EventNotPublishableException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
@@ -391,6 +392,10 @@ public class EventServiceTest {
                 .thenReturn(new PageImpl<>(List.of(inPersonEvent, virtualEvent)));
         when(ticketRepository.countByEventInAndStatusIn(eq(List.of(inPersonEvent)), any()))
                 .thenReturn(List.of(new EventTicketCount(inPersonEvent.getId(), 30)));
+        when(eventParticipationRepository.findNamesByEventInAndRole(
+                List.of(inPersonEvent, virtualEvent), EventRole.ORGANIZER))
+                .thenReturn(List.of(new EventOrganizerName(inPersonEvent.getId(), "Ana García"),
+                        new EventOrganizerName(virtualEvent.getId(), "Bruno López")));
 
         List<EventResponse> response = eventService.getPublishedEvents(null, null, null, null, Pageable.ofSize(20))
                 .getContent();
@@ -401,6 +406,8 @@ public class EventServiceTest {
         assertEquals("VIRTUAL", response.get(1).eventType());
         assertNull(response.get(1).availableTickets());
         assertNull(response.get(0).isOrganizer());
+        assertEquals("Ana García", response.get(0).organizerName());
+        assertEquals("Bruno López", response.get(1).organizerName());
         verify(ticketRepository, never()).countByEventAndStatusIn(any(), any());
     }
 
@@ -487,6 +494,8 @@ public class EventServiceTest {
         when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
         when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
                 event, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(eventParticipationRepository.findByEventAndId_EventRole(event, EventRole.ORGANIZER))
+                .thenReturn(Optional.of(new EventParticipation(organizer, event, EventRole.ORGANIZER)));
 
         EventResponse forOrganizer = eventService.getEvent(eventId, organizer);
         EventResponse forBuyer = eventService.getEvent(eventId, buyer);
@@ -500,6 +509,8 @@ public class EventServiceTest {
         assertEquals(true, forOrganizer.isOrganizer());
         assertEquals(false, forBuyer.isOrganizer());
         assertEquals(false, forAnonymous.isOrganizer());
+        assertEquals("John Doe", forOrganizer.organizerName());
+        assertEquals("John Doe", forAnonymous.organizerName());
     }
 
     @Test

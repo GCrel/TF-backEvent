@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
@@ -242,6 +243,21 @@ class TicketOrderQueriesTest {
         assertEquals(List.of(event.getId()),
                 search(null, null, null, LocalDateTime.now().plusDays(3)));
         assertEquals(List.of(), search(VirtualEvent.class, "%java%", null, LocalDateTime.now().plusDays(3)));
+    }
+
+    @Test
+    void findNamesByEventInAndRole_ReturnsOnlyOrganizers() {
+        // `event` (en setUp) lo organiza `organizer`; `buyer` es controlador, no organizador.
+        participationRepository.save(new EventParticipation(buyer, event, EventRole.CONTROLLER));
+        InPersonEvent orphan = new InPersonEvent(
+                "Orphan", "Description", LocalDateTime.now().plusDays(1),
+                new BigDecimal("20.00"), "Address",
+                new BigDecimal("-34.60"), new BigDecimal("-58.38"), 50);
+        eventRepository.save(orphan);
+        entityManager.flush();
+
+        assertEquals(List.of(new EventOrganizerName(event.getId(), organizer.getName())),
+                participationRepository.findNamesByEventInAndRole(List.of(event, orphan), EventRole.ORGANIZER));
     }
 
     private List<UUID> search(Class<? extends Event> type, String pattern, LocalDateTime from, LocalDateTime to) {

@@ -32,10 +32,13 @@ public record EventResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL) String accessInstructions,
 
         // Solo en el detalle y en las respuestas al organizador; null (omitido) en listados.
-        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean isOrganizer) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean isOrganizer,
+
+        String organizerName) {
 
     // Physical Event Constructor
-    public EventResponse(InPersonEvent event, long reservedTickets, Boolean isOrganizer) {
+    public EventResponse(
+            InPersonEvent event, long reservedTickets, Boolean isOrganizer, String organizerName) {
         this(
                 event.getId(),
                 event.getTitle(),
@@ -52,11 +55,12 @@ public record EventResponse(
                 null,
                 null,
                 null,
-                isOrganizer);
+                isOrganizer,
+                organizerName);
     }
 
     // Virtual Event Constructor
-    public EventResponse(VirtualEvent event, Boolean isOrganizer) {
+    public EventResponse(VirtualEvent event, Boolean isOrganizer, String organizerName) {
         this(
                 event.getId(),
                 event.getTitle(),
@@ -73,6 +77,7 @@ public record EventResponse(
                 event.getPlatform(),
                 Boolean.TRUE.equals(isOrganizer) ? event.getAccessLink() : null,
                 Boolean.TRUE.equals(isOrganizer) ? event.getAccessInstructions() : null,
-                isOrganizer);
+                isOrganizer,
+                organizerName);
     }
 }

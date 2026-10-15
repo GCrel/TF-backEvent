@@ -24,6 +24,7 @@ import org.gcrel.tfbackevent.event.exception.InvalidEventTypeException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
@@ -298,10 +299,14 @@ public class EventService {
         long reserved = event instanceof InPersonEvent
                 ? ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES)
                 : 0;
-        return toResponse(event, reserved, isOrganizer);
+        String organizerName = eventParticipationRepository
+                .findByEventAndId_EventRole(event, EventRole.ORGANIZER)
+                .map(participation -> participation.getUser().getName())
+                .orElse(null);
+        return toResponse(event, reserved, isOrganizer, organizerName);
     }
 
-    // Cuenta las entradas de todos los eventos presenciales en una sola consulta.
+    // Cuenta las entradas y busca los organizadores de toda la página con una consulta para cada cosa.
     private Page<EventResponse> toResponses(Page<Event> events) {
         List<Event> inPersonEvents = events.stream()
                 .filter(InPersonEvent.class::isInstance)
@@ -311,16 +316,23 @@ public class EventService {
                 : ticketRepository.countByEventInAndStatusIn(inPersonEvents, RESERVED_STATUSES)
                         .stream()
                         .collect(Collectors.toMap(EventTicketCount::eventId, EventTicketCount::count));
+        Map<UUID, String> organizerByEvent = events.isEmpty()
+                ? Map.of()
+                : eventParticipationRepository.findNamesByEventInAndRole(events.getContent(), EventRole.ORGANIZER)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                EventOrganizerName::eventId, EventOrganizerName::name, (first, other) -> first));
         return events.map(event -> toResponse(event, event instanceof InPersonEvent
                 ? reservedByEvent.getOrDefault(event.getId(), 0L)
-                : 0, null));
+                : 0, null, organizerByEvent.get(event.getId())));
     }
 
-    private EventResponse toResponse(Event event, long reservedTickets, Boolean isOrganizer) {
+    private EventResponse toResponse(
+            Event event, long reservedTickets, Boolean isOrganizer, String organizerName) {
         if (event instanceof InPersonEvent inPerson) {
-            return new EventResponse(inPerson, reservedTickets, isOrganizer);
+            return new EventResponse(inPerson, reservedTickets, isOrganizer, organizerName);
         } else if (event instanceof VirtualEvent virtual) {
-            return new EventResponse(virtual, isOrganizer);
+            return new EventResponse(virtual, isOrganizer, organizerName);
         }
         throw new InvalidEventTypeException();
     }

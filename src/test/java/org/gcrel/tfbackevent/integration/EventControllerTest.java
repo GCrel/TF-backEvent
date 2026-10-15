@@ -118,7 +118,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                "Ana García");
 
         when(eventService.createEvent(any(CreateEventRequest.class), any(User.class)))
                 .thenReturn(response);
@@ -189,7 +190,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                "Ana García");
 
         when(eventService.updateEvent(eq(eventId), any(UpdateEventRequest.class), any(User.class)))
                 .thenReturn(response);
@@ -256,7 +258,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                "Ana García");
 
         when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -307,7 +310,8 @@ public class EventControllerTest {
                 "Meet",
                 null,
                 null,
-                null);
+                null,
+                "Ana García");
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -326,7 +330,7 @@ public class EventControllerTest {
                 eventId, "Webinar", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
                 "DRAFT", new BigDecimal("15.00"), "VIRTUAL",
                 null, null, null, null, null,
-                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes", true);
+                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes", true, "Ana García");
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -364,7 +368,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                "Ana García");
         EventResponse second = new EventResponse(
                 UUID.randomUUID(),
                 "Event 2",
@@ -381,7 +386,8 @@ public class EventControllerTest {
                 "Zoom",
                 null,
                 null,
-                null);
+                null,
+                "Ana García");
 
         when(eventService.getPublishedEvents(
                 isNull(), isNull(), isNull(), isNull(), any(Pageable.class))).thenReturn(
@@ -397,6 +403,7 @@ public class EventControllerTest {
                 .andExpect(jsonPath("$.content[1].accessLink").doesNotExist())
                 .andExpect(jsonPath("$.content[1].accessInstructions").doesNotExist())
                 .andExpect(jsonPath("$.content[0].isOrganizer").doesNotExist())
+                .andExpect(jsonPath("$.content[0].organizerName").value("Ana García"))
                 .andExpect(jsonPath("$.page.size").value(2))
                 .andExpect(jsonPath("$.page.number").value(0))
                 .andExpect(jsonPath("$.page.totalElements").value(5))

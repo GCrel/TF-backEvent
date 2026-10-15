@@ -437,7 +437,9 @@ Crea un nuevo evento en estado `DRAFT` y registra al usuario autenticado como or
   "longitude": -58.3816,
   "capacity": 500,
   "availableTickets": 500,
-  "platform": null
+  "platform": null,
+  "isOrganizer": true,
+  "organizerName": "Ana García"
 }
 ```
 
@@ -605,7 +607,8 @@ Ejemplo: `GET /api/v1/events?eventType=VIRTUAL&q=java&from=2026-11-01&to=2026-11
       "longitude": null,
       "capacity": null,
       "availableTickets": null,
-      "platform": "Zoom"
+      "platform": "Zoom",
+      "organizerName": "Ana García"
     }
   ],
   "page": {
@@ -1251,7 +1254,8 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
   "platform": "string",
   "accessLink": "string",
   "accessInstructions": "string",
-  "isOrganizer": "boolean"
+  "isOrganizer": "boolean",
+  "organizerName": "string"
 }
 ```
 
@@ -1259,6 +1263,7 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 |-------|---------|
 | `status` | `DRAFT`, `PUBLISHED`, `CANCELLED` o `FINISHED` |
 | `eventType` | `IN_PERSON` o `VIRTUAL` |
+| `organizerName` | Nombre del organizador del evento. Viene en el detalle, en los listados y en las respuestas de crear, actualizar y publicar. |
 | `isOrganizer` | Si el usuario actual organiza el evento. Viene en `GET /api/v1/events/{id}` y en las respuestas de crear, actualizar y publicar (siempre `true`); en los listados se omite. |
 | `availableTickets` | Entradas que quedan a la venta: `capacity` menos las entradas pendientes de pago, activas o usadas (nunca negativo). `0` significa agotado. |
 
