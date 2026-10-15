@@ -29,6 +29,7 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
@@ -71,7 +72,7 @@ public class EventService {
         EventParticipation participation = new EventParticipation(organizer, event, EventRole.ORGANIZER);
         eventParticipationRepository.save(participation);
 
-        return toResponse(event);
+        return toResponse(event, true);
     }
 
     @Transactional
@@ -91,7 +92,7 @@ public class EventService {
         event.setStatus(EventStatus.PUBLISHED);
         eventRepository.save(event);
 
-        return toResponse(event);
+        return toResponse(event, true);
     }
 
     @Transactional
@@ -123,7 +124,7 @@ public class EventService {
         }
 
         eventRepository.save(event);
-        return toResponse(event);
+        return toResponse(event, true);
     }
 
     private void requireMpAccountIfPaid(BigDecimal price, User organizer) {
@@ -147,16 +148,24 @@ public class EventService {
 
     public EventResponse getEvent(UUID id, User viewer) {
         Event event = findEventById(id);
-        if (event.getStatus() != EventStatus.PUBLISHED
-                && (viewer == null || !isOrganizer(event, viewer))) {
+        boolean organizer = viewer != null && isOrganizer(event, viewer);
+        if (event.getStatus() != EventStatus.PUBLISHED && !organizer) {
             throw new EventNotFoundException(id);
         }
-        return toResponse(event);
+        return toResponse(event, organizer);
     }
 
-    public Page<EventResponse> getPublishedEvents(Pageable pageable) {
-        return toResponses(eventRepository.findByStatusOrderByDateTimeAsc(
-                EventStatus.PUBLISHED, withoutSort(pageable)));
+    public Page<EventResponse> getPublishedEvents(EventType type, Pageable pageable) {
+        if (type == null) {
+            return toResponses(eventRepository.findByStatusOrderByDateTimeAsc(
+                    EventStatus.PUBLISHED, withoutSort(pageable)));
+        }
+        Class<? extends Event> eventClass = switch (type) {
+            case IN_PERSON -> InPersonEvent.class;
+            case VIRTUAL -> VirtualEvent.class;
+        };
+        return toResponses(eventRepository.findByStatusAndType(
+                EventStatus.PUBLISHED, eventClass, withoutSort(pageable)));
     }
 
     public Page<EventResponse> getMyEvents(User organizer, Pageable pageable) {
@@ -263,11 +272,11 @@ public class EventService {
         }
     }
 
-    private EventResponse toResponse(Event event) {
+    private EventResponse toResponse(Event event, boolean includeAccess) {
         long reserved = event instanceof InPersonEvent
                 ? ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES)
                 : 0;
-        return toResponse(event, reserved);
+        return toResponse(event, reserved, includeAccess);
     }
 
     // Cuenta las entradas de todos los eventos presenciales en una sola consulta.
@@ -282,14 +291,14 @@ public class EventService {
                         .collect(Collectors.toMap(EventTicketCount::eventId, EventTicketCount::count));
         return events.map(event -> toResponse(event, event instanceof InPersonEvent
                 ? reservedByEvent.getOrDefault(event.getId(), 0L)
-                : 0));
+                : 0, false));
     }
 
-    private EventResponse toResponse(Event event, long reservedTickets) {
+    private EventResponse toResponse(Event event, long reservedTickets, boolean includeAccess) {
         if (event instanceof InPersonEvent inPerson) {
             return new EventResponse(inPerson, reservedTickets);
         } else if (event instanceof VirtualEvent virtual) {
-            return new EventResponse(virtual);
+            return new EventResponse(virtual, includeAccess);
         }
         throw new InvalidEventTypeException();
     }

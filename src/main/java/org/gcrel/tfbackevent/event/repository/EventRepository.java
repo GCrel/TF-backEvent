@@ -23,6 +23,12 @@ import jakarta.persistence.LockModeType;
 public interface EventRepository extends JpaRepository<Event, UUID> {
     Page<Event> findByStatusOrderByDateTimeAsc(EventStatus status, Pageable pageable);
 
+    @Query("SELECT e FROM Event e WHERE e.status = :status AND TYPE(e) = :type ORDER BY e.dateTime ASC")
+    Page<Event> findByStatusAndType(
+            @Param("status") EventStatus status,
+            @Param("type") Class<? extends Event> type,
+            Pageable pageable);
+
     @Query("""
             SELECT ep.event FROM EventParticipation ep
             WHERE ep.user = :user

@@ -2,6 +2,7 @@ package org.gcrel.tfbackevent.integration;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -113,6 +114,8 @@ public class EventControllerTest {
                 request.longitude(),
                 request.capacity(),
                 request.capacity(),
+                null,
+                null,
                 null);
 
         when(eventService.createEvent(any(CreateEventRequest.class), any(User.class)))
@@ -181,6 +184,8 @@ public class EventControllerTest {
                 request.longitude(),
                 request.capacity(),
                 request.capacity(),
+                null,
+                null,
                 null);
 
         when(eventService.updateEvent(eq(eventId), any(UpdateEventRequest.class), any(User.class)))
@@ -245,6 +250,8 @@ public class EventControllerTest {
                 new BigDecimal("-58.38"),
                 100,
                 60,
+                null,
+                null,
                 null);
 
         when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
@@ -293,7 +300,9 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Meet");
+                "Meet",
+                null,
+                null);
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -303,6 +312,23 @@ public class EventControllerTest {
                 .andExpect(jsonPath("$.eventType").value("VIRTUAL"))
                 .andExpect(jsonPath("$.accessLink").doesNotExist())
                 .andExpect(jsonPath("$.accessInstructions").doesNotExist());
+    }
+
+    @Test
+    void getEvent_WhenOrganizer_IncludesAccessData() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        EventResponse response = new EventResponse(
+                eventId, "Webinar", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
+                "DRAFT", new BigDecimal("15.00"), "VIRTUAL",
+                null, null, null, null, null,
+                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes");
+
+        when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/events/{id}", eventId).with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessLink").value("https://meet.example.com/room"))
+                .andExpect(jsonPath("$.accessInstructions").value("Entrar 5 minutos antes"));
     }
 
     @Test
@@ -329,6 +355,8 @@ public class EventControllerTest {
                 new BigDecimal("-58.38"),
                 50,
                 50,
+                null,
+                null,
                 null);
         EventResponse second = new EventResponse(
                 UUID.randomUUID(),
@@ -343,9 +371,11 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Zoom");
+                "Zoom",
+                null,
+                null);
 
-        when(eventService.getPublishedEvents(any(Pageable.class))).thenReturn(
+        when(eventService.getPublishedEvents(isNull(), any(Pageable.class))).thenReturn(
                 new PageImpl<>(List.of(first, second), PageRequest.of(0, 2), 5));
 
         mockMvc.perform(get("/api/v1/events").with(authentication(authentication)))
@@ -361,6 +391,24 @@ public class EventControllerTest {
                 .andExpect(jsonPath("$.page.number").value(0))
                 .andExpect(jsonPath("$.page.totalElements").value(5))
                 .andExpect(jsonPath("$.page.totalPages").value(3));
+    }
+
+    @Test
+    void getAllEvents_WithEventType_PassesFilterToService() throws Exception {
+        when(eventService.getPublishedEvents(eq(EventType.VIRTUAL), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/events").param("eventType", "VIRTUAL")
+                .with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+    }
+
+    @Test
+    void getAllEvents_WithUnknownEventType_Returns400() throws Exception {
+        mockMvc.perform(get("/api/v1/events").param("eventType", "HYBRID")
+                .with(authentication(authentication)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

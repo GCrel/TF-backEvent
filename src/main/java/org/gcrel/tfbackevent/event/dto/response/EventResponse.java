@@ -8,6 +8,8 @@ import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventType;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 public record EventResponse(
         UUID id,
         String title,
@@ -25,7 +27,9 @@ public record EventResponse(
         Integer availableTickets,
 
         // Virtual Event
-        String platform) {
+        String platform,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String accessLink,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String accessInstructions) {
 
     // Physical Event Constructor
     public EventResponse(InPersonEvent event, long reservedTickets) {
@@ -42,11 +46,13 @@ public record EventResponse(
                 event.getLongitude(),
                 event.getCapacity(),
                 (int) Math.max(0, event.getCapacity() - reservedTickets),
+                null,
+                null,
                 null);
     }
 
     // Virtual Event Constructor
-    public EventResponse(VirtualEvent event) {
+    public EventResponse(VirtualEvent event, boolean includeAccess) {
         this(
                 event.getId(),
                 event.getTitle(),
@@ -60,6 +66,8 @@ public record EventResponse(
                 null,
                 null,
                 null,
-                event.getPlatform());
+                event.getPlatform(),
+                includeAccess ? event.getAccessLink() : null,
+                includeAccess ? event.getAccessInstructions() : null);
     }
 }

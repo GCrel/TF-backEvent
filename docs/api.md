@@ -541,6 +541,10 @@ los eventos en cualquier otro estado solo son visibles para su organizador.
 Para los demás usuarios, incluidos visitantes anónimos, responde `404` para
 no revelar que el evento existe.
 
+Si el evento es `VIRTUAL` y quien consulta es su organizador, la respuesta incluye
+además `accessLink` y `accessInstructions` (por ejemplo, para precargar el
+formulario de edición). Para el resto de los usuarios esos campos no aparecen.
+
 **Parámetros de ruta:**
 
 | Parámetro | Tipo | Descripción |
@@ -563,6 +567,15 @@ Devuelve el `EventResponse` correspondiente.
 
 Obtiene únicamente eventos `PUBLISHED`, ordenados por `dateTime` ascendente
 (Público). La respuesta está [paginada](#paginación).
+
+**Parámetros de consulta:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `eventType` | string | No | `IN_PERSON` o `VIRTUAL`. Sin el parámetro se devuelven ambos tipos; un valor distinto responde `400 Bad Request`. |
+| `page`, `size` | integer | No | Ver [Paginación](#paginación). |
+
+Ejemplo: `GET /api/v1/events?eventType=VIRTUAL&page=0&size=20`
 
 **Respuesta exitosa: `200 OK`**
 
@@ -1209,7 +1222,9 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
   "longitude": "number",
   "capacity": "integer",
   "availableTickets": "integer",
-  "platform": "string"
+  "platform": "string",
+  "accessLink": "string",
+  "accessInstructions": "string"
 }
 ```
 
@@ -1219,7 +1234,7 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 | `eventType` | `IN_PERSON` o `VIRTUAL` |
 | `availableTickets` | Entradas que quedan a la venta: `capacity` menos las entradas pendientes de pago, activas o usadas (nunca negativo). `0` significa agotado. |
 
-Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `availableTickets` solo se llenan para eventos de tipo `IN_PERSON`; los virtuales no tienen cupo. Para eventos de tipo `VIRTUAL` solo se llena `platform`; `accessLink` y `accessInstructions` se reciben al crear o actualizar, pero no se exponen en las respuestas.
+Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `availableTickets` solo se llenan para eventos de tipo `IN_PERSON`; los virtuales no tienen cupo. Para eventos de tipo `VIRTUAL` se llena `platform`. `accessLink` y `accessInstructions` solo aparecen para el organizador: en `GET /api/v1/events/{id}` y en las respuestas de crear, actualizar y publicar. En los listados y para el resto de los usuarios se omiten del JSON (el enlace se entrega al comprador con `GET /api/v1/access/virtual/{ticketId}`).
 
 ### PurchaseResponse
 

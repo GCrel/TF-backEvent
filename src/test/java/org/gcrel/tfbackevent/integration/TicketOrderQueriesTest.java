@@ -21,6 +21,7 @@ import org.gcrel.tfbackevent.model.Payment;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
@@ -32,11 +33,11 @@ import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -205,6 +206,28 @@ class TicketOrderQueriesTest {
         assertEquals(1, all.getContent().size());
         assertEquals(2, all.getTotalElements());
         assertEquals(1, published.getTotalElements());
+    }
+
+    @Test
+    void findByStatusAndType_ReturnsOnlyPublishedEventsOfThatType() {
+        VirtualEvent webinar = new VirtualEvent(
+                "Webinar", "Description", LocalDateTime.now().plusDays(1),
+                new BigDecimal("20.00"), "https://meet.example.com", "Meet", null);
+        webinar.setStatus(EventStatus.PUBLISHED);
+        eventRepository.save(webinar);
+        eventRepository.save(new VirtualEvent(
+                "Draft webinar", "Description", LocalDateTime.now().plusDays(1),
+                new BigDecimal("20.00"), "https://meet.example.com", "Meet", null));
+        entityManager.flush();
+
+        Page<Event> virtual = eventRepository.findByStatusAndType(
+                EventStatus.PUBLISHED, VirtualEvent.class, PageRequest.of(0, 10));
+        Page<Event> inPerson = eventRepository.findByStatusAndType(
+                EventStatus.PUBLISHED, InPersonEvent.class, PageRequest.of(0, 10));
+
+        assertEquals(List.of(webinar.getId()), virtual.map(Event::getId).getContent());
+        assertEquals(1, virtual.getTotalElements());
+        assertEquals(List.of(event.getId()), inPerson.map(Event::getId).getContent());
     }
 
     private TicketOrder orderWithTickets(LocalDateTime createdAt, int quantity, TicketStatus status) {

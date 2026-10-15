@@ -388,7 +388,7 @@ public class EventServiceTest {
         when(ticketRepository.countByEventInAndStatusIn(eq(List.of(inPersonEvent)), any()))
                 .thenReturn(List.of(new EventTicketCount(inPersonEvent.getId(), 30)));
 
-        List<EventResponse> response = eventService.getPublishedEvents(Pageable.ofSize(20)).getContent();
+        List<EventResponse> response = eventService.getPublishedEvents(null, Pageable.ofSize(20)).getContent();
 
         assertEquals(2, response.size());
         assertEquals("IN_PERSON", response.get(0).eventType());
@@ -396,6 +396,17 @@ public class EventServiceTest {
         assertEquals("VIRTUAL", response.get(1).eventType());
         assertNull(response.get(1).availableTickets());
         verify(ticketRepository, never()).countByEventAndStatusIn(any(), any());
+    }
+
+    @Test
+    void getPublishedEvents_WithType_QueriesOnlyThatEventClass() {
+        when(eventRepository.findByStatusAndType(
+                eq(EventStatus.PUBLISHED), eq(VirtualEvent.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        eventService.getPublishedEvents(EventType.VIRTUAL, Pageable.ofSize(20));
+
+        verify(eventRepository, never()).findByStatusOrderByDateTimeAsc(any(), any());
     }
 
     @Test
@@ -410,6 +421,29 @@ public class EventServiceTest {
         when(ticketRepository.countByEventAndStatusIn(eq(event), any())).thenReturn(12L);
 
         assertEquals(0, eventService.getEvent(eventId, null).availableTickets());
+    }
+
+    @Test
+    void getEvent_Virtual_ExposesAccessDataOnlyToOrganizer() {
+        UUID eventId = UUID.randomUUID();
+        VirtualEvent event = new VirtualEvent(
+                "Webinar", "Online session", eventDateTime, new BigDecimal("30.00"),
+                "https://zoom.example.com", "Zoom", "Use the link");
+        event.setStatus(EventStatus.PUBLISHED);
+        User buyer = new User("Buyer", "buyer@example.com", "pw", LocalDate.of(1990, 1, 1));
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                event, organizer, EventRole.ORGANIZER)).thenReturn(true);
+
+        EventResponse forOrganizer = eventService.getEvent(eventId, organizer);
+        EventResponse forBuyer = eventService.getEvent(eventId, buyer);
+        EventResponse forAnonymous = eventService.getEvent(eventId, null);
+
+        assertEquals("https://zoom.example.com", forOrganizer.accessLink());
+        assertEquals("Use the link", forOrganizer.accessInstructions());
+        assertNull(forBuyer.accessLink());
+        assertNull(forBuyer.accessInstructions());
+        assertNull(forAnonymous.accessLink());
     }
 
     @Test

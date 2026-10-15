@@ -7,6 +7,7 @@ import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -66,8 +68,9 @@ public class EventController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<EventResponse>> getPublishedEvents(Pageable pageable) {
-        Page<EventResponse> response = eventService.getPublishedEvents(pageable);
+    public ResponseEntity<Page<EventResponse>> getPublishedEvents(
+            @RequestParam(required = false) EventType eventType, Pageable pageable) {
+        Page<EventResponse> response = eventService.getPublishedEvents(eventType, pageable);
         return ResponseEntity.ok(response);
     }
 
