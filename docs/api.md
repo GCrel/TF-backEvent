@@ -65,6 +65,32 @@ En errores de validación (`400`) se agrega el mapa `fields` con el detalle por 
 }
 ```
 
+### Paginación
+
+Los listados de eventos (`GET /api/v1/events`, `GET /api/v1/events/mine` y
+`GET /api/v1/access/my-events`) aceptan los parámetros `page` (desde `0`) y `size`
+(por defecto `20`), por ejemplo `?page=0&size=20`, y devuelven una página:
+
+```json
+{
+  "content": [ /* elementos de la página */ ],
+  "page": {
+    "size": 20,
+    "number": 0,
+    "totalElements": 42,
+    "totalPages": 3
+  }
+}
+```
+
+| Campo | Descripción |
+|-------|-------------|
+| `content` | Elementos de la página pedida |
+| `page.size` | Tamaño de página usado |
+| `page.number` | Número de la página devuelta (desde `0`) |
+| `page.totalElements` | Total de elementos en todas las páginas |
+| `page.totalPages` | Total de páginas; la página es la última si `number + 1 >= totalPages` |
+
 ---
 
 ## Autenticación
@@ -536,29 +562,36 @@ Devuelve el `EventResponse` correspondiente.
 `GET /api/v1/events`
 
 Obtiene únicamente eventos `PUBLISHED`, ordenados por `dateTime` ascendente
-(Público). La respuesta acepta paginación mediante los parámetros `page` y `size`,
-por ejemplo `?page=0&size=20`. El orden siempre es `dateTime` ascendente.
+(Público). La respuesta está [paginada](#paginación).
 
 **Respuesta exitosa: `200 OK`**
 
 ```json
-[
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "title": "Conferencia de tecnología",
-    "description": "Charla sobre las últimas tendencias",
-    "dateTime": "2026-10-15T18:00:00",
-    "status": "PUBLISHED",
-    "basePrice": 25.50,
-    "eventType": "VIRTUAL",
-    "address": null,
-    "latitude": null,
-    "longitude": null,
-    "capacity": null,
-    "availableTickets": null,
-    "platform": "Zoom"
+{
+  "content": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "Conferencia de tecnología",
+      "description": "Charla sobre las últimas tendencias",
+      "dateTime": "2026-10-15T18:00:00",
+      "status": "PUBLISHED",
+      "basePrice": 25.50,
+      "eventType": "VIRTUAL",
+      "address": null,
+      "latitude": null,
+      "longitude": null,
+      "capacity": null,
+      "availableTickets": null,
+      "platform": "Zoom"
+    }
+  ],
+  "page": {
+    "size": 20,
+    "number": 0,
+    "totalElements": 1,
+    "totalPages": 1
   }
-]
+}
 ```
 
 ### Listar mis eventos
@@ -566,8 +599,8 @@ por ejemplo `?page=0&size=20`. El orden siempre es `dateTime` ascendente.
 `GET /api/v1/events/mine`
 
 Obtiene los eventos donde el usuario autenticado participa como organizador,
-incluidos sus borradores, cancelados y finalizados. La lista se ordena por
-`dateTime` descendente y acepta los parámetros `page` y `size`.
+incluidos sus borradores, cancelados y finalizados. La respuesta está
+[paginada](#paginación) y se ordena por `dateTime` descendente.
 
 ### Cancelar evento
 
@@ -750,8 +783,8 @@ Conflict` si el ticket no está activo. Si el evento no es virtual, responde
 `GET /api/v1/access/my-events`
 
 Obtiene los eventos `PUBLISHED` en los que el usuario autenticado está asignado
-como controlador. La lista se ordena por `dateTime` ascendente y acepta
-`page` y `size`. Requiere autenticación.
+como controlador. La respuesta está [paginada](#paginación) y se ordena por
+`dateTime` ascendente. Requiere autenticación.
 
 ---
 

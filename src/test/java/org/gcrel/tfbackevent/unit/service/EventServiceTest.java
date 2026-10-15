@@ -51,6 +51,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
@@ -383,11 +384,11 @@ public class EventServiceTest {
         virtualEvent.setId(UUID.randomUUID());
 
         when(eventRepository.findByStatusOrderByDateTimeAsc(eq(EventStatus.PUBLISHED), any(Pageable.class)))
-                .thenReturn(List.of(inPersonEvent, virtualEvent));
+                .thenReturn(new PageImpl<>(List.of(inPersonEvent, virtualEvent)));
         when(ticketRepository.countByEventInAndStatusIn(eq(List.of(inPersonEvent)), any()))
                 .thenReturn(List.of(new EventTicketCount(inPersonEvent.getId(), 30)));
 
-        List<EventResponse> response = eventService.getPublishedEvents(Pageable.ofSize(20));
+        List<EventResponse> response = eventService.getPublishedEvents(Pageable.ofSize(20)).getContent();
 
         assertEquals(2, response.size());
         assertEquals("IN_PERSON", response.get(0).eventType());

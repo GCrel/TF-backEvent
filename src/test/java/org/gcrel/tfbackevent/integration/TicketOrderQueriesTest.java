@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
@@ -31,6 +32,8 @@ import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -182,6 +185,26 @@ class TicketOrderQueriesTest {
 
         // Los eventos sin entradas no aparecen: el servicio los trata como 0.
         assertEquals(List.of(new EventTicketCount(event.getId(), 3)), counts);
+    }
+
+    @Test
+    void participantQueries_ReturnTotalsAcrossPages() {
+        InPersonEvent draft = new InPersonEvent(
+                "Draft", "Description", LocalDateTime.now().plusDays(2),
+                new BigDecimal("20.00"), "Address",
+                new BigDecimal("-34.60"), new BigDecimal("-58.38"), 50);
+        eventRepository.save(draft);
+        participationRepository.save(new EventParticipation(organizer, draft, EventRole.ORGANIZER));
+        entityManager.flush();
+
+        Page<Event> all = eventRepository.findByParticipant(
+                organizer, EventRole.ORGANIZER, PageRequest.of(0, 1));
+        Page<Event> published = eventRepository.findByParticipantAndStatus(
+                organizer, EventRole.ORGANIZER, EventStatus.PUBLISHED, PageRequest.of(0, 1));
+
+        assertEquals(1, all.getContent().size());
+        assertEquals(2, all.getTotalElements());
+        assertEquals(1, published.getTotalElements());
     }
 
     private TicketOrder orderWithTickets(LocalDateTime createdAt, int quantity, TicketStatus status) {

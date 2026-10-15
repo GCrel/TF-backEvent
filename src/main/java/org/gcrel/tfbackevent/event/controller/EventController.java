@@ -1,6 +1,5 @@
 package org.gcrel.tfbackevent.event.controller;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
@@ -8,6 +7,7 @@ import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -66,13 +66,13 @@ public class EventController {
     }
 
     @GetMapping
-    public ResponseEntity<List<EventResponse>> getPublishedEvents(Pageable pageable) {
-        List<EventResponse> response = eventService.getPublishedEvents(pageable);
+    public ResponseEntity<Page<EventResponse>> getPublishedEvents(Pageable pageable) {
+        Page<EventResponse> response = eventService.getPublishedEvents(pageable);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/mine")
-    public ResponseEntity<List<EventResponse>> getMyEvents(
+    public ResponseEntity<Page<EventResponse>> getMyEvents(
             @AuthenticationPrincipal User organizer, Pageable pageable) {
         return ResponseEntity.ok(eventService.getMyEvents(organizer, pageable));
     }

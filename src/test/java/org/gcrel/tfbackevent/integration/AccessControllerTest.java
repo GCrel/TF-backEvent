@@ -39,6 +39,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -199,13 +200,14 @@ class AccessControllerTest {
                 eq(user),
                 eq(org.gcrel.tfbackevent.model.enums.EventRole.CONTROLLER),
                 eq(org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED),
-                any(Pageable.class))).thenReturn(List.of(response));
+                any(Pageable.class))).thenReturn(new PageImpl<>(List.of(response)));
 
         mockMvc.perform(get("/api/v1/access/my-events")
                 .with(authentication(authentication)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].title").value("Conference"))
-                .andExpect(jsonPath("$[0].status").value("PUBLISHED"));
+                .andExpect(jsonPath("$.content[0].title").value("Conference"))
+                .andExpect(jsonPath("$.content[0].status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
     }
 
     private org.springframework.test.web.servlet.ResultActions performValidQr(UUID eventId)

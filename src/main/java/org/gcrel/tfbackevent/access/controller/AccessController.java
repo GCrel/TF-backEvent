@@ -1,6 +1,5 @@
 package org.gcrel.tfbackevent.access.controller;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.access.dto.request.ValidateQrRequest;
@@ -12,6 +11,7 @@ import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -49,10 +49,10 @@ public class AccessController {
     }
 
     @GetMapping("/my-events")
-    public ResponseEntity<List<EventResponse>> getMyEvents(
+    public ResponseEntity<Page<EventResponse>> getMyEvents(
             @AuthenticationPrincipal User controller,
             Pageable pageable) {
-    return ResponseEntity.ok(eventService.getMyEvents(
-            controller, EventRole.CONTROLLER, EventStatus.PUBLISHED, pageable));
+        return ResponseEntity.ok(eventService.getMyEvents(
+                controller, EventRole.CONTROLLER, EventStatus.PUBLISHED, pageable));
     }
 }

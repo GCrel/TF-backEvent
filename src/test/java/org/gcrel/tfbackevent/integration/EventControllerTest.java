@@ -38,6 +38,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -343,17 +345,22 @@ public class EventControllerTest {
                 null,
                 "Zoom");
 
-        when(eventService.getPublishedEvents(any(Pageable.class))).thenReturn(List.of(first, second));
+        when(eventService.getPublishedEvents(any(Pageable.class))).thenReturn(
+                new PageImpl<>(List.of(first, second), PageRequest.of(0, 2), 5));
 
         mockMvc.perform(get("/api/v1/events").with(authentication(authentication)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].title").value("Event 1"))
-                .andExpect(jsonPath("$[1].title").value("Event 2"))
-                .andExpect(jsonPath("$[0].accessLink").doesNotExist())
-                .andExpect(jsonPath("$[0].accessInstructions").doesNotExist())
-                .andExpect(jsonPath("$[1].accessLink").doesNotExist())
-                .andExpect(jsonPath("$[1].accessInstructions").doesNotExist());
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].title").value("Event 1"))
+                .andExpect(jsonPath("$.content[1].title").value("Event 2"))
+                .andExpect(jsonPath("$.content[0].accessLink").doesNotExist())
+                .andExpect(jsonPath("$.content[0].accessInstructions").doesNotExist())
+                .andExpect(jsonPath("$.content[1].accessLink").doesNotExist())
+                .andExpect(jsonPath("$.content[1].accessInstructions").doesNotExist())
+                .andExpect(jsonPath("$.page.size").value(2))
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$.page.totalElements").value(5))
+                .andExpect(jsonPath("$.page.totalPages").value(3));
     }
 
     @Test

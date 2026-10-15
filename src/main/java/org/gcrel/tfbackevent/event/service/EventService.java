@@ -34,6 +34,7 @@ import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -153,18 +154,18 @@ public class EventService {
         return toResponse(event);
     }
 
-    public List<EventResponse> getPublishedEvents(Pageable pageable) {
+    public Page<EventResponse> getPublishedEvents(Pageable pageable) {
         return toResponses(eventRepository.findByStatusOrderByDateTimeAsc(
                 EventStatus.PUBLISHED, withoutSort(pageable)));
     }
 
-    public List<EventResponse> getMyEvents(User organizer, Pageable pageable) {
+    public Page<EventResponse> getMyEvents(User organizer, Pageable pageable) {
         return getMyEvents(organizer, EventRole.ORGANIZER, null, pageable);
     }
 
-    public List<EventResponse> getMyEvents(
+    public Page<EventResponse> getMyEvents(
             User user, EventRole role, EventStatus status, Pageable pageable) {
-        List<Event> events = status == null
+        Page<Event> events = status == null
                 ? eventRepository.findByParticipant(user, role, withoutSort(pageable))
                 : eventRepository.findByParticipantAndStatus(
                         user, role, status, withoutSort(pageable));
@@ -270,7 +271,7 @@ public class EventService {
     }
 
     // Cuenta las entradas de todos los eventos presenciales en una sola consulta.
-    private List<EventResponse> toResponses(List<Event> events) {
+    private Page<EventResponse> toResponses(Page<Event> events) {
         List<Event> inPersonEvents = events.stream()
                 .filter(InPersonEvent.class::isInstance)
                 .toList();
@@ -279,11 +280,9 @@ public class EventService {
                 : ticketRepository.countByEventInAndStatusIn(inPersonEvents, RESERVED_STATUSES)
                         .stream()
                         .collect(Collectors.toMap(EventTicketCount::eventId, EventTicketCount::count));
-        return events.stream()
-                .map(event -> toResponse(event, event instanceof InPersonEvent
-                        ? reservedByEvent.getOrDefault(event.getId(), 0L)
-                        : 0))
-                .toList();
+        return events.map(event -> toResponse(event, event instanceof InPersonEvent
+                ? reservedByEvent.getOrDefault(event.getId(), 0L)
+                : 0));
     }
 
     private EventResponse toResponse(Event event, long reservedTickets) {
