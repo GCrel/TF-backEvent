@@ -272,11 +272,11 @@ public class EventService {
         }
     }
 
-    private EventResponse toResponse(Event event, boolean includeAccess) {
+    private EventResponse toResponse(Event event, Boolean isOrganizer) {
         long reserved = event instanceof InPersonEvent
                 ? ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES)
                 : 0;
-        return toResponse(event, reserved, includeAccess);
+        return toResponse(event, reserved, isOrganizer);
     }
 
     // Cuenta las entradas de todos los eventos presenciales en una sola consulta.
@@ -291,14 +291,14 @@ public class EventService {
                         .collect(Collectors.toMap(EventTicketCount::eventId, EventTicketCount::count));
         return events.map(event -> toResponse(event, event instanceof InPersonEvent
                 ? reservedByEvent.getOrDefault(event.getId(), 0L)
-                : 0, false));
+                : 0, null));
     }
 
-    private EventResponse toResponse(Event event, long reservedTickets, boolean includeAccess) {
+    private EventResponse toResponse(Event event, long reservedTickets, Boolean isOrganizer) {
         if (event instanceof InPersonEvent inPerson) {
-            return new EventResponse(inPerson, reservedTickets);
+            return new EventResponse(inPerson, reservedTickets, isOrganizer);
         } else if (event instanceof VirtualEvent virtual) {
-            return new EventResponse(virtual, includeAccess);
+            return new EventResponse(virtual, isOrganizer);
         }
         throw new InvalidEventTypeException();
     }

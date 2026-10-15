@@ -395,6 +395,7 @@ public class EventServiceTest {
         assertEquals(70, response.get(0).availableTickets());
         assertEquals("VIRTUAL", response.get(1).eventType());
         assertNull(response.get(1).availableTickets());
+        assertNull(response.get(0).isOrganizer());
         verify(ticketRepository, never()).countByEventAndStatusIn(any(), any());
     }
 
@@ -444,6 +445,9 @@ public class EventServiceTest {
         assertNull(forBuyer.accessLink());
         assertNull(forBuyer.accessInstructions());
         assertNull(forAnonymous.accessLink());
+        assertEquals(true, forOrganizer.isOrganizer());
+        assertEquals(false, forBuyer.isOrganizer());
+        assertEquals(false, forAnonymous.isOrganizer());
     }
 
     @Test

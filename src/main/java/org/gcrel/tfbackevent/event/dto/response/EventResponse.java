@@ -29,10 +29,13 @@ public record EventResponse(
         // Virtual Event
         String platform,
         @JsonInclude(JsonInclude.Include.NON_NULL) String accessLink,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String accessInstructions) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) String accessInstructions,
+
+        // Solo en el detalle y en las respuestas al organizador; null (omitido) en listados.
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean isOrganizer) {
 
     // Physical Event Constructor
-    public EventResponse(InPersonEvent event, long reservedTickets) {
+    public EventResponse(InPersonEvent event, long reservedTickets, Boolean isOrganizer) {
         this(
                 event.getId(),
                 event.getTitle(),
@@ -48,11 +51,12 @@ public record EventResponse(
                 (int) Math.max(0, event.getCapacity() - reservedTickets),
                 null,
                 null,
-                null);
+                null,
+                isOrganizer);
     }
 
     // Virtual Event Constructor
-    public EventResponse(VirtualEvent event, boolean includeAccess) {
+    public EventResponse(VirtualEvent event, Boolean isOrganizer) {
         this(
                 event.getId(),
                 event.getTitle(),
@@ -67,7 +71,8 @@ public record EventResponse(
                 null,
                 null,
                 event.getPlatform(),
-                includeAccess ? event.getAccessLink() : null,
-                includeAccess ? event.getAccessInstructions() : null);
+                Boolean.TRUE.equals(isOrganizer) ? event.getAccessLink() : null,
+                Boolean.TRUE.equals(isOrganizer) ? event.getAccessInstructions() : null,
+                isOrganizer);
     }
 }

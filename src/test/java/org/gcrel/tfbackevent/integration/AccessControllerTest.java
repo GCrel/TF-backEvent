@@ -195,7 +195,7 @@ class AccessControllerTest {
                 LocalDateTime.of(2026, 10, 15, 18, 0), "PUBLISHED",
                 new java.math.BigDecimal("20.00"), "IN_PERSON", "Address",
                 new java.math.BigDecimal("-34.60"), new java.math.BigDecimal("-58.38"),
-                100, 100, null, null, null);
+                100, 100, null, null, null, null);
         when(eventService.getMyEvents(
                 eq(user),
                 eq(org.gcrel.tfbackevent.model.enums.EventRole.CONTROLLER),

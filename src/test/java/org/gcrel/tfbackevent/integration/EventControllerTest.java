@@ -116,6 +116,7 @@ public class EventControllerTest {
                 request.capacity(),
                 null,
                 null,
+                null,
                 null);
 
         when(eventService.createEvent(any(CreateEventRequest.class), any(User.class)))
@@ -186,6 +187,7 @@ public class EventControllerTest {
                 request.capacity(),
                 null,
                 null,
+                null,
                 null);
 
         when(eventService.updateEvent(eq(eventId), any(UpdateEventRequest.class), any(User.class)))
@@ -252,6 +254,7 @@ public class EventControllerTest {
                 60,
                 null,
                 null,
+                null,
                 null);
 
         when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
@@ -302,6 +305,7 @@ public class EventControllerTest {
                 null,
                 "Meet",
                 null,
+                null,
                 null);
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
@@ -321,14 +325,15 @@ public class EventControllerTest {
                 eventId, "Webinar", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
                 "DRAFT", new BigDecimal("15.00"), "VIRTUAL",
                 null, null, null, null, null,
-                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes");
+                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes", true);
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/events/{id}", eventId).with(authentication(authentication)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessLink").value("https://meet.example.com/room"))
-                .andExpect(jsonPath("$.accessInstructions").value("Entrar 5 minutos antes"));
+                .andExpect(jsonPath("$.accessInstructions").value("Entrar 5 minutos antes"))
+                .andExpect(jsonPath("$.isOrganizer").value(true));
     }
 
     @Test
@@ -357,6 +362,7 @@ public class EventControllerTest {
                 50,
                 null,
                 null,
+                null,
                 null);
         EventResponse second = new EventResponse(
                 UUID.randomUUID(),
@@ -373,6 +379,7 @@ public class EventControllerTest {
                 null,
                 "Zoom",
                 null,
+                null,
                 null);
 
         when(eventService.getPublishedEvents(isNull(), any(Pageable.class))).thenReturn(
@@ -387,6 +394,7 @@ public class EventControllerTest {
                 .andExpect(jsonPath("$.content[0].accessInstructions").doesNotExist())
                 .andExpect(jsonPath("$.content[1].accessLink").doesNotExist())
                 .andExpect(jsonPath("$.content[1].accessInstructions").doesNotExist())
+                .andExpect(jsonPath("$.content[0].isOrganizer").doesNotExist())
                 .andExpect(jsonPath("$.page.size").value(2))
                 .andExpect(jsonPath("$.page.number").value(0))
                 .andExpect(jsonPath("$.page.totalElements").value(5))

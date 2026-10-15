@@ -541,6 +541,10 @@ los eventos en cualquier otro estado solo son visibles para su organizador.
 Para los demás usuarios, incluidos visitantes anónimos, responde `404` para
 no revelar que el evento existe.
 
+La respuesta incluye `isOrganizer`: `true` si quien consulta es el organizador
+del evento y `false` en cualquier otro caso (incluido el acceso anónimo), para
+decidir entre mostrar "Editar" o "Comprar".
+
 Si el evento es `VIRTUAL` y quien consulta es su organizador, la respuesta incluye
 además `accessLink` y `accessInstructions` (por ejemplo, para precargar el
 formulario de edición). Para el resto de los usuarios esos campos no aparecen.
@@ -1224,7 +1228,8 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
   "availableTickets": "integer",
   "platform": "string",
   "accessLink": "string",
-  "accessInstructions": "string"
+  "accessInstructions": "string",
+  "isOrganizer": "boolean"
 }
 ```
 
@@ -1232,6 +1237,7 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 |-------|---------|
 | `status` | `DRAFT`, `PUBLISHED`, `CANCELLED` o `FINISHED` |
 | `eventType` | `IN_PERSON` o `VIRTUAL` |
+| `isOrganizer` | Si el usuario actual organiza el evento. Viene en `GET /api/v1/events/{id}` y en las respuestas de crear, actualizar y publicar (siempre `true`); en los listados se omite. |
 | `availableTickets` | Entradas que quedan a la venta: `capacity` menos las entradas pendientes de pago, activas o usadas (nunca negativo). `0` significa agotado. |
 
 Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `availableTickets` solo se llenan para eventos de tipo `IN_PERSON`; los virtuales no tienen cupo. Para eventos de tipo `VIRTUAL` se llena `platform`. `accessLink` y `accessInstructions` solo aparecen para el organizador: en `GET /api/v1/events/{id}` y en las respuestas de crear, actualizar y publicar. En los listados y para el resto de los usuarios se omiten del JSON (el enlace se entrega al comprador con `GET /api/v1/access/virtual/{ticketId}`).
