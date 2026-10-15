@@ -1,8 +1,10 @@
 package org.gcrel.tfbackevent.event.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -155,17 +157,28 @@ public class EventService {
         return toResponse(event, organizer);
     }
 
-    public Page<EventResponse> getPublishedEvents(EventType type, Pageable pageable) {
-        if (type == null) {
-            return toResponses(eventRepository.findByStatusOrderByDateTimeAsc(
-                    EventStatus.PUBLISHED, withoutSort(pageable)));
+    public Page<EventResponse> getPublishedEvents(
+            EventType type, String query, LocalDate from, LocalDate to, Pageable pageable) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BadRequestException("La fecha 'from' no puede ser posterior a 'to'.");
         }
-        Class<? extends Event> eventClass = switch (type) {
+        Class<? extends Event> eventClass = type == null ? null : switch (type) {
             case IN_PERSON -> InPersonEvent.class;
             case VIRTUAL -> VirtualEvent.class;
         };
-        return toResponses(eventRepository.findByStatusAndType(
-                EventStatus.PUBLISHED, eventClass, withoutSort(pageable)));
+        // Se escapan los comodines de LIKE para que '%' y '_' se busquen literalmente.
+        String pattern = query == null || query.isBlank()
+                ? null
+                : "%" + query.strip().toLowerCase(Locale.ROOT)
+                        .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return toResponses(eventRepository.search(
+                EventStatus.PUBLISHED,
+                eventClass,
+                pattern,
+                from == null ? null : from.atStartOfDay(),
+                // `to` es inclusivo: abarca todo ese día.
+                to == null ? null : to.plusDays(1).atStartOfDay(),
+                withoutSort(pageable)));
     }
 
     public Page<EventResponse> getMyEvents(User organizer, Pageable pageable) {

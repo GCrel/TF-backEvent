@@ -209,9 +209,10 @@ class TicketOrderQueriesTest {
     }
 
     @Test
-    void findByStatusAndType_ReturnsOnlyPublishedEventsOfThatType() {
+    void search_AppliesOnlyTheFiltersThatAreSet() {
+        // `event` (en setUp): presencial publicado, "Conference", mañana.
         VirtualEvent webinar = new VirtualEvent(
-                "Webinar", "Description", LocalDateTime.now().plusDays(1),
+                "Webinar", "Charla sobre Java al 100%", LocalDateTime.now().plusDays(5),
                 new BigDecimal("20.00"), "https://meet.example.com", "Meet", null);
         webinar.setStatus(EventStatus.PUBLISHED);
         eventRepository.save(webinar);
@@ -220,14 +221,26 @@ class TicketOrderQueriesTest {
                 new BigDecimal("20.00"), "https://meet.example.com", "Meet", null));
         entityManager.flush();
 
-        Page<Event> virtual = eventRepository.findByStatusAndType(
-                EventStatus.PUBLISHED, VirtualEvent.class, PageRequest.of(0, 10));
-        Page<Event> inPerson = eventRepository.findByStatusAndType(
-                EventStatus.PUBLISHED, InPersonEvent.class, PageRequest.of(0, 10));
+        assertEquals(List.of(event.getId(), webinar.getId()), search(null, null, null, null));
+        assertEquals(List.of(webinar.getId()), search(VirtualEvent.class, null, null, null));
+        assertEquals(List.of(event.getId()), search(InPersonEvent.class, null, null, null));
+        // Sin distinguir mayúsculas, en título o descripción.
+        assertEquals(List.of(webinar.getId()), search(null, "%java%", null, null));
+        assertEquals(List.of(event.getId()), search(null, "%conf%", null, null));
+        // El '%' escapado se busca literal.
+        assertEquals(List.of(webinar.getId()), search(null, "%100\\%%", null, null));
+        assertEquals(List.of(), search(null, "%10\\%%", null, null));
+        // Rango de fechas: desde inclusivo, hasta exclusivo.
+        assertEquals(List.of(webinar.getId()),
+                search(null, null, LocalDateTime.now().plusDays(3), null));
+        assertEquals(List.of(event.getId()),
+                search(null, null, null, LocalDateTime.now().plusDays(3)));
+        assertEquals(List.of(), search(VirtualEvent.class, "%java%", null, LocalDateTime.now().plusDays(3)));
+    }
 
-        assertEquals(List.of(webinar.getId()), virtual.map(Event::getId).getContent());
-        assertEquals(1, virtual.getTotalElements());
-        assertEquals(List.of(event.getId()), inPerson.map(Event::getId).getContent());
+    private List<UUID> search(Class<? extends Event> type, String pattern, LocalDateTime from, LocalDateTime to) {
+        return eventRepository.search(EventStatus.PUBLISHED, type, pattern, from, to, PageRequest.of(0, 10))
+                .map(Event::getId).getContent();
     }
 
     private TicketOrder orderWithTickets(LocalDateTime createdAt, int quantity, TicketStatus status) {

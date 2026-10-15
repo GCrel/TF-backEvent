@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -383,12 +384,14 @@ public class EventServiceTest {
         inPersonEvent.setId(UUID.randomUUID());
         virtualEvent.setId(UUID.randomUUID());
 
-        when(eventRepository.findByStatusOrderByDateTimeAsc(eq(EventStatus.PUBLISHED), any(Pageable.class)))
+        when(eventRepository.search(eq(EventStatus.PUBLISHED), isNull(), isNull(), isNull(), isNull(),
+                any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(inPersonEvent, virtualEvent)));
         when(ticketRepository.countByEventInAndStatusIn(eq(List.of(inPersonEvent)), any()))
                 .thenReturn(List.of(new EventTicketCount(inPersonEvent.getId(), 30)));
 
-        List<EventResponse> response = eventService.getPublishedEvents(null, Pageable.ofSize(20)).getContent();
+        List<EventResponse> response = eventService.getPublishedEvents(null, null, null, null, Pageable.ofSize(20))
+                .getContent();
 
         assertEquals(2, response.size());
         assertEquals("IN_PERSON", response.get(0).eventType());
@@ -400,14 +403,26 @@ public class EventServiceTest {
     }
 
     @Test
-    void getPublishedEvents_WithType_QueriesOnlyThatEventClass() {
-        when(eventRepository.findByStatusAndType(
-                eq(EventStatus.PUBLISHED), eq(VirtualEvent.class), any(Pageable.class)))
+    void getPublishedEvents_WithFilters_BuildsQueryParameters() {
+        when(eventRepository.search(any(), any(), any(), any(), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        eventService.getPublishedEvents(EventType.VIRTUAL, Pageable.ofSize(20));
+        eventService.getPublishedEvents(EventType.VIRTUAL, "  Java_100%  ",
+                LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), Pageable.ofSize(20));
 
-        verify(eventRepository, never()).findByStatusOrderByDateTimeAsc(any(), any());
+        verify(eventRepository).search(
+                eq(EventStatus.PUBLISHED),
+                eq(VirtualEvent.class),
+                eq("%java\\_100\\%%"),
+                eq(LocalDateTime.of(2026, 11, 1, 0, 0)),
+                eq(LocalDateTime.of(2026, 12, 1, 0, 0)),
+                any(Pageable.class));
+    }
+
+    @Test
+    void getPublishedEvents_WhenFromIsAfterTo_ThrowsBadRequest() {
+        assertThrows(BadRequestException.class, () -> eventService.getPublishedEvents(
+                null, null, LocalDate.of(2026, 12, 1), LocalDate.of(2026, 11, 1), Pageable.ofSize(20)));
     }
 
     @Test

@@ -577,9 +577,15 @@ Obtiene únicamente eventos `PUBLISHED`, ordenados por `dateTime` ascendente
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `eventType` | string | No | `IN_PERSON` o `VIRTUAL`. Sin el parámetro se devuelven ambos tipos; un valor distinto responde `400 Bad Request`. |
+| `q` | string | No | Texto a buscar en el título o la descripción, sin distinguir mayúsculas. Se busca literal (`%` y `_` no son comodines). Vacío equivale a no enviarlo. |
+| `from` | date (`YYYY-MM-DD`) | No | Eventos desde ese día inclusive. |
+| `to` | date (`YYYY-MM-DD`) | No | Eventos hasta ese día inclusive. |
 | `page`, `size` | integer | No | Ver [Paginación](#paginación). |
 
-Ejemplo: `GET /api/v1/events?eventType=VIRTUAL&page=0&size=20`
+Los filtros se combinan entre sí. Una fecha con otro formato, o `from` posterior a
+`to`, responde `400 Bad Request`.
+
+Ejemplo: `GET /api/v1/events?eventType=VIRTUAL&q=java&from=2026-11-01&to=2026-11-30&page=0&size=20`
 
 **Respuesta exitosa: `200 OK`**
 

@@ -1,5 +1,6 @@
 package org.gcrel.tfbackevent.event.controller;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
@@ -10,6 +11,7 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -69,8 +71,12 @@ public class EventController {
 
     @GetMapping
     public ResponseEntity<Page<EventResponse>> getPublishedEvents(
-            @RequestParam(required = false) EventType eventType, Pageable pageable) {
-        Page<EventResponse> response = eventService.getPublishedEvents(eventType, pageable);
+            @RequestParam(required = false) EventType eventType,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Pageable pageable) {
+        Page<EventResponse> response = eventService.getPublishedEvents(eventType, q, from, to, pageable);
         return ResponseEntity.ok(response);
     }
 

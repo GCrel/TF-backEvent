@@ -1,5 +1,6 @@
 package org.gcrel.tfbackevent.event.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,12 +22,26 @@ import jakarta.persistence.LockModeType;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, UUID> {
-    Page<Event> findByStatusOrderByDateTimeAsc(EventStatus status, Pageable pageable);
-
-    @Query("SELECT e FROM Event e WHERE e.status = :status AND TYPE(e) = :type ORDER BY e.dateTime ASC")
-    Page<Event> findByStatusAndType(
+    // Cada filtro es opcional: un parámetro null no restringe. `pattern` ya viene en
+    // minúsculas, con comodines escapados y rodeado de '%'. Los CAST le dan tipo a las
+    // fechas nulas, que PostgreSQL no puede inferir en `IS NULL`.
+    @Query("""
+            SELECT e FROM Event e
+            WHERE e.status = :status
+            AND (:type IS NULL OR TYPE(e) = :type)
+            AND (:pattern IS NULL
+                OR LOWER(e.title) LIKE :pattern ESCAPE '\\'
+                OR LOWER(e.description) LIKE :pattern ESCAPE '\\')
+            AND (CAST(:from AS LocalDateTime) IS NULL OR e.dateTime >= :from)
+            AND (CAST(:to AS LocalDateTime) IS NULL OR e.dateTime < :to)
+            ORDER BY e.dateTime ASC
+            """)
+    Page<Event> search(
             @Param("status") EventStatus status,
             @Param("type") Class<? extends Event> type,
+            @Param("pattern") String pattern,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
             Pageable pageable);
 
     @Query("""
@@ -64,7 +79,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             @Param("role") EventRole role,
             @Param("status") EventStatus status);
 
-    List<Event> findByStatusAndDateTimeBefore(EventStatus status, java.time.LocalDateTime dateTime);
+    List<Event> findByStatusAndDateTimeBefore(EventStatus status, LocalDateTime dateTime);
 
     @Query("""
             SELECT ep.event FROM EventParticipation ep

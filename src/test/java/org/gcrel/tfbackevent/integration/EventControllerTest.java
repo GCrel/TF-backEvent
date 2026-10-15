@@ -382,7 +382,8 @@ public class EventControllerTest {
                 null,
                 null);
 
-        when(eventService.getPublishedEvents(isNull(), any(Pageable.class))).thenReturn(
+        when(eventService.getPublishedEvents(
+                isNull(), isNull(), isNull(), isNull(), any(Pageable.class))).thenReturn(
                 new PageImpl<>(List.of(first, second), PageRequest.of(0, 2), 5));
 
         mockMvc.perform(get("/api/v1/events").with(authentication(authentication)))
@@ -402,11 +403,16 @@ public class EventControllerTest {
     }
 
     @Test
-    void getAllEvents_WithEventType_PassesFilterToService() throws Exception {
-        when(eventService.getPublishedEvents(eq(EventType.VIRTUAL), any(Pageable.class)))
+    void getAllEvents_WithFilters_PassesThemToService() throws Exception {
+        when(eventService.getPublishedEvents(eq(EventType.VIRTUAL), eq("java"),
+                eq(LocalDate.of(2026, 11, 1)), eq(LocalDate.of(2026, 11, 30)), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        mockMvc.perform(get("/api/v1/events").param("eventType", "VIRTUAL")
+        mockMvc.perform(get("/api/v1/events")
+                .param("eventType", "VIRTUAL")
+                .param("q", "java")
+                .param("from", "2026-11-01")
+                .param("to", "2026-11-30")
                 .with(authentication(authentication)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page.totalElements").value(0));
@@ -415,6 +421,13 @@ public class EventControllerTest {
     @Test
     void getAllEvents_WithUnknownEventType_Returns400() throws Exception {
         mockMvc.perform(get("/api/v1/events").param("eventType", "HYBRID")
+                .with(authentication(authentication)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getAllEvents_WithInvalidDate_Returns400() throws Exception {
+        mockMvc.perform(get("/api/v1/events").param("from", "01/11/2026")
                 .with(authentication(authentication)))
                 .andExpect(status().isBadRequest());
     }
