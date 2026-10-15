@@ -410,6 +410,7 @@ Crea un nuevo evento en estado `DRAFT` y registra al usuario autenticado como or
   "latitude": -34.6037,
   "longitude": -58.3816,
   "capacity": 500,
+  "availableTickets": 500,
   "platform": null
 }
 ```
@@ -554,6 +555,7 @@ por ejemplo `?page=0&size=20`. El orden siempre es `dateTime` ascendente.
     "latitude": null,
     "longitude": null,
     "capacity": null,
+    "availableTickets": null,
     "platform": "Zoom"
   }
 ]
@@ -1173,6 +1175,7 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
   "latitude": "number",
   "longitude": "number",
   "capacity": "integer",
+  "availableTickets": "integer",
   "platform": "string"
 }
 ```
@@ -1181,8 +1184,9 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 |-------|---------|
 | `status` | `DRAFT`, `PUBLISHED`, `CANCELLED` o `FINISHED` |
 | `eventType` | `IN_PERSON` o `VIRTUAL` |
+| `availableTickets` | Entradas que quedan a la venta: `capacity` menos las entradas pendientes de pago, activas o usadas (nunca negativo). `0` significa agotado. |
 
-Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) solo se llenan para eventos de tipo `IN_PERSON`. Para eventos de tipo `VIRTUAL` solo se llena `platform`; `accessLink` y `accessInstructions` se reciben al crear o actualizar, pero no se exponen en las respuestas.
+Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `availableTickets` solo se llenan para eventos de tipo `IN_PERSON`; los virtuales no tienen cupo. Para eventos de tipo `VIRTUAL` solo se llena `platform`; `accessLink` y `accessInstructions` se reciben al crear o actualizar, pero no se exponen en las respuestas.
 
 ### PurchaseResponse
 

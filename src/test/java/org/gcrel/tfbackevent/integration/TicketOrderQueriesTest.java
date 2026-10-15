@@ -27,6 +27,7 @@ import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -161,6 +162,26 @@ class TicketOrderQueriesTest {
                 organizer, EventRole.ORGANIZER, EventStatus.PUBLISHED,
                 List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED))
                 .stream().map(e -> e.getId()).toList());
+    }
+
+    @Test
+    void countByEventInAndStatusIn_GroupsReservedTicketsByEvent() {
+        InPersonEvent emptyEvent = new InPersonEvent(
+                "Empty", "Description", LocalDateTime.now().plusDays(1),
+                new BigDecimal("20.00"), "Address",
+                new BigDecimal("-34.60"), new BigDecimal("-58.38"), 50);
+        eventRepository.save(emptyEvent);
+        orderWithTickets(LocalDateTime.now(), 2, TicketStatus.PENDING);
+        orderWithTickets(LocalDateTime.now(), 1, TicketStatus.USED);
+        orderWithTickets(LocalDateTime.now(), 3, TicketStatus.CANCELLED); // no ocupa cupo
+        entityManager.flush();
+
+        List<EventTicketCount> counts = ticketRepository.countByEventInAndStatusIn(
+                List.of(event, emptyEvent),
+                List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED));
+
+        // Los eventos sin entradas no aparecen: el servicio los trata como 0.
+        assertEquals(List.of(new EventTicketCount(event.getId(), 3)), counts);
     }
 
     private TicketOrder orderWithTickets(LocalDateTime createdAt, int quantity, TicketStatus status) {

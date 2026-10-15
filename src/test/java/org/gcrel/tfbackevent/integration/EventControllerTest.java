@@ -110,6 +110,7 @@ public class EventControllerTest {
                 request.latitude(),
                 request.longitude(),
                 request.capacity(),
+                request.capacity(),
                 null);
 
         when(eventService.createEvent(any(CreateEventRequest.class), any(User.class)))
@@ -177,6 +178,7 @@ public class EventControllerTest {
                 request.latitude(),
                 request.longitude(),
                 request.capacity(),
+                request.capacity(),
                 null);
 
         when(eventService.updateEvent(eq(eventId), any(UpdateEventRequest.class), any(User.class)))
@@ -240,6 +242,7 @@ public class EventControllerTest {
                 new BigDecimal("-34.6"),
                 new BigDecimal("-58.38"),
                 100,
+                60,
                 null);
 
         when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
@@ -249,7 +252,8 @@ public class EventControllerTest {
                         .with(authentication(authentication)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(eventId.toString()))
-                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.availableTickets").value(60));
     }
 
     @Test
@@ -282,6 +286,7 @@ public class EventControllerTest {
                 "ACTIVE",
                 new BigDecimal("15.00"),
                 "VIRTUAL",
+                null,
                 null,
                 null,
                 null,
@@ -321,6 +326,7 @@ public class EventControllerTest {
                 new BigDecimal("-34.60"),
                 new BigDecimal("-58.38"),
                 50,
+                50,
                 null);
         EventResponse second = new EventResponse(
                 UUID.randomUUID(),
@@ -330,6 +336,7 @@ public class EventControllerTest {
                 "ACTIVE",
                 new BigDecimal("20.00"),
                 "VIRTUAL",
+                null,
                 null,
                 null,
                 null,

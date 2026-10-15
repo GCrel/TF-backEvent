@@ -2,6 +2,7 @@ package org.gcrel.tfbackevent.unit.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -42,6 +43,7 @@ import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -377,14 +379,36 @@ public class EventServiceTest {
                 "Zoom",
                 "Use the link");
 
+        inPersonEvent.setId(UUID.randomUUID());
+        virtualEvent.setId(UUID.randomUUID());
+
         when(eventRepository.findByStatusOrderByDateTimeAsc(eq(EventStatus.PUBLISHED), any(Pageable.class)))
                 .thenReturn(List.of(inPersonEvent, virtualEvent));
+        when(ticketRepository.countByEventInAndStatusIn(eq(List.of(inPersonEvent)), any()))
+                .thenReturn(List.of(new EventTicketCount(inPersonEvent.getId(), 30)));
 
         List<EventResponse> response = eventService.getPublishedEvents(Pageable.ofSize(20));
 
         assertEquals(2, response.size());
         assertEquals("IN_PERSON", response.get(0).eventType());
+        assertEquals(70, response.get(0).availableTickets());
         assertEquals("VIRTUAL", response.get(1).eventType());
+        assertNull(response.get(1).availableTickets());
+        verify(ticketRepository, never()).countByEventAndStatusIn(any(), any());
+    }
+
+    @Test
+    void getEvent_InPerson_ReturnsRemainingTicketsWithoutGoingNegative() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = new InPersonEvent(
+                "Sold out", "Conference", eventDateTime, new BigDecimal("120.00"),
+                "Calle 123", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 10);
+        event.setStatus(EventStatus.PUBLISHED);
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        // La capacidad pudo bajar por debajo de lo vendido antes de esta validación.
+        when(ticketRepository.countByEventAndStatusIn(eq(event), any())).thenReturn(12L);
+
+        assertEquals(0, eventService.getEvent(eventId, null).availableTickets());
     }
 
     @Test

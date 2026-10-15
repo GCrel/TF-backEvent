@@ -3,7 +3,9 @@ package org.gcrel.tfbackevent.event.service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.config.EventWindowProperties;
@@ -31,6 +33,7 @@ import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -39,6 +42,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EventService {
+    // Estados que ocupan cupo: las pendientes de pago también reservan lugar.
+    private static final List<TicketStatus> RESERVED_STATUSES = List.of(
+            TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED);
+
     private final EventRepository eventRepository;
     private final EventParticipationRepository eventParticipationRepository;
     private final OrganizerMpAccountRepository mpAccountRepository;
@@ -125,8 +132,7 @@ public class EventService {
     }
 
     private void validateSalesConstraints(Event event, UpdateEventRequest request) {
-        long soldTickets = ticketRepository.countByEventAndStatusIn(
-                event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED));
+        long soldTickets = ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES);
         if (event instanceof InPersonEvent
                 && request.capacity() != null && request.capacity() < soldTickets) {
             throw new BadRequestException("La capacidad no puede ser menor a las entradas vendidas.");
@@ -148,9 +154,8 @@ public class EventService {
     }
 
     public List<EventResponse> getPublishedEvents(Pageable pageable) {
-        return eventRepository.findByStatusOrderByDateTimeAsc(
-                EventStatus.PUBLISHED, withoutSort(pageable))
-                .stream().map(this::toResponse).toList();
+        return toResponses(eventRepository.findByStatusOrderByDateTimeAsc(
+                EventStatus.PUBLISHED, withoutSort(pageable)));
     }
 
     public List<EventResponse> getMyEvents(User organizer, Pageable pageable) {
@@ -163,8 +168,7 @@ public class EventService {
                 ? eventRepository.findByParticipant(user, role, withoutSort(pageable))
                 : eventRepository.findByParticipantAndStatus(
                         user, role, status, withoutSort(pageable));
-        return events
-                .stream().map(this::toResponse).toList();
+        return toResponses(events);
     }
 
     private Pageable withoutSort(Pageable pageable) {
@@ -188,8 +192,7 @@ public class EventService {
                 .orElseThrow(() -> new EventNotFoundException(id));
         validateOwnership(event, organizer);
         validateModifiable(event);
-        if (ticketRepository.countByEventAndStatusIn(
-                event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED)) > 0) {
+        if (ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES) > 0) {
             throw new EventHasTicketsException();
         }
         event.setStatus(EventStatus.CANCELLED);
@@ -260,8 +263,32 @@ public class EventService {
     }
 
     private EventResponse toResponse(Event event) {
+        long reserved = event instanceof InPersonEvent
+                ? ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES)
+                : 0;
+        return toResponse(event, reserved);
+    }
+
+    // Cuenta las entradas de todos los eventos presenciales en una sola consulta.
+    private List<EventResponse> toResponses(List<Event> events) {
+        List<Event> inPersonEvents = events.stream()
+                .filter(InPersonEvent.class::isInstance)
+                .toList();
+        Map<UUID, Long> reservedByEvent = inPersonEvents.isEmpty()
+                ? Map.of()
+                : ticketRepository.countByEventInAndStatusIn(inPersonEvents, RESERVED_STATUSES)
+                        .stream()
+                        .collect(Collectors.toMap(EventTicketCount::eventId, EventTicketCount::count));
+        return events.stream()
+                .map(event -> toResponse(event, event instanceof InPersonEvent
+                        ? reservedByEvent.getOrDefault(event.getId(), 0L)
+                        : 0))
+                .toList();
+    }
+
+    private EventResponse toResponse(Event event, long reservedTickets) {
         if (event instanceof InPersonEvent inPerson) {
-            return new EventResponse(inPerson);
+            return new EventResponse(inPerson, reservedTickets);
         } else if (event instanceof VirtualEvent virtual) {
             return new EventResponse(virtual);
         }

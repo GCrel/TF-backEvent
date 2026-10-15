@@ -22,12 +22,13 @@ public record EventResponse(
         BigDecimal latitude,
         BigDecimal longitude,
         Integer capacity,
+        Integer availableTickets,
 
         // Virtual Event
         String platform) {
 
     // Physical Event Constructor
-    public EventResponse(InPersonEvent event) {
+    public EventResponse(InPersonEvent event, long reservedTickets) {
         this(
                 event.getId(),
                 event.getTitle(),
@@ -40,6 +41,7 @@ public record EventResponse(
                 event.getLatitude(),
                 event.getLongitude(),
                 event.getCapacity(),
+                (int) Math.max(0, event.getCapacity() - reservedTickets),
                 null);
     }
 
@@ -53,6 +55,7 @@ public record EventResponse(
                 event.getStatus().name(),
                 event.getBasePrice(),
                 EventType.VIRTUAL.name(),
+                null,
                 null,
                 null,
                 null,

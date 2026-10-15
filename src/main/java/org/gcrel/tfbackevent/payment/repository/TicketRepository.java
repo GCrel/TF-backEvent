@@ -12,6 +12,7 @@ import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.gcrel.tfbackevent.payment.repository.dto.TicketAccessState;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,6 +27,13 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     List<Ticket> findByAttendee(User attendee);
 
     long countByEventAndStatusIn(Event event, Collection<TicketStatus> statuses);
+
+    // Conteo agrupado para armar listados de eventos con una sola consulta.
+    @Query("SELECT new org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount(t.event.id, COUNT(t)) "
+            + "FROM Ticket t WHERE t.event IN :events AND t.status IN :statuses GROUP BY t.event.id")
+    List<EventTicketCount> countByEventInAndStatusIn(
+            @Param("events") Collection<? extends Event> events,
+            @Param("statuses") Collection<TicketStatus> statuses);
 
     List<Ticket> findByOrder(TicketOrder order);
 
