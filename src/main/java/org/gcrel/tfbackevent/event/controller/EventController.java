@@ -8,6 +8,7 @@ import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -82,8 +83,10 @@ public class EventController {
 
     @GetMapping("/mine")
     public ResponseEntity<Page<EventResponse>> getMyEvents(
-            @AuthenticationPrincipal User organizer, Pageable pageable) {
-        return ResponseEntity.ok(eventService.getMyEvents(organizer, pageable));
+            @AuthenticationPrincipal User organizer,
+            @RequestParam(required = false) EventStatus status,
+            Pageable pageable) {
+        return ResponseEntity.ok(eventService.getMyEvents(organizer, status, pageable));
     }
 
     @PatchMapping("/{id}/cancel")

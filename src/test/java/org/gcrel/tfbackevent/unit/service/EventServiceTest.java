@@ -53,7 +53,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
 public class EventServiceTest {
@@ -417,6 +419,41 @@ public class EventServiceTest {
                 eq(LocalDateTime.of(2026, 11, 1, 0, 0)),
                 eq(LocalDateTime.of(2026, 12, 1, 0, 0)),
                 any(Pageable.class));
+    }
+
+    @Test
+    void getMyEvents_FiltersByStatusAndSortsMostRecentFirst() {
+        when(eventRepository.findByParticipantAndStatus(
+                eq(organizer), eq(EventRole.ORGANIZER), eq(EventStatus.DRAFT), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        eventService.getMyEvents(organizer, EventStatus.DRAFT, PageRequest.of(2, 10));
+
+        verify(eventRepository).findByParticipantAndStatus(organizer, EventRole.ORGANIZER, EventStatus.DRAFT,
+                PageRequest.of(2, 10, Sort.by(Sort.Direction.DESC, "event.dateTime")));
+    }
+
+    @Test
+    void getMyEvents_WithoutStatus_ReturnsEveryState() {
+        when(eventRepository.findByParticipant(eq(organizer), eq(EventRole.ORGANIZER), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        eventService.getMyEvents(organizer, null, PageRequest.of(0, 20));
+
+        verify(eventRepository).findByParticipant(organizer, EventRole.ORGANIZER,
+                PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "event.dateTime")));
+    }
+
+    @Test
+    void getControlledEvents_ReturnsPublishedEventsSoonestFirst() {
+        when(eventRepository.findByParticipantAndStatus(
+                eq(organizer), eq(EventRole.CONTROLLER), eq(EventStatus.PUBLISHED), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        eventService.getControlledEvents(organizer, PageRequest.of(0, 20));
+
+        verify(eventRepository).findByParticipantAndStatus(organizer, EventRole.CONTROLLER, EventStatus.PUBLISHED,
+                PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "event.dateTime")));
     }
 
     @Test

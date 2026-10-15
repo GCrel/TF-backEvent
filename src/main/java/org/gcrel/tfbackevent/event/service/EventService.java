@@ -40,6 +40,7 @@ import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -181,16 +182,24 @@ public class EventService {
                 withoutSort(pageable)));
     }
 
-    public Page<EventResponse> getMyEvents(User organizer, Pageable pageable) {
-        return getMyEvents(organizer, EventRole.ORGANIZER, null, pageable);
+    // Los más recientes primero; `status` null devuelve todos los estados.
+    public Page<EventResponse> getMyEvents(User organizer, EventStatus status, Pageable pageable) {
+        return getParticipantEvents(organizer, EventRole.ORGANIZER, status, Sort.Direction.DESC, pageable);
     }
 
-    public Page<EventResponse> getMyEvents(
-            User user, EventRole role, EventStatus status, Pageable pageable) {
+    // Los próximos primero: es la agenda de trabajo del controlador.
+    public Page<EventResponse> getControlledEvents(User controller, Pageable pageable) {
+        return getParticipantEvents(
+                controller, EventRole.CONTROLLER, EventStatus.PUBLISHED, Sort.Direction.ASC, pageable);
+    }
+
+    private Page<EventResponse> getParticipantEvents(
+            User user, EventRole role, EventStatus status, Sort.Direction direction, Pageable pageable) {
+        Pageable page = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(direction, "event.dateTime"));
         Page<Event> events = status == null
-                ? eventRepository.findByParticipant(user, role, withoutSort(pageable))
-                : eventRepository.findByParticipantAndStatus(
-                        user, role, status, withoutSort(pageable));
+                ? eventRepository.findByParticipant(user, role, page)
+                : eventRepository.findByParticipantAndStatus(user, role, status, page);
         return toResponses(events);
     }
 

@@ -32,6 +32,7 @@ import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -384,7 +385,7 @@ public class EventControllerTest {
 
         when(eventService.getPublishedEvents(
                 isNull(), isNull(), isNull(), isNull(), any(Pageable.class))).thenReturn(
-                new PageImpl<>(List.of(first, second), PageRequest.of(0, 2), 5));
+                        new PageImpl<>(List.of(first, second), PageRequest.of(0, 2), 5));
 
         mockMvc.perform(get("/api/v1/events").with(authentication(authentication)))
                 .andExpect(status().isOk())
@@ -428,6 +429,24 @@ public class EventControllerTest {
     @Test
     void getAllEvents_WithInvalidDate_Returns400() throws Exception {
         mockMvc.perform(get("/api/v1/events").param("from", "01/11/2026")
+                .with(authentication(authentication)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getMyEvents_WithStatus_PassesFilterToService() throws Exception {
+        when(eventService.getMyEvents(any(User.class), eq(EventStatus.DRAFT), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/events/mine").param("status", "DRAFT")
+                .with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+    }
+
+    @Test
+    void getMyEvents_WithUnknownStatus_Returns400() throws Exception {
+        mockMvc.perform(get("/api/v1/events/mine").param("status", "ARCHIVED")
                 .with(authentication(authentication)))
                 .andExpect(status().isBadRequest());
     }

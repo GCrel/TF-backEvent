@@ -38,6 +38,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -198,13 +199,18 @@ class TicketOrderQueriesTest {
         participationRepository.save(new EventParticipation(organizer, draft, EventRole.ORGANIZER));
         entityManager.flush();
 
-        Page<Event> all = eventRepository.findByParticipant(
-                organizer, EventRole.ORGANIZER, PageRequest.of(0, 1));
+        Page<Event> all = eventRepository.findByParticipant(organizer, EventRole.ORGANIZER,
+                PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "event.dateTime")));
+        Page<Event> allAscending = eventRepository.findByParticipant(organizer, EventRole.ORGANIZER,
+                PageRequest.of(0, 1, Sort.by(Sort.Direction.ASC, "event.dateTime")));
         Page<Event> published = eventRepository.findByParticipantAndStatus(
-                organizer, EventRole.ORGANIZER, EventStatus.PUBLISHED, PageRequest.of(0, 1));
+                organizer, EventRole.ORGANIZER, EventStatus.PUBLISHED,
+                PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "event.dateTime")));
 
-        assertEquals(1, all.getContent().size());
+        assertEquals(List.of(draft.getId()), all.map(Event::getId).getContent());
+        assertEquals(List.of(event.getId()), allAscending.map(Event::getId).getContent());
         assertEquals(2, all.getTotalElements());
+        assertEquals(List.of(event.getId()), published.map(Event::getId).getContent());
         assertEquals(1, published.getTotalElements());
     }
 

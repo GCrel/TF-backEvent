@@ -622,8 +622,24 @@ Ejemplo: `GET /api/v1/events?eventType=VIRTUAL&q=java&from=2026-11-01&to=2026-11
 `GET /api/v1/events/mine`
 
 Obtiene los eventos donde el usuario autenticado participa como organizador,
-incluidos sus borradores, cancelados y finalizados. La respuesta está
-[paginada](#paginación) y se ordena por `dateTime` descendente.
+incluidos sus borradores, cancelados y finalizados. Se ordena por `dateTime`
+descendente (los más recientes primero). Requiere autenticación.
+
+**Parámetros de consulta:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `status` | string | No | `DRAFT`, `PUBLISHED`, `CANCELLED` o `FINISHED`. Sin el parámetro se devuelven todos los estados; un valor distinto responde `400 Bad Request`. |
+| `page`, `size` | integer | No | Ver [Paginación](#paginación). |
+
+Ejemplo: `GET /api/v1/events/mine?status=DRAFT&page=0&size=20`
+
+**Respuesta exitosa: `200 OK`**
+
+Una [página](#paginación) de `EventResponse`, con el mismo formato que
+[Listar eventos](#listar-eventos). Como en todo listado, `accessLink`,
+`accessInstructions` e `isOrganizer` se omiten; para editar un evento se usa
+[Obtener evento](#obtener-evento).
 
 ### Cancelar evento
 

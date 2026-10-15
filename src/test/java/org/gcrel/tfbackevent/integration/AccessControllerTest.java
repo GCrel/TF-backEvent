@@ -196,11 +196,8 @@ class AccessControllerTest {
                 new java.math.BigDecimal("20.00"), "IN_PERSON", "Address",
                 new java.math.BigDecimal("-34.60"), new java.math.BigDecimal("-58.38"),
                 100, 100, null, null, null, null);
-        when(eventService.getMyEvents(
-                eq(user),
-                eq(org.gcrel.tfbackevent.model.enums.EventRole.CONTROLLER),
-                eq(org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED),
-                any(Pageable.class))).thenReturn(new PageImpl<>(List.of(response)));
+        when(eventService.getControlledEvents(eq(user), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(response)));
 
         mockMvc.perform(get("/api/v1/access/my-events")
                 .with(authentication(authentication)))

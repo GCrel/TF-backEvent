@@ -22,8 +22,10 @@ import jakarta.persistence.LockModeType;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, UUID> {
-    // Cada filtro es opcional: un parámetro null no restringe. `pattern` ya viene en
-    // minúsculas, con comodines escapados y rodeado de '%'. Los CAST le dan tipo a las
+    // Cada filtro es opcional: un parámetro null no restringe. `pattern` ya viene
+    // en
+    // minúsculas, con comodines escapados y rodeado de '%'. Los CAST le dan tipo a
+    // las
     // fechas nulas, que PostgreSQL no puede inferir en `IS NULL`.
     @Query("""
             SELECT e FROM Event e
@@ -48,7 +50,6 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             SELECT ep.event FROM EventParticipation ep
             WHERE ep.user = :user
             AND ep.id.eventRole = :role
-            ORDER BY ep.event.dateTime DESC
             """)
     Page<Event> findByParticipant(
             @Param("user") User user,
@@ -60,7 +61,6 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             WHERE ep.user = :user
             AND ep.id.eventRole = :role
             AND ep.event.status = :status
-            ORDER BY ep.event.dateTime ASC
             """)
     Page<Event> findByParticipantAndStatus(
             @Param("user") User user,

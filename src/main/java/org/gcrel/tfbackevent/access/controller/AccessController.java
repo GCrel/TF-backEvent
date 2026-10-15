@@ -9,8 +9,6 @@ import org.gcrel.tfbackevent.access.service.AccessService;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
-import org.gcrel.tfbackevent.model.enums.EventRole;
-import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -52,7 +50,6 @@ public class AccessController {
     public ResponseEntity<Page<EventResponse>> getMyEvents(
             @AuthenticationPrincipal User controller,
             Pageable pageable) {
-        return ResponseEntity.ok(eventService.getMyEvents(
-                controller, EventRole.CONTROLLER, EventStatus.PUBLISHED, pageable));
+        return ResponseEntity.ok(eventService.getControlledEvents(controller, pageable));
     }
 }
