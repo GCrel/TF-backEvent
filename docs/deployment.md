@@ -90,6 +90,17 @@ En producción, además:
   práctica es levantar una vez con perfil `dev` contra una base vacía para que
   Hibernate genere el esquema, exportarlo (`pg_dump --schema-only`) y aplicarlo en
   producción. Cada cambio del modelo requiere repetir este proceso.
+- **Coordenadas:** `in_person_events.latitude` y `longitude` son `numeric(10,7)`.
+  Un esquema generado antes de esta corrección las tiene como `numeric(10,0)` y
+  redondea a grados enteros; se corrige con:
+
+  ```sql
+  ALTER TABLE in_person_events
+      ALTER COLUMN latitude TYPE numeric(10,7),
+      ALTER COLUMN longitude TYPE numeric(10,7);
+  ```
+
+  Los valores ya guardados quedaron redondeados y hay que volver a cargarlos.
 - **Red:** la base no debe ser accesible desde Internet; solo desde el backend.
 - **Respaldo:** configurar backups periódicos (los de la base administrada del
   proveedor o `pg_dump` programado).

@@ -260,6 +260,22 @@ class TicketOrderQueriesTest {
                 participationRepository.findNamesByEventInAndRole(List.of(event, orphan), EventRole.ORGANIZER));
     }
 
+    @Test
+    void inPersonEvent_KeepsCoordinateDecimals() {
+        InPersonEvent located = new InPersonEvent(
+                "Located", "Description", LocalDateTime.now().plusDays(1),
+                new BigDecimal("20.00"), "Address",
+                new BigDecimal("-34.6037221"), new BigDecimal("-178.3815921"), 50);
+        eventRepository.save(located);
+        entityManager.flush();
+        entityManager.clear();
+
+        InPersonEvent reloaded = (InPersonEvent) eventRepository.findById(located.getId()).orElseThrow();
+
+        assertEquals(new BigDecimal("-34.6037221"), reloaded.getLatitude());
+        assertEquals(new BigDecimal("-178.3815921"), reloaded.getLongitude());
+    }
+
     private List<UUID> search(Class<? extends Event> type, String pattern, LocalDateTime from, LocalDateTime to) {
         return eventRepository.search(EventStatus.PUBLISHED, type, pattern, from, to, PageRequest.of(0, 10))
                 .map(Event::getId).getContent();

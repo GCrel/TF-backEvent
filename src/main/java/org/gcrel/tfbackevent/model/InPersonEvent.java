@@ -14,10 +14,12 @@ public class InPersonEvent extends Event {
     @Column(nullable = false)
     private String address;
 
-    @Column(precision = 10)
+    // Sin scale, Hibernate crea numeric(10,0) y PostgreSQL redondea a grados enteros.
+    // 7 decimales ≈ 1 cm; 10 dígitos alcanzan para ±180.0000000.
+    @Column(precision = 10, scale = 7)
     private BigDecimal latitude;
 
-    @Column(precision = 10)
+    @Column(precision = 10, scale = 7)
     private BigDecimal longitude;
 
     @Column(nullable = false)
