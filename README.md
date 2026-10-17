@@ -148,7 +148,9 @@ cp .env.template .env
 docker compose up --build
 ```
 
-La API queda disponible en `http://localhost:8085` y Swagger UI (perfil `dev`) en
+La API queda disponible en `http://localhost:8080` a través de Nginx, que además
+sirve las imágenes de los eventos. El backend también responde directo en
+`http://localhost:8085`, y Swagger UI (perfil `dev`) está en
 `http://localhost:8085/swagger-ui.html`.
 
 Para ejecución local con Maven, datos de prueba y configuración detallada, ver

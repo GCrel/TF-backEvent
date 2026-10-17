@@ -15,6 +15,7 @@ Las instrucciones específicas de cada plataforma se agregan en
 - [Base de datos](#base-de-datos)
 - [MercadoPago](#mercadopago)
 - [HTTPS y proxy inverso](#https-y-proxy-inverso)
+- [Imágenes de eventos](#imágenes-de-eventos)
 - [Operación y escalado](#operación-y-escalado)
 - [Checklist de despliegue](#checklist-de-despliegue)
 - [Guías por proveedor](#guías-por-proveedor)
@@ -67,6 +68,7 @@ En producción, además:
 | `JWT_SECRET_KEY` | Clave Base64 de al menos 32 bytes, única para producción (`openssl rand -base64 32`). |
 | `MERCADO_PAGO_REDIRECT_URI` | URL pública HTTPS de `/api/v1/mp/callback`. |
 | `MERCADO_PAGO_FRONTEND_RETURN_URL` | Ruta del frontend a la que vuelve el organizador tras vincular MercadoPago. |
+| `IMAGES_STORAGE_PATH` | Directorio de las imágenes dentro del contenedor (`/app/uploads`, ya definido en `docker-compose.yaml`). |
 | `POSTGRES_*`, `SMTP_*`, `MERCADO_PAGO_*` | Credenciales reales, idealmente gestionadas por un gestor de secretos del proveedor. |
 
 > Nunca uses los valores de `.env.template` en producción ni subas el `.env` real al
@@ -108,13 +110,52 @@ minutos, por lo que el reloj del servidor debe estar sincronizado (NTP).
 ## HTTPS y proxy inverso
 
 La API debe exponerse siempre por **HTTPS** (MercadoPago lo exige para el callback y
-los webhooks). Se recomienda un proxy inverso (Nginx, Traefik, Caddy) o el
-balanceador del proveedor que:
+los webhooks). El proyecto incluye Nginx como proxy inverso (ver
+[Imágenes de eventos](#imágenes-de-eventos)); ese Nginx, o el balanceador que se
+ponga delante, debe:
 
 - Termine TLS.
 - Redirija el tráfico al backend en el puerto `8085`.
 - Reenvíe los headers `Authorization` y los de MercadoPago (`x-signature`,
   `x-request-id`).
+
+## Imágenes de eventos
+
+Las imágenes se guardan en disco y las sirve Nginx (ver
+[ADR-016](decisions.md#adr-016-imágenes-en-volumen-local-servidas-por-nginx)). La
+configuración está en `deploy/nginx/`:
+
+- `default.conf`: servidor que reenvía la API al backend (`backend:8085`) y fija
+  `client_max_body_size 6m`. Con el valor por defecto de Nginx (1 MB) las subidas
+  fallan con `413` antes de llegar al backend.
+- `images.conf`: atiende `GET /api/v1/images/<uuid>.(webp|jpg|png)` desde el
+  volumen, con `X-Content-Type-Options: nosniff` y caché inmutable. Cualquier otra
+  ruta bajo `/api/v1/images/` responde `404`.
+
+Requisitos:
+
+- **Volumen compartido.** El backend escribe en el volumen `uploads`
+  (`/app/uploads`) y Nginx lo monta en **solo lectura** (`/srv/images`). Ambos
+  deben correr en el mismo servidor.
+- **TLS.** Si Nginx también termina TLS, agregá el bloque `listen 443 ssl` con los
+  certificados al `default.conf` (o poné delante el proxy que termine TLS y que
+  reenvíe a este Nginx). Si `/api/v1/images/` se enruta directo al backend, las
+  imágenes no se sirven.
+- **Respaldo.** El volumen `uploads` no está en la base: respaldalo aparte, por
+  ejemplo:
+
+  ```bash
+  docker run --rm -v tf-backevent_uploads:/data:ro -v "$PWD":/backup alpine \
+    tar czf /backup/uploads-$(date +%F).tar.gz -C /data .
+  ```
+
+  El nombre real del volumen lleva el prefijo del proyecto de Compose (verificalo
+  con `docker volume ls`).
+- **Esquema.** La columna `events.image_key` es nueva. Sobre una base existente:
+
+  ```sql
+  ALTER TABLE events ADD COLUMN image_key varchar(255);
+  ```
 
 ## Operación y escalado
 
@@ -138,6 +179,9 @@ balanceador del proveedor que:
 - [ ] `MERCADO_PAGO_REDIRECT_URI`, URL de webhooks y `MERCADO_PAGO_FRONTEND_RETURN_URL` por HTTPS.
 - [ ] Reloj sincronizado (NTP) para la validación de firma de webhooks.
 - [ ] TLS terminado en el proxy inverso o balanceador.
+- [ ] Nginx con `deploy/nginx/`: `client_max_body_size 6m` y `/api/v1/images/` servido desde el volumen.
+- [ ] Columna `events.image_key` presente en el esquema.
+- [ ] Respaldo periódico del volumen `uploads`, además del de la base.
 - [ ] Una sola instancia del backend (o coordinación de tareas programadas).
 
 ## Guías por proveedor

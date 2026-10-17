@@ -2,7 +2,7 @@
 
 ## Información general
 
-- **Base URL:** `http://localhost:8085`
+- **Base URL:** `http://localhost:8080` (Nginx, con Docker Compose). El backend también responde directo en `http://localhost:8085`, pero las imágenes (`/api/v1/images/...`) solo las sirve Nginx.
 - **Formato de datos:** JSON
 - **Autenticación:** Bearer Token (JWT)
 - **Documentación interactiva (perfil `dev`):** `http://localhost:8085/swagger-ui.html` (`/v3/api-docs` para el JSON OpenAPI)
@@ -35,6 +35,8 @@ Los endpoints protegidos devuelven `401 Unauthorized` si no se envía el token o
 | `403 Forbidden` | El usuario no tiene permisos para el recurso |
 | `404 Not Found` | El recurso no existe |
 | `409 Conflict` | El recurso existe pero no está en un estado compatible con la operación |
+| `413 Payload Too Large` | El archivo subido supera el tamaño máximo |
+| `415 Unsupported Media Type` | El archivo subido no tiene un formato aceptado |
 | `428 Precondition Required` | Falta un requisito previo (por ejemplo, cuenta de MercadoPago vinculada) |
 | `500 Internal Server Error` | Error interno del servidor |
 | `502 Bad Gateway` | Fallo al comunicarse con MercadoPago |
@@ -439,7 +441,8 @@ Crea un nuevo evento en estado `DRAFT` y registra al usuario autenticado como or
   "availableTickets": 500,
   "platform": null,
   "isOrganizer": true,
-  "organizerName": "Ana García"
+  "organizerName": "Ana García",
+  "imageUrl": null
 }
 ```
 
@@ -608,7 +611,8 @@ Ejemplo: `GET /api/v1/events?eventType=VIRTUAL&q=java&from=2026-11-01&to=2026-11
       "capacity": null,
       "availableTickets": null,
       "platform": "Zoom",
-      "organizerName": "Ana García"
+      "organizerName": "Ana García",
+      "imageUrl": "/api/v1/images/3f2a9c1e-1b2c-4d5e-8f90-0123456789ab.webp"
     }
   ],
   "page": {
@@ -665,6 +669,64 @@ Cambia el estado del evento a `CANCELLED` (Requiere autenticación, solo el orga
 | `403 Forbidden` | El usuario no es el organizador del evento |
 | `404 Not Found` | El evento no existe |
 | `409 Conflict` | El evento está cancelado/finalizado, o ya tiene entradas compradas |
+
+### Subir o reemplazar la imagen del evento
+
+`PUT /api/v1/events/{id}/image`
+
+Guarda la imagen de portada del evento; si ya tenía una, la reemplaza (Requiere
+autenticación, solo el organizador). El evento debe existir primero: el frontend
+lo crea y después sube la imagen.
+
+El cuerpo es `multipart/form-data` con el archivo en el campo `file`. Se aceptan
+JPEG, PNG y WebP de hasta **5 MB**; el formato se reconoce por el contenido del
+archivo, no por su nombre ni por el `Content-Type` declarado. SVG no se acepta. Se
+recomienda redimensionar y comprimir (preferentemente a WebP) antes de subir.
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/events/{id}/image \
+  -H "Authorization: Bearer <access-token>" \
+  -F "file=@portada.webp"
+```
+
+**Respuesta exitosa: `200 OK`**
+
+Devuelve el `EventResponse` con `imageUrl` actualizado, por ejemplo
+`"/api/v1/images/3f2a9c1e-1b2c-4d5e-8f90-0123456789ab.webp"`.
+
+**Errores:**
+
+| Código | Causa |
+|--------|-------|
+| `400 Bad Request` | Falta el campo `file` o el archivo está vacío |
+| `403 Forbidden` | El usuario no es el organizador del evento |
+| `404 Not Found` | El evento no existe |
+| `409 Conflict` | El evento está cancelado o finalizado |
+| `413 Payload Too Large` | El archivo supera 5 MB |
+| `415 Unsupported Media Type` | El archivo no es JPEG, PNG ni WebP |
+
+### Quitar la imagen del evento
+
+`DELETE /api/v1/events/{id}/image`
+
+Quita la imagen de portada (Requiere autenticación, solo el organizador). Si el
+evento no tenía imagen, no hace nada.
+
+**Respuesta exitosa: `204 No Content`**
+
+**Errores:** los mismos `403`, `404` y `409` que al subirla.
+
+### Descargar una imagen
+
+`GET /api/v1/images/{key}`
+
+Público. Lo atiende **Nginx** directamente desde el volumen de imágenes, sin pasar
+por el backend: la URL se arma con el `imageUrl` del evento (relativo, el frontend
+le antepone la URL base). Solo responde a claves con el formato
+`<uuid>.(webp|jpg|png)`; cualquier otra ruta devuelve `404`.
+
+Las respuestas incluyen `Cache-Control: public, max-age=31536000, immutable` (al
+reemplazar una imagen cambia su URL) y `X-Content-Type-Options: nosniff`.
 
 ---
 
@@ -1255,7 +1317,8 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
   "accessLink": "string",
   "accessInstructions": "string",
   "isOrganizer": "boolean",
-  "organizerName": "string"
+  "organizerName": "string",
+  "imageUrl": "string"
 }
 ```
 
@@ -1263,6 +1326,7 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 |-------|---------|
 | `status` | `DRAFT`, `PUBLISHED`, `CANCELLED` o `FINISHED` |
 | `eventType` | `IN_PERSON` o `VIRTUAL` |
+| `imageUrl` | Ruta relativa de la imagen de portada (`/api/v1/images/{key}`), o `null` si el evento no tiene imagen. Ver [Descargar una imagen](#descargar-una-imagen). |
 | `organizerName` | Nombre del organizador del evento. Viene en el detalle, en los listados y en las respuestas de crear, actualizar y publicar. |
 | `isOrganizer` | Si el usuario actual organiza el evento. Viene en `GET /api/v1/events/{id}` y en las respuestas de crear, actualizar y publicar (siempre `true`); en los listados se omite. |
 | `availableTickets` | Entradas que quedan a la venta: `capacity` menos las entradas pendientes de pago, activas o usadas (nunca negativo). `0` significa agotado. |

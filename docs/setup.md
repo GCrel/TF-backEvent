@@ -77,17 +77,27 @@ cp .env.template .env
 
 ## Opción A: Docker Compose (recomendada)
 
-Levanta PostgreSQL y el backend en una red común:
+Levanta PostgreSQL, el backend y Nginx en una red común. Nginx es la entrada de la
+API (reenvía al backend) y sirve las imágenes de los eventos, igual que en
+producción:
 
 ```bash
 cp .env.template .env     # completar valores
 docker compose up --build
 ```
 
-- API: `http://localhost:8085`
+- API (vía Nginx): `http://localhost:8080`. Es la URL base que debe usar el
+  frontend: las imágenes (`/api/v1/images/...`) solo se sirven por acá.
+- Backend directo: `http://localhost:8085` (el callback OAuth de MercadoPago en
+  `dev` apunta a este puerto).
 - Swagger UI: `http://localhost:8085/swagger-ui.html` (si `SPRING_PROFILES_ACTIVE=dev`)
 - Los datos de PostgreSQL persisten en el volumen `pgdata` (con perfil `dev` el
   esquema igualmente se recrea en cada arranque).
+- Las imágenes subidas persisten en el volumen `uploads`. Como el esquema se
+  recrea, después de reiniciar quedan archivos sin evento asociado; se borran con
+  `docker compose down -v`.
+- La configuración de Nginx está en `deploy/nginx/` (`default.conf` y
+  `images.conf`).
 - PostgreSQL queda expuesto en `localhost:5432` para poder conectarse desde
   herramientas locales.
 
@@ -95,7 +105,7 @@ Para detener:
 
 ```bash
 docker compose down          # conserva datos
-docker compose down -v       # elimina el volumen de PostgreSQL
+docker compose down -v       # elimina los volúmenes de PostgreSQL e imágenes
 ```
 
 El servicio `backend` espera a que la base de datos pase su `healthcheck` antes de
@@ -128,6 +138,10 @@ arrancar.
    ```bash
    ./mvnw spring-boot:run
    ```
+
+> Sin Nginx, las imágenes subidas se guardan en `./uploads` (configurable con
+> `IMAGES_STORAGE_PATH`) pero nadie las sirve: para verlas en el frontend usá la
+> opción A.
 
 ## Datos de prueba (perfil dev)
 
@@ -226,3 +240,6 @@ Valores definidos por defecto en `application.properties`:
 | `event.access-window.before-hours` | `3` | Horas de ingreso antes del evento. |
 | `event.access-window.after-hours` | `12` | Horas de ingreso/compra después del evento. |
 | `event.finish.retry-delay-ms` | `60000` | Intervalo del cierre automático de eventos. |
+| `storage.images.path` | `${IMAGES_STORAGE_PATH:uploads}` | Directorio de las imágenes de eventos (`/app/uploads` en Compose). |
+| `spring.servlet.multipart.max-file-size` | `5MB` | Tamaño máximo de una imagen. |
+| `spring.servlet.multipart.max-request-size` | `6MB` | Tamaño máximo del request multipart. |

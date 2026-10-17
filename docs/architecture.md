@@ -36,13 +36,16 @@ Componentes externos:
 - **PostgreSQL 15** — almacenamiento principal.
 - **MercadoPago** — procesamiento de pagos, OAuth del organizador y webhooks.
 - **SMTP** — envío de códigos de verificación y entradas.
+- **Nginx** — proxy inverso delante de la API; sirve las imágenes de los eventos
+  directamente desde el volumen `uploads`, que el backend escribe (ver
+  [ADR-016](decisions.md#adr-016-imágenes-en-volumen-local-servidas-por-nginx)).
 
 ## Organización por módulos
 
 ```text
 org.gcrel.tfbackevent
 ├── auth/       Registro, login, verificación de email, tokens JWT y envío de correos.
-├── event/      Ciclo de vida de eventos y ventana de acceso.
+├── event/      Ciclo de vida de eventos, ventana de acceso e imágenes de portada.
 ├── payment/    Órdenes de compra, integración MercadoPago, webhooks, QR y entrega.
 ├── access/     Validación de QR presencial, acceso virtual y controladores.
 ├── model/      Entidades JPA y enums compartidos del dominio.

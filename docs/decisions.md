@@ -32,6 +32,7 @@ Para el detalle funcional ver [`architecture.md`](architecture.md) y [`api.md`](
 | [013](#adr-013-órdenes-de-compra-con-varias-entradas) | Órdenes de compra con varias entradas | Aceptada |
 | [014](#adr-014-eventos-gratuitos-sin-mercadopago) | Eventos gratuitos sin MercadoPago | Aceptada |
 | [015](#adr-015-oauth-de-mercadopago-adaptado-a-una-spa) | OAuth de MercadoPago adaptado a una SPA | Aceptada |
+| [016](#adr-016-imágenes-en-volumen-local-servidas-por-nginx) | Imágenes en volumen local servidas por Nginx | Aceptada |
 
 ## ADR-001: API REST stateless con JWT
 
@@ -322,6 +323,53 @@ frontend** (`mercadopago.frontend-return-url`) con `?status=linked` o
 - El backend necesita conocer la URL de retorno del frontend (variable de entorno
   en producción).
 
+## ADR-016: Imágenes en volumen local servidas por Nginx
+
+**Estado:** Aceptada.
+
+**Contexto.** Los eventos necesitan una imagen de portada. El despliegue es una sola
+VM con Docker Compose, y el volumen de imágenes esperado es chico. Las alternativas
+eran guardar los binarios en PostgreSQL, en un almacenamiento de objetos externo
+(OCI Object Storage, Cloudflare R2, S3) o en un servicio de imágenes (Cloudinary).
+
+**Decisión.**
+
+- **Almacenamiento híbrido.** El archivo se guarda en un volumen nombrado de Docker
+  (`uploads`, montado en `/app/uploads`) y la base solo guarda su clave
+  (`events.image_key`, p. ej. `3f2a….webp`). `EventResponse.imageUrl` expone la
+  ruta **relativa** `/api/v1/images/{key}`, sin acoplar los datos a un dominio.
+- **Escritura en Spring, lectura en Nginx.** El backend solo recibe, valida y
+  guarda (`PUT /events/{id}/image`) o borra (`DELETE /events/{id}/image`). Nginx
+  atiende `GET /api/v1/images/{key}` leyendo el mismo volumen en **solo lectura**,
+  así las descargas no ocupan hilos ni memoria de la JVM. Nginx también corre en
+  desarrollo, para que ambos entornos tengan la misma arquitectura.
+- **Nombres generados por el servidor.** Cada archivo se renombra a un UUID con la
+  extensión del formato detectado. El nombre que envía el cliente nunca llega al
+  disco: eso evita path traversal, la sobrescritura accidental o maliciosa de
+  otros archivos y las extensiones falsas. Evitar colisiones es un beneficio
+  secundario.
+- **Validación por contenido.** Solo se aceptan JPEG, PNG y WebP, reconocidos por sus
+  primeros bytes (no por la extensión ni el `Content-Type` del cliente). SVG queda
+  excluido porque puede contener scripts. Nginx sirve con
+  `X-Content-Type-Options: nosniff` y solo acepta rutas `<uuid>.(webp|jpg|png)`.
+- **Límites.** 5 MB en Spring y `client_max_body_size 6m` en Nginx. Redimensionar
+  y comprimir (preferentemente a WebP) es responsabilidad del frontend.
+- **Consistencia.** El archivo nuevo se escribe antes de actualizar la base; la
+  imagen sobrante (la anterior si la transacción se confirma, la nueva si se
+  revierte) se borra al cerrar la transacción.
+
+**Consecuencias.**
+
+- No hay servicios, SDKs ni credenciales externas, y la base no crece con binarios.
+- Las imágenes cambian de URL al reemplazarse, así que se cachean como inmutables.
+- El volumen `uploads` debe respaldarse aparte de la base.
+- Nginx y el backend deben compartir el volumen, es decir, correr en el mismo
+  servidor. Escalar a varios servidores requeriría pasar a un almacenamiento de
+  objetos (solo cambiaría `ImageStorageService` y la URL).
+- Un fallo al borrar deja archivos huérfanos; no hay limpieza automática.
+- Las imágenes de eventos en borrador son públicas para quien conozca la clave
+  (aleatoria, no adivinable).
+
 ## Limitaciones conocidas
 
 1. **Desvinculación de MercadoPago con ventana de carrera.** `DELETE /mp/disconnect`
@@ -344,3 +392,5 @@ frontend** (`mercadopago.frontend-return-url`) con `?status=linked` o
    `/api/v1/admin/**` para `ROLE_ADMIN`, pero todavía no existe ninguno.
 10. **Sin streaming en vivo:** los eventos virtuales usan un enlace externo (Zoom,
     Meet, etc.).
+11. **Imágenes huérfanas sin limpieza.** Si falla el borrado de un archivo de
+    imagen, queda en el volumen (ver [ADR-016](#adr-016-imágenes-en-volumen-local-servidas-por-nginx)).
