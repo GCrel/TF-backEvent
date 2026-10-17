@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventType;
@@ -34,7 +35,16 @@ public record EventResponse(
         // Solo en el detalle y en las respuestas al organizador; null (omitido) en listados.
         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean isOrganizer,
 
-        String organizerName) {
+        String organizerName,
+        // Ruta relativa que sirve Nginx; null si el evento no tiene imagen.
+        String imageUrl) {
+
+    private static final String IMAGE_PATH = "/api/v1/images/";
+
+    private static String imageUrl(Event event) {
+        return event.getImageKey() == null ? null : IMAGE_PATH + event.getImageKey();
+    }
+
 
     // Physical Event Constructor
     public EventResponse(
@@ -56,7 +66,8 @@ public record EventResponse(
                 null,
                 null,
                 isOrganizer,
-                organizerName);
+                organizerName,
+                imageUrl(event));
     }
 
     // Virtual Event Constructor
@@ -78,6 +89,7 @@ public record EventResponse(
                 Boolean.TRUE.equals(isOrganizer) ? event.getAccessLink() : null,
                 Boolean.TRUE.equals(isOrganizer) ? event.getAccessInstructions() : null,
                 isOrganizer,
-                organizerName);
+                organizerName,
+                imageUrl(event));
     }
 }

@@ -44,6 +44,9 @@ public abstract class Event {
     @Column(name = "base_price", nullable = false)
     private BigDecimal basePrice;
 
+    @Column(name = "image_key")
+    private String imageKey;
+
     public Event() {
     }
 
@@ -116,5 +119,13 @@ public abstract class Event {
 
     public void setStatus(EventStatus status) {
         this.status = status;
+    }
+
+    public String getImageKey() {
+        return imageKey;
+    }
+
+    public void setImageKey(String imageKey) {
+        this.imageKey = imageKey;
     }
 }

@@ -7,7 +7,9 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -30,6 +32,7 @@ import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
+import org.gcrel.tfbackevent.event.exception.UnsupportedImageTypeException;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
@@ -43,12 +46,15 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -119,7 +125,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Ana García");
+                "Ana García",
+                null);
 
         when(eventService.createEvent(any(CreateEventRequest.class), any(User.class)))
                 .thenReturn(response);
@@ -191,7 +198,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Ana García");
+                "Ana García",
+                null);
 
         when(eventService.updateEvent(eq(eventId), any(UpdateEventRequest.class), any(User.class)))
                 .thenReturn(response);
@@ -259,7 +267,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Ana García");
+                "Ana García",
+                null);
 
         when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -311,7 +320,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Ana García");
+                "Ana García",
+                null);
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -330,7 +340,7 @@ public class EventControllerTest {
                 eventId, "Webinar", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
                 "DRAFT", new BigDecimal("15.00"), "VIRTUAL",
                 null, null, null, null, null,
-                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes", true, "Ana García");
+                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes", true, "Ana García", null);
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -369,7 +379,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Ana García");
+                "Ana García",
+                null);
         EventResponse second = new EventResponse(
                 UUID.randomUUID(),
                 "Event 2",
@@ -387,7 +398,8 @@ public class EventControllerTest {
                 null,
                 null,
                 null,
-                "Ana García");
+                "Ana García",
+                null);
 
         when(eventService.getPublishedEvents(
                 isNull(), isNull(), isNull(), isNull(), any(Pageable.class))).thenReturn(
@@ -456,6 +468,58 @@ public class EventControllerTest {
         mockMvc.perform(get("/api/v1/events/mine").param("status", "ARCHIVED")
                 .with(authentication(authentication)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateImage_Success_ReturnsEventWithRelativeImageUrl() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "foto.webp", "image/webp", new byte[] { 1, 2, 3 });
+        EventResponse response = new EventResponse(
+                eventId, "Webinar", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
+                "DRAFT", new BigDecimal("15.00"), "VIRTUAL",
+                null, null, null, null, null,
+                "Meet", null, null, true, "Ana García", "/api/v1/images/abc.webp");
+        when(eventService.updateImage(eq(eventId), any(MultipartFile.class), any(User.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/events/{id}/image", eventId)
+                .file(file)
+                .with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").value("/api/v1/images/abc.webp"));
+    }
+
+    @Test
+    void updateImage_UnsupportedType_Returns415() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "logo.svg", "image/svg+xml", "<svg/>".getBytes());
+        when(eventService.updateImage(eq(eventId), any(MultipartFile.class), any(User.class)))
+                .thenThrow(new UnsupportedImageTypeException());
+
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/events/{id}/image", eventId)
+                .file(file)
+                .with(authentication(authentication)))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.error").value("La imagen debe ser JPEG, PNG o WebP."));
+    }
+
+    @Test
+    void updateImage_WithoutFile_Returns400() throws Exception {
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/events/{id}/image", UUID.randomUUID())
+                .with(authentication(authentication)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deleteImage_Success_Returns204() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        doNothing().when(eventService).deleteImage(eq(eventId), any(User.class));
+
+        mockMvc.perform(delete("/api/v1/events/{id}/image", eventId)
+                .with(authentication(authentication)))
+                .andExpect(status().isNoContent());
     }
 
     @Test

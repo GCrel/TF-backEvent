@@ -45,6 +45,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class EventService {
@@ -57,15 +60,17 @@ public class EventService {
     private final OrganizerMpAccountRepository mpAccountRepository;
     private final TicketRepository ticketRepository;
     private final EventWindowProperties eventWindowProperties;
+    private final ImageStorageService imageStorageService;
 
     public EventService(EventRepository eventRepository, EventParticipationRepository eventParticipationRepository,
             OrganizerMpAccountRepository mpAccountRepository, TicketRepository ticketRepository,
-            EventWindowProperties eventWindowProperties) {
+            EventWindowProperties eventWindowProperties, ImageStorageService imageStorageService) {
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
         this.mpAccountRepository = mpAccountRepository;
         this.ticketRepository = ticketRepository;
         this.eventWindowProperties = eventWindowProperties;
+        this.imageStorageService = imageStorageService;
     }
 
     @Transactional
@@ -129,6 +134,54 @@ public class EventService {
 
         eventRepository.save(event);
         return toResponse(event, true);
+    }
+
+    @Transactional
+    public EventResponse updateImage(UUID id, MultipartFile file, User organizer) {
+        Event event = findModifiableEventForUpdate(id, organizer);
+        String previousKey = event.getImageKey();
+        String newKey = imageStorageService.store(file);
+        deleteImageAfterCompletion(previousKey, newKey);
+
+        event.setImageKey(newKey);
+        eventRepository.save(event);
+        return toResponse(event, true);
+    }
+
+    @Transactional
+    public void deleteImage(UUID id, User organizer) {
+        Event event = findModifiableEventForUpdate(id, organizer);
+        String previousKey = event.getImageKey();
+        if (previousKey == null) {
+            return;
+        }
+        deleteImageAfterCompletion(previousKey, null);
+
+        event.setImageKey(null);
+        eventRepository.save(event);
+    }
+
+    // El bloqueo evita que dos subidas simultáneas lean la misma imagen anterior y
+    // dejen una huérfana.
+        private Event findModifiableEventForUpdate(UUID id, User organizer) {
+        Event event = eventRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EventNotFoundException(id));
+        validateOwnership(event, organizer);
+        validateModifiable(event);
+        return event;
+    }
+
+    // Los archivos se borran recién al cerrar la transacción: si se confirma sobra
+    // la imagen
+    // anterior, y si se revierte sobra la nueva. Así ningún evento apunta a un
+    // archivo inexistente.
+    private void deleteImageAfterCompletion(String keyIfCommitted, String keyIfRolledBack) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                imageStorageService.delete(status == STATUS_COMMITTED ? keyIfCommitted : keyIfRolledBack);
+            }
+        });
     }
 
     private void requireMpAccountIfPaid(BigDecimal price, User organizer) {
@@ -306,7 +359,8 @@ public class EventService {
         return toResponse(event, reserved, isOrganizer, organizerName);
     }
 
-    // Cuenta las entradas y busca los organizadores de toda la página con una consulta para cada cosa.
+    // Cuenta las entradas y busca los organizadores de toda la página con una
+    // consulta para cada cosa.
     private Page<EventResponse> toResponses(Page<Event> events) {
         List<Event> inPersonEvents = events.stream()
                 .filter(InPersonEvent.class::isInstance)

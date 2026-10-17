@@ -33,6 +33,7 @@ import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName;
 import org.gcrel.tfbackevent.event.service.EventService;
+import org.gcrel.tfbackevent.event.service.ImageStorageService;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
@@ -57,6 +58,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 public class EventServiceTest {
@@ -74,6 +78,8 @@ public class EventServiceTest {
     private TicketRepository ticketRepository;
     @Mock
     private EventWindowProperties eventWindowProperties;
+    @Mock
+    private ImageStorageService imageStorageService;
 
     @InjectMocks
     private EventService eventService;
@@ -514,11 +520,106 @@ public class EventServiceTest {
     }
 
     @Test
+    void updateImage_WhenCommitted_StoresNewImageAndDeletesThePreviousOne() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, "old.png");
+        MockMultipartFile file = new MockMultipartFile("file", "foto.webp", "image/webp", new byte[] { 1 });
+        when(imageStorageService.store(file)).thenReturn("new.webp");
+
+        EventResponse response = inTransaction(TransactionSynchronization.STATUS_COMMITTED,
+                () -> eventService.updateImage(eventId, file, organizer));
+
+        assertEquals("new.webp", event.getImageKey());
+        assertEquals("/api/v1/images/new.webp", response.imageUrl());
+        verify(imageStorageService).delete("old.png");
+        verify(imageStorageService, never()).delete("new.webp");
+    }
+
+    @Test
+    void updateImage_WhenRolledBack_DeletesTheNewImageAndKeepsThePreviousOne() {
+        UUID eventId = UUID.randomUUID();
+        imageEvent(eventId, "old.png");
+        MockMultipartFile file = new MockMultipartFile("file", "foto.webp", "image/webp", new byte[] { 1 });
+        when(imageStorageService.store(file)).thenReturn("new.webp");
+
+        inTransaction(TransactionSynchronization.STATUS_ROLLED_BACK,
+                () -> eventService.updateImage(eventId, file, organizer));
+
+        verify(imageStorageService).delete("new.webp");
+        verify(imageStorageService, never()).delete("old.png");
+    }
+
+    @Test
+    void updateImage_WhenNotOrganizer_DoesNotStoreAnything() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, null);
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                event, organizer, EventRole.ORGANIZER)).thenReturn(false);
+        MockMultipartFile file = new MockMultipartFile("file", "foto.webp", "image/webp", new byte[] { 1 });
+
+        assertThrows(UnauthorizedEventAccessException.class,
+                () -> eventService.updateImage(eventId, file, organizer));
+        verify(imageStorageService, never()).store(any());
+    }
+
+    @Test
+    void updateImage_WhenEventFinished_ThrowsNotModifiable() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, null);
+        event.setStatus(EventStatus.FINISHED);
+        MockMultipartFile file = new MockMultipartFile("file", "foto.webp", "image/webp", new byte[] { 1 });
+
+        assertThrows(EventNotModifiableException.class,
+                () -> eventService.updateImage(eventId, file, organizer));
+        verify(imageStorageService, never()).store(any());
+    }
+
+    @Test
+    void deleteImage_ClearsTheKeyAndDeletesTheFileAfterCommit() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, "old.png");
+
+        inTransaction(TransactionSynchronization.STATUS_COMMITTED, () -> {
+            eventService.deleteImage(eventId, organizer);
+            return null;
+        });
+
+        assertNull(event.getImageKey());
+        verify(imageStorageService).delete("old.png");
+    }
+
+    @Test
     void getEvent_WhenIdDoesNotExist_ShouldThrowEventNotFoundException() {
         UUID eventId = UUID.randomUUID();
         when(eventRepository.findById(eventId)).thenReturn(Optional.empty());
 
         assertThrows(EventNotFoundException.class, () -> eventService.getEvent(eventId, null));
+    }
+
+    private InPersonEvent imageEvent(UUID eventId, String imageKey) {
+        InPersonEvent event = new InPersonEvent(
+                "Conference", "Description", eventDateTime, new BigDecimal("120.00"),
+                "Calle 123", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 100);
+        event.setId(eventId);
+        event.setStatus(EventStatus.PUBLISHED);
+        event.setImageKey(imageKey);
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
+        org.mockito.Mockito.lenient().when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                event, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        return event;
+    }
+
+    // Simula el cierre de la transacción que en producción abre @Transactional.
+    private <T> T inTransaction(int completionStatus, java.util.function.Supplier<T> action) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            T result = action.get();
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(sync -> sync.afterCompletion(completionStatus));
+            return result;
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
