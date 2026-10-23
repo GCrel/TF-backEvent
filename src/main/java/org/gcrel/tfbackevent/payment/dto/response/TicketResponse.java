@@ -9,6 +9,8 @@ public record TicketResponse(
         UUID id,
         UUID eventId,
         String eventTitle,
+        // Nombre del sector, o null si el evento no tiene sectores.
+        String sectorName,
         String status,
         LocalDateTime boughtAt,
         String qrCodeBase64) {
@@ -18,6 +20,7 @@ public record TicketResponse(
                 ticket.getId(),
                 ticket.getEvent().getId(),
                 ticket.getEvent().getTitle(),
+                ticket.getOrder().getSector() == null ? null : ticket.getOrder().getSector().getName(),
                 ticket.getStatus().toString(),
                 ticket.getBoughtAt(),
                 qr);

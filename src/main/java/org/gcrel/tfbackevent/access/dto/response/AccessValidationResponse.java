@@ -7,5 +7,6 @@ public record AccessValidationResponse(
         UUID ticketId,
         String attendeeName,
         String eventTitle,
+        String sectorName,
         LocalDateTime validatedAt) {
 }

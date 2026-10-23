@@ -22,6 +22,7 @@ import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
+import org.gcrel.tfbackevent.event.dto.request.UpdateSectorsRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
 import org.gcrel.tfbackevent.event.exception.EventHasSalesException;
 import org.gcrel.tfbackevent.event.exception.EventHasTicketsException;
@@ -34,6 +35,7 @@ import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.event.service.ImageStorageService;
+import org.gcrel.tfbackevent.event.service.SectorService;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
@@ -80,6 +82,8 @@ public class EventServiceTest {
     private EventWindowProperties eventWindowProperties;
     @Mock
     private ImageStorageService imageStorageService;
+    @Mock
+    private SectorService sectorService;
 
     @InjectMocks
     private EventService eventService;
@@ -732,6 +736,91 @@ public class EventServiceTest {
         assertThrows(EventNotPublishableException.class,
                 () -> eventService.publishEvent(eventId, organizer));
         verify(eventRepository, never()).save(existingEvent);
+    }
+
+    @Test
+    void replaceSectors_WithoutLayoutImage_IsAllowed() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, null);
+        event.setStatus(EventStatus.DRAFT);
+
+        eventService.replaceSectors(eventId, new UpdateSectorsRequest(List.of()), organizer);
+
+        verify(sectorService).replaceSectors(event, List.of());
+    }
+
+    @Test
+    void replaceSectors_OnVirtualEvent_ThrowsBadRequest() {
+        UUID eventId = UUID.randomUUID();
+        VirtualEvent webinar = new VirtualEvent("Webinar", "Online", eventDateTime, BigDecimal.ZERO,
+                "https://meet.example.com", "Meet", null);
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(webinar));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                webinar, organizer, EventRole.ORGANIZER)).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> eventService.replaceSectors(
+                eventId, new UpdateSectorsRequest(List.of()), organizer));
+    }
+
+    @Test
+    void replaceSectors_OnPublishedEventWithPaidSectorAndNoMp_ThrowsPreconditionRequired() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, null);
+        event.setLayoutImageKey("plano.png");
+        when(sectorService.maxPrice(event)).thenReturn(new BigDecimal("15000.00"));
+        when(mpAccountRepository.existsByUser(organizer)).thenReturn(false);
+
+        assertThrows(MpAccountNotLinkedException.class, () -> eventService.replaceSectors(
+                eventId, new UpdateSectorsRequest(List.of()), organizer));
+    }
+
+    @Test
+    void publishEvent_WhenAnySectorIsPaid_RequiresMpEvenIfBasePriceIsZero() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = new InPersonEvent(
+                "Recital", "Description", LocalDateTime.now().plusDays(5),
+                BigDecimal.ZERO, "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 60);
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventParticipationRepository.existsByEventAndUserAndId_EventRole(
+                event, organizer, EventRole.ORGANIZER)).thenReturn(true);
+        when(sectorService.maxPrice(event)).thenReturn(new BigDecimal("15000.00"));
+        when(mpAccountRepository.existsByUser(organizer)).thenReturn(false);
+
+        assertThrows(MpAccountNotLinkedException.class, () -> eventService.publishEvent(eventId, organizer));
+    }
+
+    @Test
+    void updateEvent_WithSectors_KeepsDerivedPriceAndCapacity() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, null);
+        event.setStatus(EventStatus.DRAFT);
+        when(sectorService.hasSectors(event)).thenReturn(true);
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Nuevo título", "Description", eventDateTime, new BigDecimal("1.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 5,
+                null, null, null);
+
+        eventService.updateEvent(eventId, request, organizer);
+
+        assertEquals("Nuevo título", event.getTitle());
+        assertEquals(new BigDecimal("120.00"), event.getBasePrice());
+        assertEquals(100, event.getCapacity());
+    }
+
+    @Test
+    void deleteLayoutImage_KeepsSectorsAndDeletesTheFileAfterCommit() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent event = imageEvent(eventId, null);
+        event.setLayoutImageKey("plano.png");
+
+        inTransaction(TransactionSynchronization.STATUS_COMMITTED, () -> {
+            eventService.deleteLayoutImage(eventId, organizer);
+            return null;
+        });
+
+        verify(sectorService, never()).replaceSectors(any(), any());
+        assertNull(event.getLayoutImageKey());
+        verify(imageStorageService).delete("plano.png");
     }
 
     @Test

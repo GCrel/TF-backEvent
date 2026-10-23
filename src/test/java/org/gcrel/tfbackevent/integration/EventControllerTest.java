@@ -30,11 +30,14 @@ import org.gcrel.tfbackevent.event.controller.EventController;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
+import org.gcrel.tfbackevent.event.dto.response.SectorResponse;
+import org.gcrel.tfbackevent.event.dto.request.UpdateSectorsRequest;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.UnauthorizedEventAccessException;
 import org.gcrel.tfbackevent.event.exception.UnsupportedImageTypeException;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.SectorPoint;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,6 +129,8 @@ public class EventControllerTest {
                 null,
                 null,
                 "Ana García",
+                null,
+                null,
                 null);
 
         when(eventService.createEvent(any(CreateEventRequest.class), any(User.class)))
@@ -199,6 +204,8 @@ public class EventControllerTest {
                 null,
                 null,
                 "Ana García",
+                null,
+                null,
                 null);
 
         when(eventService.updateEvent(eq(eventId), any(UpdateEventRequest.class), any(User.class)))
@@ -268,6 +275,8 @@ public class EventControllerTest {
                 null,
                 null,
                 "Ana García",
+                null,
+                null,
                 null);
 
         when(eventService.publishEvent(eq(eventId), any(User.class))).thenReturn(response);
@@ -321,6 +330,8 @@ public class EventControllerTest {
                 null,
                 null,
                 "Ana García",
+                null,
+                null,
                 null);
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
@@ -340,7 +351,7 @@ public class EventControllerTest {
                 eventId, "Webinar", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
                 "DRAFT", new BigDecimal("15.00"), "VIRTUAL",
                 null, null, null, null, null,
-                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes", true, "Ana García", null);
+                "Meet", "https://meet.example.com/room", "Entrar 5 minutos antes", true, "Ana García", null, null, null);
 
         when(eventService.getEvent(eq(eventId), any(User.class))).thenReturn(response);
 
@@ -380,6 +391,8 @@ public class EventControllerTest {
                 null,
                 null,
                 "Ana García",
+                null,
+                null,
                 null);
         EventResponse second = new EventResponse(
                 UUID.randomUUID(),
@@ -399,6 +412,8 @@ public class EventControllerTest {
                 null,
                 null,
                 "Ana García",
+                null,
+                null,
                 null);
 
         when(eventService.getPublishedEvents(
@@ -479,7 +494,7 @@ public class EventControllerTest {
                 eventId, "Webinar", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
                 "DRAFT", new BigDecimal("15.00"), "VIRTUAL",
                 null, null, null, null, null,
-                "Meet", null, null, true, "Ana García", "/api/v1/images/abc.webp");
+                "Meet", null, null, true, "Ana García", "/api/v1/images/abc.webp", null, null);
         when(eventService.updateImage(eq(eventId), any(MultipartFile.class), any(User.class)))
                 .thenReturn(response);
 
@@ -520,6 +535,85 @@ public class EventControllerTest {
         mockMvc.perform(delete("/api/v1/events/{id}/image", eventId)
                 .with(authentication(authentication)))
                 .andExpect(status().isNoContent());
+    }
+
+    private static final String TRIANGLE =
+            "[{\"x\":0.1,\"y\":0.1},{\"x\":0.5,\"y\":0.1},{\"x\":0.5,\"y\":0.5}]";
+
+    @Test
+    void replaceSectors_Success_ReturnsSectors() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        SectorResponse vip = new SectorResponse(UUID.randomUUID(), "VIP", new BigDecimal("15000.00"), 100,
+                "#e63946", List.of(new SectorPoint(0.1, 0.1), new SectorPoint(0.5, 0.1), new SectorPoint(0.5, 0.5)),
+                100);
+        when(eventService.replaceSectors(eq(eventId), any(UpdateSectorsRequest.class), any(User.class)))
+                .thenReturn(List.of(vip));
+
+        mockMvc.perform(put("/api/v1/events/{id}/sectors", eventId)
+                .with(authentication(authentication))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(sectorsBody("\"#e63946\"", TRIANGLE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("VIP"))
+                .andExpect(jsonPath("$[0].points[2].y").value(0.5))
+                .andExpect(jsonPath("$[0].availableTickets").value(100));
+    }
+
+    @Test
+    void replaceSectors_WithoutPoints_Returns200() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        when(eventService.replaceSectors(eq(eventId), any(UpdateSectorsRequest.class), any(User.class)))
+                .thenReturn(List.of());
+
+        mockMvc.perform(put("/api/v1/events/{id}/sectors", eventId)
+                .with(authentication(authentication))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sectors\":[{\"name\":\"General\",\"price\":5000,\"capacity\":200}]}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void replaceSectors_InvalidBody_Returns400() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        String outOfRange = "[{\"x\":0.1,\"y\":0.1},{\"x\":1.5,\"y\":0.1},{\"x\":0.5,\"y\":0.5}]";
+        String twoPoints = "[{\"x\":0.1,\"y\":0.1},{\"x\":0.5,\"y\":0.1}]";
+
+        for (String body : List.of(
+                sectorsBody("\"#e63946\"", outOfRange),
+                sectorsBody("\"#e63946\"", twoPoints),
+                sectorsBody("\"rojo\"", TRIANGLE))) {
+            mockMvc.perform(put("/api/v1/events/{id}/sectors", eventId)
+                    .with(authentication(authentication))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        org.mockito.Mockito.verifyNoInteractions(eventService);
+    }
+
+    @Test
+    void updateLayoutImage_Success_ReturnsEvent() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile("file", "plano.png", "image/png", new byte[] { 1 });
+        EventResponse response = new EventResponse(
+                eventId, "Recital", "Description", LocalDateTime.of(2026, 11, 1, 18, 30),
+                "DRAFT", new BigDecimal("15.00"), "IN_PERSON",
+                "Address", new BigDecimal("-34.6"), new BigDecimal("-58.4"), 100, 100,
+                null, null, null, true, "Ana García", null, "/api/v1/images/plano.png", List.of());
+        when(eventService.updateLayoutImage(eq(eventId), any(MultipartFile.class), any(User.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/events/{id}/layout-image", eventId)
+                .file(file)
+                .with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layoutImageUrl").value("/api/v1/images/plano.png"))
+                .andExpect(jsonPath("$.sectors").isArray());
+    }
+
+    private String sectorsBody(String color, String points) {
+        return "{\"sectors\":[{\"name\":\"VIP\",\"price\":15000.00,\"capacity\":100,"
+                + "\"color\":" + color + ",\"points\":" + points + "}]}";
     }
 
     @Test

@@ -22,8 +22,13 @@ public class InPersonEvent extends Event {
     @Column(precision = 10, scale = 7)
     private BigDecimal longitude;
 
+    // Con sectores, es la suma de sus capacidades.
     @Column(nullable = false)
     private Integer capacity;
+
+    // Foto del recinto sobre la que se dibujan los sectores.
+    @Column(name = "layout_image_key")
+    private String layoutImageKey;
 
     protected InPersonEvent() {
     }
@@ -79,5 +84,13 @@ public class InPersonEvent extends Event {
 
     public void setCapacity(Integer capacity) {
         this.capacity = capacity;
+    }
+
+    public String getLayoutImageKey() {
+        return layoutImageKey;
+    }
+
+    public void setLayoutImageKey(String layoutImageKey) {
+        this.layoutImageKey = layoutImageKey;
     }
 }

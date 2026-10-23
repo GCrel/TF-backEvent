@@ -52,7 +52,7 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     @Query("UPDATE Ticket t SET t.accessedAt = :now WHERE t.id = :id AND t.accessedAt IS NULL")
     int markFirstAccess(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
-    @EntityGraph(attributePaths = { "event", "attendee" })
+    @EntityGraph(attributePaths = { "event", "attendee", "order", "order.sector" })
     Optional<Ticket> findWithEventAndAttendeeById(UUID id);
 
     // Consulta de solo columnas: evita la caché de la sesión tras el UPDATE.
@@ -67,7 +67,8 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
             WHERE ep.user = :organizer
             AND ep.id.eventRole = :role
             AND t.event.status = org.gcrel.tfbackevent.model.enums.EventStatus.PUBLISHED
-            AND t.event.basePrice > 0
+            AND (t.event.basePrice > 0
+                OR EXISTS (SELECT s.id FROM Sector s WHERE s.event = t.event AND s.price > 0))
             AND t.status IN :statuses
             """)
     boolean existsInPaidEventsByOrganizerAndStatusIn(

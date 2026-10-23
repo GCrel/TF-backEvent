@@ -80,7 +80,8 @@ public class AccessService {
             throw invalidTicket(ticketId);
         }
         return new AccessValidationResponse(
-                ticketId, ticket.getAttendee().getName(), event.getTitle(), now);
+                ticketId, ticket.getAttendee().getName(), event.getTitle(),
+                ticket.getOrder().getSector() == null ? null : ticket.getOrder().getSector().getName(), now);
     }
 
     public VirtualAccessResponse getVirtualAccess(UUID ticketId, User user) {

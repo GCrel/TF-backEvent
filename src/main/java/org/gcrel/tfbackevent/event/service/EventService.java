@@ -13,7 +13,9 @@ import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.config.EventWindowProperties;
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
+import org.gcrel.tfbackevent.event.dto.request.UpdateSectorsRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
+import org.gcrel.tfbackevent.event.dto.response.SectorResponse;
 import org.gcrel.tfbackevent.event.exception.EventAlreadyPublishedException;
 import org.gcrel.tfbackevent.event.exception.EventHasSalesException;
 import org.gcrel.tfbackevent.event.exception.EventHasTicketsException;
@@ -38,6 +40,7 @@ import org.gcrel.tfbackevent.payment.exception.MpAccountNotLinkedException;
 import org.gcrel.tfbackevent.payment.repository.OrganizerMpAccountRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
+import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -61,16 +64,19 @@ public class EventService {
     private final TicketRepository ticketRepository;
     private final EventWindowProperties eventWindowProperties;
     private final ImageStorageService imageStorageService;
+    private final SectorService sectorService;
 
     public EventService(EventRepository eventRepository, EventParticipationRepository eventParticipationRepository,
             OrganizerMpAccountRepository mpAccountRepository, TicketRepository ticketRepository,
-            EventWindowProperties eventWindowProperties, ImageStorageService imageStorageService) {
+            EventWindowProperties eventWindowProperties, ImageStorageService imageStorageService,
+            SectorService sectorService) {
         this.eventRepository = eventRepository;
         this.eventParticipationRepository = eventParticipationRepository;
         this.mpAccountRepository = mpAccountRepository;
         this.ticketRepository = ticketRepository;
         this.eventWindowProperties = eventWindowProperties;
         this.imageStorageService = imageStorageService;
+        this.sectorService = sectorService;
     }
 
     @Transactional
@@ -97,7 +103,7 @@ public class EventService {
             throw new EventNotPublishableException();
         }
 
-        requireMpAccountIfPaid(event.getBasePrice(), organizer);
+        requireMpAccountIfPaid(highestPrice(event), organizer);
         event.setStatus(EventStatus.PUBLISHED);
         eventRepository.save(event);
 
@@ -111,21 +117,25 @@ public class EventService {
         validateOwnership(event, organizer);
         validateModifiable(event);
         validateTypeSpecificFields(event, request);
-        validateSalesConstraints(event, request);
+        // Con sectores, el precio y el cupo se derivan de ellos: se ignoran los del formulario.
+        boolean derived = event instanceof InPersonEvent inPerson && sectorService.hasSectors(inPerson);
+        BigDecimal basePrice = derived ? event.getBasePrice() : request.basePrice();
+        Integer capacity = derived ? ((InPersonEvent) event).getCapacity() : request.capacity();
+        validateSalesConstraints(event, basePrice, capacity, request.dateTime());
         if (event.getStatus() == EventStatus.PUBLISHED) {
-            requireMpAccountIfPaid(request.basePrice(), organizer);
+            requireMpAccountIfPaid(derived ? highestPrice(event) : basePrice, organizer);
         }
 
         event.setTitle(request.title());
         event.setDescription(request.description());
         event.setDateTime(request.dateTime());
-        event.setBasePrice(request.basePrice());
+        event.setBasePrice(basePrice);
 
         if (event instanceof InPersonEvent inPerson) {
             inPerson.setAddress(request.address());
             inPerson.setLatitude(request.latitude());
             inPerson.setLongitude(request.longitude());
-            inPerson.setCapacity(request.capacity());
+            inPerson.setCapacity(capacity);
         } else if (event instanceof VirtualEvent virtual) {
             virtual.setAccessLink(request.accessLink());
             virtual.setPlatform(request.platform());
@@ -161,6 +171,59 @@ public class EventService {
         eventRepository.save(event);
     }
 
+    @Transactional
+    public EventResponse updateLayoutImage(UUID id, MultipartFile file, User organizer) {
+        InPersonEvent event = requireInPerson(findModifiableEventForUpdate(id, organizer));
+        String previousKey = event.getLayoutImageKey();
+        String newKey = imageStorageService.store(file);
+        deleteImageAfterCompletion(previousKey, newKey);
+
+        event.setLayoutImageKey(newKey);
+        eventRepository.save(event);
+        return toResponse(event, true);
+    }
+
+    // El plano es opcional: quitarlo no afecta a los sectores.
+    @Transactional
+    public void deleteLayoutImage(UUID id, User organizer) {
+        InPersonEvent event = requireInPerson(findModifiableEventForUpdate(id, organizer));
+        String previousKey = event.getLayoutImageKey();
+        if (previousKey == null) {
+            return;
+        }
+        deleteImageAfterCompletion(previousKey, null);
+
+        event.setLayoutImageKey(null);
+        eventRepository.save(event);
+    }
+
+    @Transactional
+    public List<SectorResponse> replaceSectors(UUID id, UpdateSectorsRequest request, User organizer) {
+        InPersonEvent event = requireInPerson(findModifiableEventForUpdate(id, organizer));
+        List<SectorResponse> sectors = sectorService.replaceSectors(event, request.sectors());
+        if (event.getStatus() == EventStatus.PUBLISHED) {
+            requireMpAccountIfPaid(highestPrice(event), organizer);
+        }
+        eventRepository.save(event);
+        return sectors;
+    }
+
+    private InPersonEvent requireInPerson(Event event) {
+        if (Hibernate.unproxy(event) instanceof InPersonEvent inPerson) {
+            return inPerson;
+        }
+        throw new BadRequestException("El plano y los sectores solo están disponibles para eventos presenciales.");
+    }
+
+    // Un evento es pago si cobra algo en cualquiera de sus sectores, aunque el precio
+    // "desde" (basePrice) sea 0.
+    private BigDecimal highestPrice(Event event) {
+        BigDecimal sectorPrice = Hibernate.unproxy(event) instanceof InPersonEvent inPerson
+                ? sectorService.maxPrice(inPerson)
+                : null;
+        return sectorPrice != null ? sectorPrice : event.getBasePrice();
+    }
+
     // El bloqueo evita que dos subidas simultáneas lean la misma imagen anterior y
     // dejen una huérfana.
         private Event findModifiableEventForUpdate(UUID id, User organizer) {
@@ -190,15 +253,16 @@ public class EventService {
         }
     }
 
-    private void validateSalesConstraints(Event event, UpdateEventRequest request) {
+    private void validateSalesConstraints(
+            Event event, BigDecimal basePrice, Integer capacity, LocalDateTime dateTime) {
         long soldTickets = ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES);
         if (event instanceof InPersonEvent
-                && request.capacity() != null && request.capacity() < soldTickets) {
+                && capacity != null && capacity < soldTickets) {
             throw new BadRequestException("La capacidad no puede ser menor a las entradas vendidas.");
         }
         if (soldTickets > 0
-                && (event.getBasePrice().compareTo(request.basePrice()) != 0
-                        || !event.getDateTime().equals(request.dateTime()))) {
+                && (event.getBasePrice().compareTo(basePrice) != 0
+                        || !event.getDateTime().equals(dateTime))) {
             throw new EventHasSalesException();
         }
     }
@@ -356,7 +420,10 @@ public class EventService {
                 .findByEventAndId_EventRole(event, EventRole.ORGANIZER)
                 .map(participation -> participation.getUser().getName())
                 .orElse(null);
-        return toResponse(event, reserved, isOrganizer, organizerName);
+        List<SectorResponse> sectors = event instanceof InPersonEvent inPerson
+                ? sectorService.getSectors(inPerson)
+                : null;
+        return toResponse(event, reserved, isOrganizer, organizerName, sectors);
     }
 
     // Cuenta las entradas y busca los organizadores de toda la página con una
@@ -378,13 +445,13 @@ public class EventService {
                                 EventOrganizerName::eventId, EventOrganizerName::name, (first, other) -> first));
         return events.map(event -> toResponse(event, event instanceof InPersonEvent
                 ? reservedByEvent.getOrDefault(event.getId(), 0L)
-                : 0, null, organizerByEvent.get(event.getId())));
+                : 0, null, organizerByEvent.get(event.getId()), null));
     }
 
-    private EventResponse toResponse(
-            Event event, long reservedTickets, Boolean isOrganizer, String organizerName) {
+    private EventResponse toResponse(Event event, long reservedTickets, Boolean isOrganizer,
+            String organizerName, List<SectorResponse> sectors) {
         if (event instanceof InPersonEvent inPerson) {
-            return new EventResponse(inPerson, reservedTickets, isOrganizer, organizerName);
+            return new EventResponse(inPerson, reservedTickets, isOrganizer, organizerName, sectors);
         } else if (event instanceof VirtualEvent virtual) {
             return new EventResponse(virtual, isOrganizer, organizerName);
         }

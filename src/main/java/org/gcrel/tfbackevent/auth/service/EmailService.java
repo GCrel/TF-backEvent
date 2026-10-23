@@ -64,8 +64,13 @@ public class EmailService {
             helper.setSubject("Tus entradas para " + event.getTitle());
 
             StringBuilder html = new StringBuilder()
-                    .append("<h3>¡Gracias por tu compra!</h3>")
-                    .append("<p>Cada entrada tiene su propio código QR. Presentá uno por persona ")
+                    .append("<h3>¡Gracias por tu compra!</h3>");
+            if (order.getSector() != null) {
+                html.append("<p>Sector: <strong>")
+                        .append(HtmlUtils.htmlEscape(order.getSector().getName()))
+                        .append("</strong></p>");
+            }
+            html.append("<p>Cada entrada tiene su propio código QR. Presentá uno por persona ")
                     .append("en la puerta del evento:</p>");
             for (int i = 0; i < qrs.size(); i++) {
                 html.append("<p><strong>Entrada ").append(i + 1).append(" de ").append(qrs.size())

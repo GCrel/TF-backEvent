@@ -11,9 +11,11 @@ import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.exception.EventOrganizerMissingException;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.event.repository.SectorRepository;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
+import org.gcrel.tfbackevent.model.Sector;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
@@ -32,6 +34,7 @@ import org.gcrel.tfbackevent.payment.exception.InvalidTicketPurchaseException;
 import org.gcrel.tfbackevent.payment.exception.PaymentProcessingException;
 import org.gcrel.tfbackevent.payment.exception.PaymentRejectedException;
 import org.gcrel.tfbackevent.payment.exception.QRGenerationException;
+import org.gcrel.tfbackevent.payment.exception.SectorCapacityExceededException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotActiveException;
 import org.gcrel.tfbackevent.payment.exception.TicketNotFoundException;
 import org.gcrel.tfbackevent.payment.exception.UnauthorizedTicketAccessException;
@@ -39,10 +42,13 @@ import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class TicketService {
+    private static final List<TicketStatus> RESERVED_STATUSES = List.of(
+            TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED);
 
     private final TicketRepository ticketRepository;
     private final TicketOrderRepository orderRepository;
@@ -56,13 +62,14 @@ public class TicketService {
     private final TransactionTemplate transactionTemplate;
     private final EventWindowProperties eventWindowProperties;
     private final TicketPurchaseProperties purchaseProperties;
+    private final SectorRepository sectorRepository;
 
     public TicketService(TicketRepository ticketRepository, TicketOrderRepository orderRepository,
             EventRepository eventRepository, EventParticipationRepository eventParticipationRepository,
             MercadoPagoService mercadoPagoService, MpOAuthService mpOAuthService,
             PaymentService paymentService, DeliveryService deliveryService, QRService qrService,
             TransactionTemplate transactionTemplate, EventWindowProperties eventWindowProperties,
-            TicketPurchaseProperties purchaseProperties) {
+            TicketPurchaseProperties purchaseProperties, SectorRepository sectorRepository) {
         this.ticketRepository = ticketRepository;
         this.orderRepository = orderRepository;
         this.eventRepository = eventRepository;
@@ -75,6 +82,7 @@ public class TicketService {
         this.transactionTemplate = transactionTemplate;
         this.eventWindowProperties = eventWindowProperties;
         this.purchaseProperties = purchaseProperties;
+        this.sectorRepository = sectorRepository;
     }
 
     public PurchaseResponse purchase(PurchaseTicketRequest request, User buyer) {
@@ -88,9 +96,10 @@ public class TicketService {
         Event event = eventRepository.findById(request.eventId())
                 .orElseThrow(() -> new EventNotFoundException(request.eventId()));
         validateEventForPurchase(event);
+        Sector sector = resolveSector(event, request.sectorId());
 
-        if (isFree(event)) {
-            return issueFreeOrder(request.eventId(), quantity, buyer);
+        if (isFree(event, sector)) {
+            return issueFreeOrder(request.eventId(), request.sectorId(), quantity, buyer);
         }
         if (!request.hasPaymentData()) {
             throw new InvalidTicketPurchaseException(
@@ -105,7 +114,7 @@ public class TicketService {
                 .getValidAccessToken(organizerParticipation.getUser());
 
         TicketOrder order = transactionTemplate.execute(
-                status -> reserveOrder(request.eventId(), quantity, buyer, false));
+                status -> reserveOrder(request.eventId(), request.sectorId(), quantity, buyer, false));
 
         com.mercadopago.resources.payment.Payment mpPayment;
         try {
@@ -132,9 +141,9 @@ public class TicketService {
     }
 
     // Emite las entradas de un evento gratuito sin pasar por MercadoPago.
-    private PurchaseResponse issueFreeOrder(UUID eventId, int quantity, User buyer) {
+    private PurchaseResponse issueFreeOrder(UUID eventId, UUID sectorId, int quantity, User buyer) {
         TicketOrder order = transactionTemplate.execute(
-                status -> reserveOrder(eventId, quantity, buyer, true));
+                status -> reserveOrder(eventId, sectorId, quantity, buyer, true));
 
         boolean includeQr = order.getEvent().getType() == EventType.IN_PERSON;
         List<PurchasedTicket> purchased = ticketRepository.findByOrder(order).stream()
@@ -150,27 +159,35 @@ public class TicketService {
                 purchased);
     }
 
-    private TicketOrder reserveOrder(UUID eventId, int quantity, User buyer, boolean expectFree) {
+    private TicketOrder reserveOrder(
+            UUID eventId, UUID sectorId, int quantity, User buyer, boolean expectFree) {
         Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
 
         validateEventForPurchase(event);
-        // El precio pudo cambiar entre la lectura inicial y el bloqueo.
-        if (isFree(event) != expectFree) {
+        // Los sectores, como el precio, pudieron cambiar entre la lectura inicial y el
+        // bloqueo.
+        Sector sector = resolveSector(event, sectorId);
+        if (isFree(event, sector) != expectFree) {
             throw new EventPriceChangedException();
         }
 
-        if (event.getType() == EventType.IN_PERSON) {
+        // El bloqueo del evento serializa las compras de todos sus sectores.
+        if (sector != null) {
+            if (sectorRepository.countTickets(sector, RESERVED_STATUSES) + quantity > sector.getCapacity()) {
+                throw new SectorCapacityExceededException();
+            }
+        } else if (event.getType() == EventType.IN_PERSON) {
             InPersonEvent inPerson = (InPersonEvent) Hibernate.unproxy(event);
-            long reservedTickets = ticketRepository.countByEventAndStatusIn(
-                    event, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED));
+            long reservedTickets = ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES);
             if (reservedTickets + quantity > inPerson.getCapacity()) {
                 throw new EventCapacityExceededException();
             }
         }
 
-        TicketOrder order = orderRepository.save(
-                new TicketOrder(buyer, event, quantity, event.getBasePrice(), LocalDateTime.now()));
+        TicketOrder order = orderRepository.save(sector != null
+                ? new TicketOrder(buyer, sector, quantity, LocalDateTime.now())
+                : new TicketOrder(buyer, event, quantity, event.getBasePrice(), LocalDateTime.now()));
         List<Ticket> tickets = new ArrayList<>(quantity);
         for (int i = 0; i < quantity; i++) {
             Ticket ticket = new Ticket(order);
@@ -187,8 +204,21 @@ public class TicketService {
         return order;
     }
 
-    private boolean isFree(Event event) {
-        return event.getBasePrice().signum() == 0;
+    // Con sectores, lo que se cobra es el precio del sector elegido.
+    private boolean isFree(Event event, Sector sector) {
+        return (sector != null ? sector.getPrice() : event.getBasePrice()).signum() == 0;
+    }
+
+    private Sector resolveSector(Event event, UUID sectorId) {
+        if (sectorId == null) {
+            if (sectorRepository.existsByEvent(event)) {
+                throw new InvalidTicketPurchaseException("Elegí un sector para comprar entradas de este evento.");
+            }
+            return null;
+        }
+        return sectorRepository.findById(sectorId)
+                .filter(sector -> sector.getEvent().getId().equals(event.getId()))
+                .orElseThrow(() -> new InvalidTicketPurchaseException("El sector elegido no pertenece al evento."));
     }
 
     private String generateQrOrNull(Ticket ticket) {
@@ -212,6 +242,8 @@ public class TicketService {
         }
     }
 
+    // Transaccional para leer evento, orden y sector (relaciones lazy) del ticket.
+    @Transactional(readOnly = true)
     public List<TicketResponse> getMyTickets(User attendee) {
         return ticketRepository.findByAttendee(attendee).stream()
                 .map(ticket -> {
@@ -221,6 +253,7 @@ public class TicketService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public TicketResponse getTicket(UUID id, User attendee) {
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new TicketNotFoundException(id));

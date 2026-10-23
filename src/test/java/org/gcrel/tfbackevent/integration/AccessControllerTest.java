@@ -89,7 +89,7 @@ class AccessControllerTest {
         when(accessService.validateQr(
                 any(ValidateQrRequest.class), any(User.class)))
                 .thenReturn(new AccessValidationResponse(
-                        ticketId, "Attendee", "Conference", LocalDateTime.now()));
+                        ticketId, "Attendee", "Conference", "VIP", LocalDateTime.now()));
 
         mockMvc.perform(post("/api/v1/access/validate-qr")
                 .with(authentication(authentication))
@@ -99,7 +99,8 @@ class AccessControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ticketId").value(ticketId.toString()))
                 .andExpect(jsonPath("$.attendeeName").value("Attendee"))
-                .andExpect(jsonPath("$.eventTitle").value("Conference"));
+                .andExpect(jsonPath("$.eventTitle").value("Conference"))
+                .andExpect(jsonPath("$.sectorName").value("VIP"));
     }
 
     @Test
@@ -195,7 +196,7 @@ class AccessControllerTest {
                 LocalDateTime.of(2026, 10, 15, 18, 0), "PUBLISHED",
                 new java.math.BigDecimal("20.00"), "IN_PERSON", "Address",
                 new java.math.BigDecimal("-34.60"), new java.math.BigDecimal("-58.38"),
-                100, 100, null, null, null, null, "Ana García", null);
+                100, 100, null, null, null, null, "Ana García", null, null, null);
         when(eventService.getControlledEvents(eq(user), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(response)));
 

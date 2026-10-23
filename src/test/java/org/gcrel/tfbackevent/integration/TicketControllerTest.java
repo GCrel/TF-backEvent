@@ -77,7 +77,7 @@ public class TicketControllerTest {
     void purchase_Success_Returns201AndBody() throws Exception {
         UUID eventId = UUID.randomUUID();
         PurchaseTicketRequest request = new PurchaseTicketRequest(
-                eventId, 2, "card_tok", 1, "payer@example.com", "visa");
+                eventId, 2, null, "card_tok", 1, "payer@example.com", "visa");
 
         UUID orderId = UUID.randomUUID();
         UUID ticketId = UUID.randomUUID();
@@ -140,6 +140,7 @@ public class TicketControllerTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "Evento 1",
+                null,
                 "ACTIVE",
                 LocalDateTime.now(),
                 "qr1");
@@ -147,6 +148,7 @@ public class TicketControllerTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "Evento 2",
+                null,
                 "ACTIVE",
                 LocalDateTime.now(),
                 "qr2");
@@ -177,6 +179,7 @@ public class TicketControllerTest {
                 ticketId,
                 UUID.randomUUID(),
                 "Evento X",
+                null,
                 "ACTIVE",
                 LocalDateTime.now(),
                 "qrcode");

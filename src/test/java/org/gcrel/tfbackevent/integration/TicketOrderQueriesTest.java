@@ -2,6 +2,7 @@ package org.gcrel.tfbackevent.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -13,12 +14,16 @@ import java.util.UUID;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.event.repository.SectorRepository;
+import org.gcrel.tfbackevent.event.repository.dto.SectorTicketCount;
 import org.gcrel.tfbackevent.event.repository.dto.EventOrganizerName;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.OrganizerMpAccount;
 import org.gcrel.tfbackevent.model.Payment;
+import org.gcrel.tfbackevent.model.Sector;
+import org.gcrel.tfbackevent.model.SectorPoint;
 import org.gcrel.tfbackevent.model.Ticket;
 import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.User;
@@ -71,6 +76,8 @@ class TicketOrderQueriesTest {
     private TicketRepository ticketRepository;
     @Autowired
     private PaymentRepository paymentRepository;
+    @Autowired
+    private SectorRepository sectorRepository;
 
     private User organizer;
     private User buyer;
@@ -274,6 +281,85 @@ class TicketOrderQueriesTest {
 
         assertEquals(new BigDecimal("-34.6037221"), reloaded.getLatitude());
         assertEquals(new BigDecimal("-178.3815921"), reloaded.getLongitude());
+    }
+
+    @Test
+    void sector_StoresPointsAsJsonAndCountsTicketsPerSector() {
+        Sector vip = sectorRepository.save(sector("VIP", "15000.00", 10));
+        Sector general = sectorRepository.save(sector("General", "5000.00", 100));
+        sectorOrder(vip, 2, TicketStatus.ACTIVE);
+        sectorOrder(vip, 1, TicketStatus.PENDING);
+        sectorOrder(general, 3, TicketStatus.CANCELLED); // no ocupa cupo
+        entityManager.flush();
+        entityManager.clear();
+
+        Sector reloaded = sectorRepository.findById(vip.getId()).orElseThrow();
+
+        assertEquals(List.of(new SectorPoint(0.1, 0.2), new SectorPoint(0.4, 0.2),
+                new SectorPoint(0.4, 0.5)), reloaded.getPoints());
+        List<TicketStatus> reserved = List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED);
+        assertEquals(List.of(new SectorTicketCount(vip.getId(), 3)),
+                sectorRepository.countTicketsBySector(event, reserved));
+        assertEquals(3, sectorRepository.countTickets(reloaded, reserved));
+        assertEquals(0, sectorRepository.countTickets(general, reserved));
+    }
+
+    @Test
+    void paidQueries_TreatAnEventWithAPaidSectorAsPaid() {
+        // Precio "desde" 0, pero un sector cobra: el evento sigue siendo pago.
+        event.setBasePrice(BigDecimal.ZERO);
+        sectorRepository.save(sector("Gratis", "0.00", 10));
+        Sector paid = sectorRepository.save(sector("VIP", "15000.00", 10));
+        entityManager.flush();
+
+        assertEquals(List.of(event.getId()), eventRepository.findPaidPublishedWithoutOpenTickets(
+                organizer, EventRole.ORGANIZER, EventStatus.PUBLISHED,
+                List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED))
+                .stream().map(Event::getId).toList());
+
+        sectorOrder(paid, 1, TicketStatus.ACTIVE);
+        entityManager.flush();
+
+        assertTrue(ticketRepository.existsInPaidEventsByOrganizerAndStatusIn(
+                organizer, EventRole.ORGANIZER, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE)));
+    }
+
+    @Test
+    void findBySectorIn_AllowsDetachingOrdersBeforeDeletingTheSector() {
+        Sector vip = sectorRepository.save(sector("VIP", "15000.00", 10));
+        TicketOrder cancelled = sectorOrder(vip, 1, TicketStatus.CANCELLED);
+        sectorOrder(sectorRepository.save(sector("General", "5000.00", 10)), 1, TicketStatus.CANCELLED);
+        entityManager.flush();
+
+        List<TicketOrder> orders = orderRepository.findBySectorIn(List.of(vip));
+        assertEquals(List.of(cancelled.getId()), orders.stream().map(TicketOrder::getId).toList());
+        orders.forEach(order -> order.setSector(null));
+        sectorRepository.delete(vip);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertTrue(sectorRepository.findById(vip.getId()).isEmpty());
+        assertNull(orderRepository.findById(cancelled.getId()).orElseThrow().getSector());
+    }
+
+    private Sector sector(String name, String price, int capacity) {
+        Sector sector = new Sector(event);
+        sector.setName(name);
+        sector.setPrice(new BigDecimal(price));
+        sector.setCapacity(capacity);
+        sector.setPoints(List.of(new SectorPoint(0.1, 0.2), new SectorPoint(0.4, 0.2),
+                new SectorPoint(0.4, 0.5)));
+        return sector;
+    }
+
+    private TicketOrder sectorOrder(Sector sector, int quantity, TicketStatus status) {
+        TicketOrder order = orderRepository.save(new TicketOrder(buyer, sector, quantity, LocalDateTime.now()));
+        for (int i = 0; i < quantity; i++) {
+            Ticket ticket = new Ticket(order);
+            ticket.setStatus(status);
+            ticketRepository.save(ticket);
+        }
+        return order;
     }
 
     private List<UUID> search(Class<? extends Event> type, String pattern, LocalDateTime from, LocalDateTime to) {

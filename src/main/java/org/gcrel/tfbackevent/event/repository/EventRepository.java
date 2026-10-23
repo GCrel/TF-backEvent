@@ -86,7 +86,8 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             WHERE ep.user = :user
             AND ep.id.eventRole = :role
             AND ep.event.status = :status
-            AND ep.event.basePrice > 0
+            AND (ep.event.basePrice > 0
+                OR EXISTS (SELECT s.id FROM Sector s WHERE s.event = ep.event AND s.price > 0))
             AND NOT EXISTS (
                 SELECT t.id FROM Ticket t
                 WHERE t.event = ep.event

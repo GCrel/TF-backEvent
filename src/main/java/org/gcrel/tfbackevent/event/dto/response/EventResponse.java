@@ -2,9 +2,9 @@ package org.gcrel.tfbackevent.event.dto.response;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
-import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventType;
@@ -37,18 +37,21 @@ public record EventResponse(
 
         String organizerName,
         // Ruta relativa que sirve Nginx; null si el evento no tiene imagen.
-        String imageUrl) {
+        String imageUrl,
+
+        // Plano y sectores: solo en el detalle de eventos presenciales; se omiten en listados.
+        @JsonInclude(JsonInclude.Include.NON_NULL) String layoutImageUrl,
+        @JsonInclude(JsonInclude.Include.NON_NULL) List<SectorResponse> sectors) {
 
     private static final String IMAGE_PATH = "/api/v1/images/";
 
-    private static String imageUrl(Event event) {
-        return event.getImageKey() == null ? null : IMAGE_PATH + event.getImageKey();
+    private static String imageUrl(String key) {
+        return key == null ? null : IMAGE_PATH + key;
     }
 
-
-    // Physical Event Constructor
-    public EventResponse(
-            InPersonEvent event, long reservedTickets, Boolean isOrganizer, String organizerName) {
+    // Physical Event Constructor; `sectors` null indica un listado (sin plano ni sectores).
+    public EventResponse(InPersonEvent event, long reservedTickets, Boolean isOrganizer,
+            String organizerName, List<SectorResponse> sectors) {
         this(
                 event.getId(),
                 event.getTitle(),
@@ -67,7 +70,9 @@ public record EventResponse(
                 null,
                 isOrganizer,
                 organizerName,
-                imageUrl(event));
+                imageUrl(event.getImageKey()),
+                sectors == null ? null : imageUrl(event.getLayoutImageKey()),
+                sectors);
     }
 
     // Virtual Event Constructor
@@ -90,6 +95,8 @@ public record EventResponse(
                 Boolean.TRUE.equals(isOrganizer) ? event.getAccessInstructions() : null,
                 isOrganizer,
                 organizerName,
-                imageUrl(event));
+                imageUrl(event.getImageKey()),
+                null,
+                null);
     }
 }

@@ -1,11 +1,14 @@
 package org.gcrel.tfbackevent.event.controller;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.event.dto.request.CreateEventRequest;
 import org.gcrel.tfbackevent.event.dto.request.UpdateEventRequest;
+import org.gcrel.tfbackevent.event.dto.request.UpdateSectorsRequest;
 import org.gcrel.tfbackevent.event.dto.response.EventResponse;
+import org.gcrel.tfbackevent.event.dto.response.SectorResponse;
 import org.gcrel.tfbackevent.event.service.EventService;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
@@ -106,6 +109,31 @@ public class EventController {
         User organizer = (User) authentication.getPrincipal();
         eventService.deleteImage(id, organizer);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping(value = "/{id}/layout-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EventResponse> updateLayoutImage(
+            @PathVariable UUID id,
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication) {
+        User organizer = (User) authentication.getPrincipal();
+        return ResponseEntity.ok(eventService.updateLayoutImage(id, file, organizer));
+    }
+
+    @DeleteMapping("/{id}/layout-image")
+    public ResponseEntity<Void> deleteLayoutImage(@PathVariable UUID id, Authentication authentication) {
+        User organizer = (User) authentication.getPrincipal();
+        eventService.deleteLayoutImage(id, organizer);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/sectors")
+    public ResponseEntity<List<SectorResponse>> replaceSectors(
+            @PathVariable UUID id,
+            @Validated @RequestBody UpdateSectorsRequest request,
+            Authentication authentication) {
+        User organizer = (User) authentication.getPrincipal();
+        return ResponseEntity.ok(eventService.replaceSectors(id, request, organizer));
     }
 
     @PatchMapping("/{id}/cancel")

@@ -38,6 +38,11 @@ public class TicketOrder {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
+    // Solo en eventos con sectores; el precio de la orden es el del sector.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sector_id")
+    private Sector sector;
+
     @Column(nullable = false)
     private int quantity;
 
@@ -81,6 +86,11 @@ public class TicketOrder {
         this.deliveryAttempts = 0;
     }
 
+    public TicketOrder(User buyer, Sector sector, int quantity, LocalDateTime createdAt) {
+        this(buyer, sector.getEvent(), quantity, sector.getPrice(), createdAt);
+        this.sector = sector;
+    }
+
     // Programa el envío de las entradas lo antes posible e inicia un nuevo ciclo
     // de reintentos.
     public void scheduleDelivery(LocalDateTime now) {
@@ -106,6 +116,14 @@ public class TicketOrder {
     @Override
     public int hashCode() {
         return Objects.hashCode(id);
+    }
+
+    public Sector getSector() {
+        return sector;
+    }
+
+    public void setSector(Sector sector) {
+        this.sector = sector;
     }
 
     public UUID getId() {

@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
+import org.gcrel.tfbackevent.model.Sector;
 import org.gcrel.tfbackevent.model.TicketOrder;
 import org.gcrel.tfbackevent.model.enums.DeliveryStatus;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
@@ -16,7 +17,9 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TicketOrderRepository extends JpaRepository<TicketOrder, UUID> {
-    @EntityGraph(attributePaths = { "buyer", "event" })
+    List<TicketOrder> findBySectorIn(Collection<Sector> sectors);
+
+    @EntityGraph(attributePaths = { "buyer", "event", "sector" })
     List<TicketOrder> findTop50ByDeliveryStatusInAndNextDeliveryAttemptAtLessThanEqual(
             Collection<DeliveryStatus> statuses, LocalDateTime now);
 
