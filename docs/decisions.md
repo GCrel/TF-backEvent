@@ -33,6 +33,7 @@ Para el detalle funcional ver [`architecture.md`](architecture.md) y [`api.md`](
 | [014](#adr-014-eventos-gratuitos-sin-mercadopago) | Eventos gratuitos sin MercadoPago | Aceptada |
 | [015](#adr-015-oauth-de-mercadopago-adaptado-a-una-spa) | OAuth de MercadoPago adaptado a una SPA | Aceptada |
 | [016](#adr-016-imágenes-en-volumen-local-servidas-por-nginx) | Imágenes en volumen local servidas por Nginx | Aceptada |
+| [017](#adr-017-sectores-con-precio-y-cupo-propios-sobre-un-plano) | Sectores con precio y cupo propios sobre un plano | Aceptada |
 
 ## ADR-001: API REST stateless con JWT
 
@@ -369,6 +370,53 @@ eran guardar los binarios en PostgreSQL, en un almacenamiento de objetos externo
 - Un fallo al borrar deja archivos huérfanos; no hay limpieza automática.
 - Las imágenes de eventos en borrador son públicas para quien conozca la clave
   (aleatoria, no adivinable).
+
+## ADR-017: Sectores con precio y cupo propios sobre un plano
+
+**Estado:** Aceptada.
+
+**Contexto.** Un evento presencial tenía un único precio y una única capacidad. Se
+pidió dividirlo en sectores (VIP, General…) que el organizador dibuja sobre una foto
+del recinto, y que el comprador elija el sector en el plano. No todos los
+organizadores tienen un plano del lugar, así que el plano debe ser opcional. La
+detección automática de sectores se descartó por requerir modelos de IA.
+
+**Decisión.**
+
+- **Plano opcional.** Los sectores (nombre, precio, cupo) no dependen del plano. Si
+  hay plano, cada sector puede llevar su polígono; si no, se guarda sin geometría y
+  el frontend los muestra como lista. Quitar el plano no borra los sectores.
+- **El backend no interpreta la imagen.** El plano se guarda como la portada
+  (ADR-016) y cada sector dibujado es un polígono de 3 a 20 vértices con coordenadas
+  **normalizadas de 0 a 1** respecto del ancho y alto de la imagen, para que cualquier
+  pantalla dibuje lo mismo. Los vértices se guardan como `jsonb`; el backend solo
+  valida su rango. No se valida solapamiento.
+- **Guardado en bloque.** `PUT /events/{id}/sectors` recibe la lista completa (con
+  `id` actualiza, sin `id` crea, lo que falta borra) en una transacción, porque el
+  editor del frontend guarda todo junto.
+- **Valores derivados.** Con sectores, `capacity` del evento es la suma de sus
+  capacidades y `basePrice` el mínimo de sus precios, para que tarjetas, filtros y
+  disponibilidad sigan funcionando sin cambios.
+- **"Pago" no depende de `basePrice`.** Un evento es pago si `basePrice > 0` **o**
+  algún sector tiene precio. Así lo evalúan la publicación y la desvinculación de
+  MercadoPago; con solo `basePrice`, un evento con un sector gratis y otro pago se
+  trataría como gratuito.
+- **Bloqueo por evento.** La compra y la edición de sectores bloquean la fila del
+  evento (ADR-009), no la del sector. Serializa las compras de todos los sectores de
+  un evento, algo imperceptible a esta escala, y evita que una edición compita con una
+  compra.
+- **Protección de ventas.** Un sector con entradas pendientes, activas o usadas no se
+  borra, no cambia de precio y no baja su capacidad por debajo de lo ocupado. Un
+  evento con entradas vendidas no puede pasar de "sin sectores" a "con sectores" ni al
+  revés. La orden guarda el sector, y el precio de la orden es el del sector.
+
+**Consecuencias.**
+
+- Un evento sin sectores funciona exactamente como antes.
+- El controlador ve el sector de cada entrada al validarla (`sectorName`).
+- Al borrar un sector sin entradas vigentes, sus órdenes canceladas pierden la
+  referencia al sector.
+- El organizador puede dibujar sectores superpuestos; el backend no lo detecta.
 
 ## Limitaciones conocidas
 

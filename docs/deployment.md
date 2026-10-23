@@ -82,7 +82,7 @@ En producción, además:
 
   ```text
   users, refresh_token, events, in_person_events, virtual_events,
-  ticket_orders, tickets, payments, event_participations,
+  event_sectors, ticket_orders, tickets, payments, event_participations,
   organizer_mp_accounts, mp_oauth_states
   ```
 
@@ -101,6 +101,25 @@ En producción, además:
   ```
 
   Los valores ya guardados quedaron redondeados y hay que volver a cargarlos.
+- **Sectores:** los sectores de eventos presenciales agregan una tabla y dos
+  columnas. Sobre una base existente:
+
+  ```sql
+  CREATE TABLE event_sectors (
+      id uuid PRIMARY KEY,
+      event_id uuid NOT NULL REFERENCES in_person_events (id),
+      name varchar(50) NOT NULL,
+      price numeric(10,2) NOT NULL,
+      capacity integer NOT NULL,
+      color varchar(7),
+      points jsonb
+  );
+  ALTER TABLE in_person_events ADD COLUMN layout_image_key varchar(255);
+  ALTER TABLE ticket_orders ADD COLUMN sector_id uuid REFERENCES event_sectors (id);
+  ```
+
+  Los planos de los recintos se guardan en el mismo volumen `uploads` que las
+  portadas (ver [Imágenes de eventos](#imágenes-de-eventos)).
 - **Red:** la base no debe ser accesible desde Internet; solo desde el backend.
 - **Respaldo:** configurar backups periódicos (los de la base administrada del
   proveedor o `pg_dump` programado).
@@ -192,6 +211,7 @@ Requisitos:
 - [ ] TLS terminado en el proxy inverso o balanceador.
 - [ ] Nginx con `deploy/nginx/`: `client_max_body_size 6m` y `/api/v1/images/` servido desde el volumen.
 - [ ] Columna `events.image_key` presente en el esquema.
+- [ ] Tabla `event_sectors` y columnas `in_person_events.layout_image_key` y `ticket_orders.sector_id` presentes.
 - [ ] Respaldo periódico del volumen `uploads`, además del de la base.
 - [ ] Una sola instancia del backend (o coordinación de tareas programadas).
 

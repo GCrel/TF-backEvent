@@ -728,6 +728,107 @@ le antepone la URL base). Solo responde a claves con el formato
 Las respuestas incluyen `Cache-Control: public, max-age=31536000, immutable` (al
 reemplazar una imagen cambia su URL) y `X-Content-Type-Options: nosniff`.
 
+### Sectores sobre un plano
+
+Un evento `IN_PERSON` puede dividirse en **sectores** (VIP, General…), cada uno con
+nombre, precio y capacidad propios. El **plano** del recinto es **opcional**: si el
+organizador lo sube, puede dibujar cada sector sobre él (`points`); si no tiene plano,
+los sectores funcionan igual, sin geometría. El backend no procesa la imagen: guarda
+la foto y los números que envía el frontend. Un evento sin sectores funciona como
+siempre, con `basePrice` y `capacity` únicos.
+
+Flujo: crear el evento (borrador) → [subir el plano] → guardar los sectores → publicar.
+
+Con sectores:
+
+- `capacity` del evento pasa a ser la **suma** de las capacidades de los sectores y
+  `basePrice` el **precio mínimo** (el "desde $X" de las tarjetas). Ambos se ignoran
+  en `PUT /api/v1/events/{id}`: se cambian editando los sectores.
+- El evento se considera **pago** si **algún** sector tiene precio: publicarlo exige
+  MercadoPago vinculado aunque `basePrice` sea 0.
+- La compra exige `sectorId`; el precio y el cupo son los del sector.
+
+#### Subir o reemplazar el plano
+
+`PUT /api/v1/events/{id}/layout-image`
+
+Igual que [la portada](#subir-o-reemplazar-la-imagen-del-evento): multipart con el
+archivo en `file`, JPEG/PNG/WebP de hasta 5 MB, solo el organizador, evento no
+cancelado ni finalizado. Solo para eventos `IN_PERSON` (`400` en virtuales). Devuelve
+el `EventResponse` con `layoutImageUrl` actualizado. Reemplazar el plano conserva los
+sectores (si el recinto cambió, conviene redibujarlos).
+
+#### Quitar el plano
+
+`DELETE /api/v1/events/{id}/layout-image`
+
+Quita el plano. Los sectores se conservan, con su precio, cupo y entradas; sus
+`points` quedan guardados, pero sin plano el frontend no tiene sobre qué dibujarlos.
+Responde `204`.
+
+#### Guardar los sectores
+
+`PUT /api/v1/events/{id}/sectors`
+
+Reemplaza la lista completa de sectores en una sola operación: los que traen `id` se
+actualizan, los que no lo traen se crean y los que faltan se borran. No requiere
+plano. Solo el organizador, evento `IN_PERSON` no cancelado ni finalizado.
+
+```json
+{
+  "sectors": [
+    {
+      "id": "0b6f3a2e-1c4d-4e5f-9a8b-7c6d5e4f3a2b",
+      "name": "VIP",
+      "price": 15000.00,
+      "capacity": 100,
+      "color": "#e63946",
+      "points": [
+        { "x": 0.10, "y": 0.20 }, { "x": 0.40, "y": 0.20 },
+        { "x": 0.40, "y": 0.50 }, { "x": 0.10, "y": 0.50 }
+      ]
+    },
+    {
+      "name": "General",
+      "price": 5000.00,
+      "capacity": 400,
+      "points": [ { "x": 0.5, "y": 0.2 }, { "x": 0.9, "y": 0.2 }, { "x": 0.7, "y": 0.8 } ]
+    }
+  ]
+}
+```
+
+| Campo | Tipo | Requerido | Restricciones |
+|-------|------|-----------|---------------|
+| `sectors` | array | Sí | Máximo 30. Vacío quita todos los sectores |
+| `id` | uuid | No | Sector existente del evento; sin `id` se crea uno nuevo |
+| `name` | string | Sí | Máx. 50 caracteres, único en el evento sin distinguir mayúsculas |
+| `price` | number | Sí | ≥ 0, hasta 8 enteros y 2 decimales |
+| `capacity` | integer | Sí | Entre 1 y 100000 |
+| `color` | string | No | `#RRGGBB` |
+| `points` | array | No | Polígono de 3 a 20 vértices (un rectángulo son 4). Se omite si el evento no tiene plano |
+| `points[].x`, `points[].y` | number | Sí | Entre 0 y 1: posición **normalizada** respecto del ancho y alto del plano, no píxeles |
+
+No se valida que los sectores se superpongan.
+
+Un sector con entradas vendidas o pendientes de pago **no se puede borrar**, su
+`price` **no puede cambiar** y su `capacity` no puede bajar de lo ya ocupado; su
+nombre, color y vértices sí se pueden editar. Tampoco se puede pasar de "sin
+sectores" a "con sectores" (ni al revés) si el evento ya tiene entradas vendidas.
+
+**Respuesta exitosa: `200 OK`** — la lista de [`SectorResponse`](#sectorresponse)
+ordenada por nombre.
+
+**Errores:**
+
+| Código | Causa |
+|--------|-------|
+| `400 Bad Request` | Validaciones del cuerpo, nombre repetido, `id` ajeno al evento o repetido, o evento virtual |
+| `403 Forbidden` | El usuario no es el organizador del evento |
+| `404 Not Found` | El evento no existe |
+| `409 Conflict` | Evento cancelado/finalizado, o el cambio afecta entradas vendidas |
+| `428 Precondition Required` | El evento está publicado, algún sector tiene precio y no hay MercadoPago vinculado |
+
 ---
 
 ## Controladores de acceso
@@ -829,6 +930,7 @@ simultáneos no permiten ingresar dos veces.
   "ticketId": "550e8400-e29b-41d4-a716-446655440001",
   "attendeeName": "Juan Pérez",
   "eventTitle": "Conferencia de tecnología",
+  "sectorName": "VIP",
   "validatedAt": "2026-10-15T17:05:00"
 }
 ```
@@ -918,6 +1020,9 @@ evento tiene precio) y el envío por email se hacen una sola vez por orden.
 
 Compra una o más entradas para un evento (Requiere autenticación).
 
+- **Evento con [sectores](#sectores-sobre-un-plano):** `sectorId` es obligatorio; el
+  cupo y el precio son los del sector, y el sector decide si la compra es paga o
+  gratuita (un sector gratuito no pide datos de pago).
 - **Evento con precio:** reserva el cupo, cobra `basePrice × quantity` en un único
   pago de MercadoPago con la cuenta del organizador y devuelve el estado resultante.
   Las entradas solo quedan `ACTIVE` (y con QR) si el pago fue aprobado.
@@ -934,6 +1039,7 @@ enlace y las instrucciones de acceso.
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "quantity": 2,
+  "sectorId": "0b6f3a2e-1c4d-4e5f-9a8b-7c6d5e4f3a2b",
   "cardToken": "tok_card_1a2b3c",
   "installments": 1,
   "payerEmail": "juan@example.com",
@@ -954,6 +1060,7 @@ enlace y las instrucciones de acceso.
 |-------|------|-----------|---------------|-------------|
 | `eventId` | uuid | Sí | — | Identificador del evento |
 | `quantity` | integer | Sí | ≥ 1, máximo `ticket.purchase.max-quantity` (10 por defecto) | Cantidad de entradas |
+| `sectorId` | uuid | Solo eventos con sectores | Sector del evento; prohibido si el evento no tiene sectores | Sector de las entradas |
 | `cardToken` | string | Solo eventos con precio | máx. 255 caracteres | Token de la tarjeta del pagador |
 | `installments` | integer | Solo eventos con precio | entre 1 y 12 | Número de cuotas |
 | `payerEmail` | string | Solo eventos con precio | email válido, máx. 254 caracteres | Correo del pagador |
@@ -991,10 +1098,10 @@ enlace y las instrucciones de acceso.
 
 | Código | Causa |
 |--------|-------|
-| `400 Bad Request` | Las validaciones del cuerpo fallan, `quantity` supera el máximo por orden, o faltan los datos de pago en un evento con precio |
+| `400 Bad Request` | Las validaciones del cuerpo fallan, `quantity` supera el máximo por orden, faltan los datos de pago en un evento con precio, o `sectorId` falta, sobra o no pertenece al evento |
 | `402 Payment Required` | MercadoPago rechazó la solicitud de pago |
 | `404 Not Found` | El evento no existe |
-| `409 Conflict` | No hay cupo para la cantidad pedida, el evento no está `PUBLISHED` o pasaron más de `event.access-window.after-hours` horas desde `dateTime`, o el precio del evento cambió durante la compra |
+| `409 Conflict` | No hay cupo (del evento o del sector) para la cantidad pedida, el evento no está `PUBLISHED` o pasaron más de `event.access-window.after-hours` horas desde `dateTime`, o el precio del evento cambió durante la compra |
 | `428 Precondition Required` | El evento tiene precio y el organizador no tiene una cuenta de MercadoPago vinculada |
 | `502 Bad Gateway` | No se pudo procesar el pago con MercadoPago o renovar el token del organizador |
 
@@ -1019,6 +1126,7 @@ Los datos de acceso de eventos virtuales se obtienen con
     "id": "550e8400-e29b-41d4-a716-446655440001",
     "eventId": "550e8400-e29b-41d4-a716-446655440000",
     "eventTitle": "Conferencia de tecnología",
+    "sectorName": "VIP",
     "status": "ACTIVE",
     "boughtAt": "2026-09-01T14:30:00",
     "qrCodeBase64": "<qr-code-base64>"
@@ -1318,7 +1426,9 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
   "accessInstructions": "string",
   "isOrganizer": "boolean",
   "organizerName": "string",
-  "imageUrl": "string"
+  "imageUrl": "string",
+  "layoutImageUrl": "string",
+  "sectors": [ "SectorResponse" ]
 }
 ```
 
@@ -1327,11 +1437,36 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 | `status` | `DRAFT`, `PUBLISHED`, `CANCELLED` o `FINISHED` |
 | `eventType` | `IN_PERSON` o `VIRTUAL` |
 | `imageUrl` | Ruta relativa de la imagen de portada (`/api/v1/images/{key}`), o `null` si el evento no tiene imagen. Ver [Descargar una imagen](#descargar-una-imagen). |
+| `layoutImageUrl` | Ruta relativa del plano del recinto. Solo en el detalle (y respuestas al organizador) de eventos `IN_PERSON` con plano; se omite en otro caso. |
+| `sectors` | Lista de [`SectorResponse`](#sectorresponse) ordenada por nombre. Solo en el detalle (y respuestas al organizador) de eventos `IN_PERSON`: `[]` si no tiene sectores. Se omite en listados y en eventos virtuales. |
 | `organizerName` | Nombre del organizador del evento. Viene en el detalle, en los listados y en las respuestas de crear, actualizar y publicar. |
 | `isOrganizer` | Si el usuario actual organiza el evento. Viene en `GET /api/v1/events/{id}` y en las respuestas de crear, actualizar y publicar (siempre `true`); en los listados se omite. |
 | `availableTickets` | Entradas que quedan a la venta: `capacity` menos las entradas pendientes de pago, activas o usadas (nunca negativo). `0` significa agotado. |
 
+Con sectores, `basePrice` es el precio mínimo entre ellos y `capacity` la suma de sus
+capacidades (ver [Sectores sobre un plano](#sectores-sobre-un-plano)).
+
 Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `availableTickets` solo se llenan para eventos de tipo `IN_PERSON`; los virtuales no tienen cupo. Para eventos de tipo `VIRTUAL` se llena `platform`. `accessLink` y `accessInstructions` solo aparecen para el organizador: en `GET /api/v1/events/{id}` y en las respuestas de crear, actualizar y publicar. En los listados y para el resto de los usuarios se omiten del JSON (el enlace se entrega al comprador con `GET /api/v1/access/virtual/{ticketId}`).
+
+### SectorResponse
+
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "price": "number",
+  "capacity": "integer",
+  "color": "string",
+  "points": [ { "x": "number", "y": "number" } ],
+  "availableTickets": "integer"
+}
+```
+
+| Campo | Valores |
+|-------|---------|
+| `color` | `#RRGGBB`, o `null` si no se definió |
+| `points` | Vértices normalizados de 0 a 1 respecto del plano, o `null` si el sector no se dibujó |
+| `availableTickets` | `capacity` menos las entradas del sector pendientes de pago, activas o usadas |
 
 ### PurchaseResponse
 
@@ -1360,6 +1495,7 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `ava
   "id": "uuid",
   "eventId": "uuid",
   "eventTitle": "string",
+  "sectorName": "string",
   "status": "string",
   "boughtAt": "datetime",
   "qrCodeBase64": "string"
@@ -1369,6 +1505,7 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `ava
 | Campo | Valores |
 |-------|---------|
 | `status` | `PENDING`, `ACTIVE`, `USED` o `CANCELLED` |
+| `sectorName` | Sector de la entrada, o `null` si el evento no tiene sectores |
 | `qrCodeBase64` | `null` si el ticket no está `ACTIVE` o el evento es virtual |
 
 ### ControllerResponse
@@ -1388,6 +1525,7 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `ava
   "ticketId": "uuid",
   "attendeeName": "string",
   "eventTitle": "string",
+  "sectorName": "string",
   "validatedAt": "datetime"
 }
 ```

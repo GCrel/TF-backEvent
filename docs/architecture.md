@@ -45,7 +45,7 @@ Componentes externos:
 ```text
 org.gcrel.tfbackevent
 ├── auth/       Registro, login, verificación de email, tokens JWT y envío de correos.
-├── event/      Ciclo de vida de eventos, ventana de acceso e imágenes de portada.
+├── event/      Ciclo de vida de eventos, ventana de acceso, imágenes y sectores sobre un plano.
 ├── payment/    Órdenes de compra, integración MercadoPago, webhooks, QR y entrega.
 ├── access/     Validación de QR presencial, acceso virtual y controladores.
 ├── model/      Entidades JPA y enums compartidos del dominio.
@@ -90,9 +90,10 @@ Configuración transversal en `common/config`:
 |---------|-------|-----|
 | `User` | `users` | Usuario del sistema. Guarda credenciales, rol de sistema y datos de verificación. |
 | `Event` (abstracta) | `events` | Datos comunes de un evento (título, fecha, precio, estado). |
-| `InPersonEvent` | `in_person_events` | Evento presencial: dirección, geolocalización y capacidad. |
+| `InPersonEvent` | `in_person_events` | Evento presencial: dirección, geolocalización, capacidad y plano del recinto. |
+| `Sector` | `event_sectors` | Zona de un evento presencial con nombre, precio, capacidad y un polígono normalizado (`jsonb`) sobre el plano. |
 | `VirtualEvent` | `virtual_events` | Evento virtual: enlace, plataforma e instrucciones de acceso. |
-| `TicketOrder` | `ticket_orders` | Orden de compra: agrupa las entradas adquiridas juntas por un comprador (cantidad, precio unitario, total) y guarda el estado de entrega por email. |
+| `TicketOrder` | `ticket_orders` | Orden de compra: agrupa las entradas adquiridas juntas por un comprador (cantidad, precio unitario, total, sector si el evento tiene sectores) y guarda el estado de entrega por email. |
 | `Ticket` | `tickets` | Entrada individual. Pertenece a una orden; guarda estado, evento, titular y datos de acceso. Cada una tiene su propio QR. |
 | `Payment` | `payments` | Pago de MercadoPago asociado 1:1 a una orden. Las órdenes de eventos gratuitos no tienen pago. |
 | `EventParticipation` | `event_participations` | Relación usuario–evento con su rol (`EventRole`). Clave compuesta. |
@@ -301,13 +302,14 @@ PUT /events/{id}
 ### 4. Compra de entradas (presencial y virtual)
 
 ```text
-POST /tickets/purchase { eventId, quantity, [datos de pago] }
+POST /tickets/purchase { eventId, quantity, [sectorId], [datos de pago] }
   1. Valida quantity ≤ ticket.purchase.max-quantity (10) y que el evento esté
-     PUBLISHED y dentro de la ventana de compra.
+     PUBLISHED y dentro de la ventana de compra. Si el evento tiene sectores,
+     exige un sectorId del evento; el sector define precio y cupo.
   2. Reserva la orden en una transacción con bloqueo pesimista sobre el evento
-     (findByIdForUpdate): verifica cupo (vendidas + quantity ≤ capacidad) y crea
-     la TicketOrder con N tickets. Si el precio cambió entre la lectura y el
-     bloqueo (gratuito ↔ pago), responde 409.
+     (findByIdForUpdate): verifica cupo (vendidas + quantity ≤ capacidad del
+     evento, o del sector) y crea la TicketOrder con N tickets. Si el precio
+     cambió entre la lectura y el bloqueo (gratuito ↔ pago), responde 409.
 
   Evento gratuito (precio 0):
   3. Los tickets se crean ACTIVE y se programa la entrega por email.
