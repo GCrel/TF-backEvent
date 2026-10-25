@@ -845,6 +845,17 @@ por el organizador del evento:
 Asigna como controlador a un usuario habilitado mediante su email. Devuelve
 `201 Created` con su identificador, nombre y email.
 
+Responde `404 Not Found` si el email no corresponde a ninguna cuenta o si la
+cuenta todavía no está verificada. El campo `error` distingue cada caso:
+
+| Situación | `error` |
+|-----------|---------|
+| No existe ninguna cuenta con ese email | `No hay ningún usuario con ese email.` |
+| La cuenta existe pero no está verificada | `El usuario todavía no verificó su cuenta.` |
+
+Responde `400 Bad Request` si el evento es `VIRTUAL`: los controladores validan
+entradas en el acceso de los eventos presenciales.
+
 **Cuerpo de la petición:**
 
 ```json

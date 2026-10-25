@@ -419,7 +419,7 @@ el organizador); no se generan credenciales individuales.
 ### 10. Gestión de controladores
 
 ```text
-POST   /events/{eventId}/controllers { email } → asigna CONTROLLER a un usuario habilitado.
+POST   /events/{eventId}/controllers { email } → asigna CONTROLLER a un usuario habilitado (solo eventos presenciales).
 GET    /events/{eventId}/controllers           → lista controladores.
 DELETE /events/{eventId}/controllers/{userId}  → quita un controlador.
 GET    /access/my-events                       → eventos PUBLISHED donde el usuario es controlador.
