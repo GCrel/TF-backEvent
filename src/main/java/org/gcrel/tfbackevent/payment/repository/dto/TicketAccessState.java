@@ -4,5 +4,6 @@ import java.time.LocalDateTime;
 
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 
-public record TicketAccessState(TicketStatus status, LocalDateTime accessedAt) {
+// validatedByName es null si el ticket no fue validado por un controlador.
+public record TicketAccessState(TicketStatus status, LocalDateTime accessedAt, String validatedByName) {
 }

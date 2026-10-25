@@ -126,7 +126,7 @@ public class AccessService {
         TicketAccessState state = ticketRepository.findAccessStateById(ticketId)
                 .orElseThrow(() -> new TicketNotFoundException(ticketId));
         return state.status() == TicketStatus.USED
-                ? new TicketAlreadyUsedException(state.accessedAt())
+                ? new TicketAlreadyUsedException(state.accessedAt(), state.validatedByName())
                 : new TicketNotValidException();
     }
 }

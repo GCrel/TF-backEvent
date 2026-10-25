@@ -56,8 +56,8 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     Optional<Ticket> findWithEventAndAttendeeById(UUID id);
 
     // Consulta de solo columnas: evita la caché de la sesión tras el UPDATE.
-    @Query("SELECT new org.gcrel.tfbackevent.payment.repository.dto.TicketAccessState(t.status, t.accessedAt) "
-            + "FROM Ticket t WHERE t.id = :id")
+    @Query("SELECT new org.gcrel.tfbackevent.payment.repository.dto.TicketAccessState(t.status, t.accessedAt, v.name) "
+            + "FROM Ticket t LEFT JOIN t.validatedBy v WHERE t.id = :id")
     Optional<TicketAccessState> findAccessStateById(@Param("id") UUID id);
 
     @Query("""

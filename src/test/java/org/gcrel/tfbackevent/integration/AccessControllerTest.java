@@ -129,9 +129,13 @@ class AccessControllerTest {
 
     @Test
     void validateQr_WhenTicketAlreadyUsed_Returns409() throws Exception {
-        doThrow(new TicketAlreadyUsedException(LocalDateTime.of(2026, 10, 10, 18, 0)))
+        doThrow(new TicketAlreadyUsedException(LocalDateTime.of(2026, 10, 10, 18, 0), "Ana Control"))
                 .when(accessService).validateQr(any(ValidateQrRequest.class), any(User.class));
-        performValidQr(UUID.randomUUID()).andExpect(status().isConflict());
+        performValidQr(UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Ticket fue usado: 10/10/2026 18:00 por Ana Control"))
+                .andExpect(jsonPath("$.details.validatedAt").value("2026-10-10T18:00:00"))
+                .andExpect(jsonPath("$.details.validatedBy").value("Ana Control"));
     }
 
     @Test

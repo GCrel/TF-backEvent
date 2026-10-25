@@ -1,5 +1,7 @@
 package org.gcrel.tfbackevent.common.exception;
 
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 
 public abstract class AppException extends RuntimeException {
@@ -17,5 +19,10 @@ public abstract class AppException extends RuntimeException {
 
     public HttpStatus getStatus() {
         return status;
+    }
+
+    // Datos extra para el cuerpo del error; null si la excepción no tiene.
+    public Map<String, Object> getDetails() {
+        return null;
     }
 }

@@ -10,8 +10,13 @@ public record ErrorResponse(
         String error,
         int status,
         LocalDateTime timestamp,
-        Map<String, String> fields) {
+        Map<String, String> fields,
+        Map<String, Object> details) {
     public ErrorResponse(String error, int status, LocalDateTime timestamp) {
-        this(error, status, timestamp, null);
+        this(error, status, timestamp, null, null);
+    }
+
+    public ErrorResponse(String error, int status, LocalDateTime timestamp, Map<String, String> fields) {
+        this(error, status, timestamp, fields, null);
     }
 }

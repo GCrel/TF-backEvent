@@ -110,6 +110,8 @@ class TicketAccessConcurrencyTest {
             assertEquals(TicketStatus.USED, used.getStatus());
             assertNotNull(used.getAccessedAt());
             assertEquals(fixture.controller().getId(), used.getValidatedBy().getId());
+            assertEquals(fixture.controller().getName(),
+                    ticketRepository.findAccessStateById(used.getId()).orElseThrow().validatedByName());
         } finally {
             pool.shutdownNow();
         }
