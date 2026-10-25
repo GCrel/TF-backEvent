@@ -163,7 +163,7 @@ class AccessServiceTest {
                 eq(ticketId), any(), eq(staff), eq(TicketStatus.ACTIVE), eq(TicketStatus.USED)))
                 .thenReturn(0);
         when(ticketRepository.findAccessStateById(ticketId))
-                .thenReturn(Optional.of(new TicketAccessState(TicketStatus.USED, accessedAt)));
+                .thenReturn(Optional.of(new TicketAccessState(TicketStatus.USED, accessedAt, "Ana Control")));
 
         TicketAlreadyUsedException exception = assertThrows(TicketAlreadyUsedException.class,
                 () -> accessService.validateQr(
@@ -171,8 +171,11 @@ class AccessServiceTest {
 
         assertEquals(
                 "Ticket fue usado: "
-                        + accessedAt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                        + accessedAt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                        + " por Ana Control",
                 exception.getMessage());
+        assertEquals(accessedAt, exception.getDetails().get("validatedAt"));
+        assertEquals("Ana Control", exception.getDetails().get("validatedBy"));
     }
 
     @Test
@@ -230,7 +233,7 @@ class AccessServiceTest {
                     eq(ticketId), any(), eq(staff), eq(TicketStatus.ACTIVE), eq(TicketStatus.USED)))
                     .thenReturn(0);
             when(ticketRepository.findAccessStateById(ticketId))
-                    .thenReturn(Optional.of(new TicketAccessState(status, null)));
+                    .thenReturn(Optional.of(new TicketAccessState(status, null, null)));
 
             assertThrows(TicketNotValidException.class, () -> accessService.validateQr(
                     new ValidateQrRequest(event.getId(), ticketId.toString()), staff));

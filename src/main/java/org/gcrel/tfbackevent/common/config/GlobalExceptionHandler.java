@@ -35,7 +35,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ErrorResponse response = new ErrorResponse(
                 ex.getMessage(),
                 ex.getStatus().value(),
-                LocalDateTime.now());
+                LocalDateTime.now(),
+                null,
+                ex.getDetails());
 
         return ResponseEntity.status(ex.getStatus()).body(response);
     }

@@ -67,6 +67,9 @@ En errores de validación (`400`) se agrega el mapa `fields` con el detalle por 
 }
 ```
 
+Algunos errores de negocio agregan el mapa `details` con datos extra. Por ahora solo
+lo usa el `409` de ticket ya utilizado (ver [Validar ingreso presencial](#validar-ingreso-presencial)).
+
 ### Paginación
 
 Los listados de eventos (`GET /api/v1/events`, `GET /api/v1/events/mine` y
@@ -960,6 +963,24 @@ un UUID válido, no pertenece al evento o el evento es virtual; `404 Not Found`
 si el evento o el ticket no existen; y `403 Forbidden` si el usuario no es
 organizador ni controlador.
 
+Si el ticket ya fue utilizado, el `409` indica cuándo y quién lo validó, para
+resolver disputas en la puerta:
+
+```json
+{
+  "error": "Ticket fue usado: 15/10/2026 17:05 por Ana Control",
+  "status": 409,
+  "timestamp": "2026-10-15T17:20:00",
+  "details": {
+    "validatedAt": "2026-10-15T17:05:00",
+    "validatedBy": "Ana Control"
+  }
+}
+```
+
+`validatedBy` es el nombre de quien validó, o `null` si el ticket se marcó como
+usado sin un controlador registrado.
+
 ### Obtener credenciales de un evento virtual
 
 `GET /api/v1/access/virtual/{ticketId}`
@@ -1140,7 +1161,9 @@ Los datos de acceso de eventos virtuales se obtienen con
     "sectorName": "VIP",
     "status": "ACTIVE",
     "boughtAt": "2026-09-01T14:30:00",
-    "qrCodeBase64": "<qr-code-base64>"
+    "qrCodeBase64": "<qr-code-base64>",
+    "eventType": "IN_PERSON",
+    "eventDateTime": "2026-10-15T18:00:00"
   }
 ]
 ```
@@ -1509,13 +1532,17 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `ava
   "sectorName": "string",
   "status": "string",
   "boughtAt": "datetime",
-  "qrCodeBase64": "string"
+  "qrCodeBase64": "string",
+  "eventType": "string",
+  "eventDateTime": "datetime"
 }
 ```
 
 | Campo | Valores |
 |-------|---------|
 | `status` | `PENDING`, `ACTIVE`, `USED` o `CANCELLED` |
+| `eventType` | `IN_PERSON` o `VIRTUAL` |
+| `eventDateTime` | Fecha y hora de inicio del evento |
 | `sectorName` | Sector de la entrada, o `null` si el evento no tiene sectores |
 | `qrCodeBase64` | `null` si el ticket no está `ACTIVE` o el evento es virtual |
 
@@ -1580,8 +1607,11 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `ava
   "error": "string",
   "status": "integer",
   "timestamp": "datetime",
-  "fields": {}
+  "fields": {},
+  "details": {}
 }
 ```
 
 `fields` solo aparece en errores de validación y mapea cada campo con su mensaje de error.
+`details` solo aparece en errores de negocio que aportan datos extra (hoy, el `409` de
+ticket ya utilizado).

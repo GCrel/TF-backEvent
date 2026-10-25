@@ -20,6 +20,7 @@ import org.gcrel.tfbackevent.auth.service.JwtService;
 import org.gcrel.tfbackevent.common.config.GlobalExceptionHandler;
 import org.gcrel.tfbackevent.common.config.SecurityConfig;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.payment.controller.TicketController;
 import org.gcrel.tfbackevent.payment.dto.request.PurchaseTicketRequest;
 import org.gcrel.tfbackevent.payment.dto.response.PurchaseResponse;
@@ -143,7 +144,9 @@ public class TicketControllerTest {
                 null,
                 "ACTIVE",
                 LocalDateTime.now(),
-                "qr1");
+                "qr1",
+                EventType.IN_PERSON,
+                LocalDateTime.now().plusDays(1));
         TicketResponse second = new TicketResponse(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
@@ -151,7 +154,9 @@ public class TicketControllerTest {
                 null,
                 "ACTIVE",
                 LocalDateTime.now(),
-                "qr2");
+                "qr2",
+                EventType.IN_PERSON,
+                LocalDateTime.now().plusDays(1));
 
         when(ticketService.getMyTickets(any(User.class))).thenReturn(List.of(first, second));
 
@@ -175,6 +180,7 @@ public class TicketControllerTest {
     @Test
     void getTicket_Success_Returns200AndBody() throws Exception {
         UUID ticketId = UUID.randomUUID();
+        LocalDateTime eventDateTime = LocalDateTime.of(2026, 12, 1, 20, 0);
         TicketResponse response = new TicketResponse(
                 ticketId,
                 UUID.randomUUID(),
@@ -182,13 +188,17 @@ public class TicketControllerTest {
                 null,
                 "ACTIVE",
                 LocalDateTime.now(),
-                "qrcode");
+                "qrcode",
+                EventType.VIRTUAL,
+                eventDateTime);
 
         when(ticketService.getTicket(eq(ticketId), any(User.class))).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/tickets/{id}", ticketId).with(authentication(authentication)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(ticketId.toString()))
-                .andExpect(jsonPath("$.eventTitle").value("Evento X"));
+                .andExpect(jsonPath("$.eventTitle").value("Evento X"))
+                .andExpect(jsonPath("$.eventType").value("VIRTUAL"))
+                .andExpect(jsonPath("$.eventDateTime").value("2026-12-01T20:00:00"));
     }
 }

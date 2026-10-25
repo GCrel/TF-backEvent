@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.enums.EventType;
 
 public record TicketResponse(
         UUID id,
@@ -13,7 +14,9 @@ public record TicketResponse(
         String sectorName,
         String status,
         LocalDateTime boughtAt,
-        String qrCodeBase64) {
+        String qrCodeBase64,
+        EventType eventType,
+        LocalDateTime eventDateTime) {
 
     public TicketResponse(Ticket ticket, String qr) {
         this(
@@ -23,6 +26,8 @@ public record TicketResponse(
                 ticket.getOrder().getSector() == null ? null : ticket.getOrder().getSector().getName(),
                 ticket.getStatus().toString(),
                 ticket.getBoughtAt(),
-                qr);
+                qr,
+                ticket.getEvent().getType(),
+                ticket.getEvent().getDateTime());
     }
 }
