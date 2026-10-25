@@ -127,7 +127,7 @@ class EventStaffControllerTest {
     @Test
     void assign_WhenUserMissing_Returns404() throws Exception {
         UUID eventId = UUID.randomUUID();
-        doThrow(new ControllerUserNotFoundException()).when(eventStaffService)
+        doThrow(new ControllerUserNotFoundException("No hay ningún usuario con ese email.")).when(eventStaffService)
                 .assign(eq(eventId), any(AssignControllerRequest.class), eq(organizer));
         mockMvc.perform(post("/api/v1/events/{eventId}/controllers", eventId)
                 .with(authentication(authentication))

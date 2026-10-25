@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,6 +28,7 @@ import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.VirtualEvent;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -116,16 +118,40 @@ class EventStaffServiceTest {
     }
 
     @Test
-    void assign_WhenUserMissingOrDisabled_ThrowsSameNotFoundException() {
+    void assign_WhenEventIsVirtual_ThrowsBadRequest() {
+        VirtualEvent webinar = new VirtualEvent(
+                "Webinar", "Description", LocalDateTime.now().plusDays(1),
+                new BigDecimal("20.00"), "https://meet.example.com", "Meet", null);
+        webinar.setId(UUID.randomUUID());
+        webinar.setStatus(EventStatus.PUBLISHED);
+        when(eventRepository.findById(webinar.getId())).thenReturn(Optional.of(webinar));
+        when(participationRepository.existsByEventAndUserAndId_EventRole(
+                webinar, organizer, EventRole.ORGANIZER)).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> eventStaffService.assign(
+                webinar.getId(), new AssignControllerRequest(controller.getEmail()), organizer));
+        verify(participationRepository, never()).saveAndFlush(any(EventParticipation.class));
+    }
+
+    @Test
+    void assign_WhenUserMissing_ThrowsNotFoundWithMissingMessage() {
         stubOrganizer();
         when(userRepository.findByEmail(controller.getEmail())).thenReturn(Optional.empty());
-        assertThrows(ControllerUserNotFoundException.class, () -> eventStaffService.assign(
-                event.getId(), new AssignControllerRequest(controller.getEmail()), organizer));
+        ControllerUserNotFoundException ex = assertThrows(ControllerUserNotFoundException.class,
+                () -> eventStaffService.assign(
+                        event.getId(), new AssignControllerRequest(controller.getEmail()), organizer));
+        assertEquals("No hay ningún usuario con ese email.", ex.getMessage());
+    }
 
+    @Test
+    void assign_WhenUserNotVerified_ThrowsNotFoundWithUnverifiedMessage() {
+        stubOrganizer();
         User disabled = user("disabled@example.com");
         when(userRepository.findByEmail(disabled.getEmail())).thenReturn(Optional.of(disabled));
-        assertThrows(ControllerUserNotFoundException.class, () -> eventStaffService.assign(
-                event.getId(), new AssignControllerRequest(disabled.getEmail()), organizer));
+        ControllerUserNotFoundException ex = assertThrows(ControllerUserNotFoundException.class,
+                () -> eventStaffService.assign(
+                        event.getId(), new AssignControllerRequest(disabled.getEmail()), organizer));
+        assertEquals("El usuario todavía no verificó su cuenta.", ex.getMessage());
     }
 
     @Test

@@ -21,6 +21,7 @@ import org.gcrel.tfbackevent.model.EventParticipation;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,10 +49,16 @@ public class EventStaffService {
                 || event.getStatus() == EventStatus.FINISHED) {
             throw new EventNotModifiableException();
         }
+        if (event.getType() == EventType.VIRTUAL) {
+            throw new BadRequestException("Los eventos virtuales no admiten controladores.");
+        }
 
         User user = userRepository.findByEmail(EmailNormalizer.normalize(request.email()))
-                .filter(User::isEnabled)
-                .orElseThrow(ControllerUserNotFoundException::new);
+                .orElseThrow(() -> new ControllerUserNotFoundException(
+                        "No hay ningún usuario con ese email."));
+        if (!user.isEnabled()) {
+            throw new ControllerUserNotFoundException("El usuario todavía no verificó su cuenta.");
+        }
         if (user.getId().equals(organizer.getId())) {
             throw new BadRequestException("El organizador ya puede validar entradas.");
         }
