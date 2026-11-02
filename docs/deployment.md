@@ -120,6 +120,16 @@ En producción, además:
 
   Los planos de los recintos se guardan en el mismo volumen `uploads` que las
   portadas (ver [Imágenes de eventos](#imágenes-de-eventos)).
+- **Datos de la cuenta:** la edición de email, contraseña y avatar agrega tres
+  columnas a `users`. Sobre una base existente:
+
+  ```sql
+  ALTER TABLE users ADD COLUMN code_purpose varchar(255);
+  ALTER TABLE users ADD COLUMN pending_email varchar(255);
+  ALTER TABLE users ADD COLUMN avatar_key varchar(255);
+  ```
+
+  Los avatares se guardan en el mismo volumen `uploads` que las portadas.
 - **Red:** la base no debe ser accesible desde Internet; solo desde el backend.
 - **Respaldo:** configurar backups periódicos (los de la base administrada del
   proveedor o `pg_dump` programado).

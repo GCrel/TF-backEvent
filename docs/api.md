@@ -333,9 +333,125 @@ Devuelve la información del usuario autenticado (Requiere autenticación).
   "name": "Juan Pérez",
   "email": "juan@example.com",
   "systemRole": "USER",
-  "dateBirth": "1995-05-20"
+  "dateBirth": "1995-05-20",
+  "avatarUrl": "/api/v1/images/3f2a9c1e-7b4d-4e8a-9c55-1d2f6a8b0e11.webp"
 }
 ```
+
+`avatarUrl` es una ruta relativa que sirve Nginx (ver [Descargar una imagen](#descargar-una-imagen)),
+o `null` si el usuario no tiene avatar.
+
+### Editar perfil
+
+`PATCH /api/v1/auth/me`
+
+Cambia el nombre del usuario autenticado (Requiere autenticación).
+
+```json
+{
+  "name": "Juan Carlos Pérez"
+}
+```
+
+| Campo | Tipo | Descripción |
+|------|------|-------------|
+| `name` | string | Obligatorio, no vacío, máximo 100 caracteres |
+
+Devuelve `200 OK` con el `UserResponse` actualizado.
+
+### Cambiar el email
+
+El cambio tiene dos pasos y exige la contraseña actual más un código que se envía al
+**email nuevo**, para comprobar que la persona tiene acceso a él. El email actual
+sigue vigente hasta confirmar.
+
+`POST /api/v1/auth/me/email/request`
+
+```json
+{
+  "newEmail": "nuevo@example.com",
+  "currentPassword": "mi-clave-actual"
+}
+```
+
+Devuelve `204 No Content` y envía un código de 6 dígitos (vence a los 15 minutos) al
+email nuevo. Un pedido nuevo reemplaza al anterior.
+
+| Código | Causa |
+|--------|-------|
+| `400 Bad Request` | El email es inválido o igual al actual |
+| `401 Unauthorized` | La contraseña actual es incorrecta |
+| `409 Conflict` | Ya existe una cuenta con ese email |
+
+`POST /api/v1/auth/me/email/confirm`
+
+```json
+{
+  "code": "123456"
+}
+```
+
+Devuelve `200 OK` con un `AuthResponse` nuevo. **El front debe reemplazar los tokens
+guardados:** el access token lleva el email como identidad, así que los anteriores
+dejan de servir, y se cierran las demás sesiones (se borran los refresh tokens).
+
+| Código | Causa |
+|--------|-------|
+| `400 Bad Request` | No hay un cambio de email pendiente, el código es incorrecto o venció. A los 5 intentos fallidos el código se invalida y hay que pedir otro |
+| `409 Conflict` | Otra cuenta tomó ese email entre el pedido y la confirmación |
+
+### Cambiar la contraseña
+
+Mismo esquema: contraseña actual más un código, que en este caso se envía al email
+**actual**.
+
+`POST /api/v1/auth/me/password/request`
+
+```json
+{
+  "currentPassword": "mi-clave-actual"
+}
+```
+
+Devuelve `204 No Content`. Responde `401 Unauthorized` si la contraseña actual es
+incorrecta.
+
+`POST /api/v1/auth/me/password/confirm`
+
+```json
+{
+  "code": "123456",
+  "newPassword": "mi-clave-nueva"
+}
+```
+
+| Campo | Tipo | Descripción |
+|------|------|-------------|
+| `code` | string | Código de 6 dígitos |
+| `newPassword` | string | Entre 8 y 72 caracteres, distinta de la actual |
+
+Devuelve `200 OK` con un `AuthResponse` nuevo y cierra las demás sesiones (se borran
+los refresh tokens). Responde `400 Bad Request` si no hay un cambio pendiente, el
+código es incorrecto o venció, o la contraseña nueva es igual a la actual.
+
+Un código emitido para el cambio de email no sirve para confirmar el de contraseña,
+ni al revés.
+
+Los access tokens ya emitidos en otros dispositivos siguen siendo válidos hasta que
+expiren, salvo tras un cambio de email, que los invalida de inmediato.
+
+### Avatar
+
+`PUT /api/v1/auth/me/avatar` (`multipart/form-data`, campo `file`)
+
+Sube o reemplaza el avatar (Requiere autenticación). Acepta JPEG, PNG o WebP, con
+hasta **5 MB** (`413 Payload Too Large` si lo supera). Devuelve `200 OK` con el
+`UserResponse` (incluye `avatarUrl`). Responde `400 Bad Request` si la imagen está
+vacía o no es de un tipo permitido.
+
+`DELETE /api/v1/auth/me/avatar`
+
+Quita el avatar. Devuelve `204 No Content`, también si no había uno.
 
 ---
 
@@ -1431,13 +1547,15 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
   "name": "string",
   "email": "string",
   "systemRole": "string",
-  "dateBirth": "date"
+  "dateBirth": "date",
+  "avatarUrl": "string"
 }
 ```
 
 | Campo | Valores |
 |-------|---------|
 | `systemRole` | `USER` o `ADMIN` |
+| `avatarUrl` | Ruta relativa de la imagen, o `null` si no tiene avatar |
 
 ### EventResponse
 

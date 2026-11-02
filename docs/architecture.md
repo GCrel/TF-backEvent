@@ -88,7 +88,7 @@ Configuración transversal en `common/config`:
 
 | Entidad | Tabla | Rol |
 |---------|-------|-----|
-| `User` | `users` | Usuario del sistema. Guarda credenciales, rol de sistema y datos de verificación. |
+| `User` | `users` | Usuario del sistema. Guarda credenciales, rol de sistema, avatar y datos de verificación (código, propósito y email pendiente). |
 | `Event` (abstracta) | `events` | Datos comunes de un evento (título, fecha, precio, estado). |
 | `InPersonEvent` | `in_person_events` | Evento presencial: dirección, geolocalización, capacidad y plano del recinto. |
 | `Sector` | `event_sectors` | Zona de un evento presencial con nombre, precio, capacidad y un polígono normalizado (`jsonb`) sobre el plano. |
@@ -265,6 +265,27 @@ POST /auth/resend-verification { email }
   └─ si hay una cuenta pendiente, genera un código nuevo y reinicia el contador
      de intentos. Responde siempre 204 (no revela si el email existe).
 ```
+
+### 1.b Edición de datos de la cuenta
+
+```text
+PATCH /auth/me { name }                    → cambia el nombre.
+POST  /auth/me/email/request    { newEmail, currentPassword }
+  └─ valida la contraseña y que el email esté libre; guarda `pending_email` y manda
+     el código al email NUEVO.
+POST  /auth/me/email/confirm    { code }
+  └─ aplica el email, cierra las demás sesiones y devuelve tokens nuevos (el JWT
+     lleva el email como subject, así que los anteriores dejan de servir).
+POST  /auth/me/password/request { currentPassword } → código al email actual.
+POST  /auth/me/password/confirm { code, newPassword }
+  └─ aplica la contraseña, cierra las demás sesiones y devuelve tokens nuevos.
+PUT/DELETE /auth/me/avatar                 → imagen en el mismo volumen que las portadas.
+```
+
+El código se guarda en las mismas columnas que el del alta de cuenta
+(`verification_code*`), con `code_purpose` (`EMAIL_CHANGE` o `PASSWORD_CHANGE`) para que
+un código de un flujo no confirme el otro. La validación (vencimiento, máximo 5
+intentos) es común a los tres usos (`VerificationCode`).
 
 ### 2. Login, refresh y logout
 

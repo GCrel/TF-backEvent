@@ -418,6 +418,42 @@ detección automática de sectores se descartó por requerir modelos de IA.
   referencia al sector.
 - El organizador puede dibujar sectores superpuestos; el backend no lo detecta.
 
+## ADR-018: Edición de datos de la cuenta con código de verificación
+
+**Estado:** Aceptada.
+
+**Contexto.** El usuario debe poder cambiar su email, su contraseña, su nombre y su
+avatar. El email es además la identidad dentro del JWT (`subject`), y la contraseña y
+el email son la puerta de recuperación de la cuenta.
+
+**Decisión.**
+
+- **Contraseña actual + código.** Cambiar el email o la contraseña exige la contraseña
+  actual y un código de 6 dígitos por correo. Con solo un access token robado no se
+  puede tomar la cuenta. El código del cambio de email va al email **nuevo** (prueba
+  que se tiene acceso a él); el de contraseña, al email actual.
+- **Mismo código, con propósito.** Se reutilizan las columnas `verification_code*` del
+  alta de cuenta, que ya traían vencimiento y máximo de 5 intentos, y se agrega
+  `code_purpose`. El alta solo ocurre en cuentas sin habilitar y los cambios solo en
+  habilitadas, así que no se pisan; el propósito evita cruzar el cambio de email con el
+  de contraseña. Un pedido nuevo reemplaza al anterior.
+- **Sesión nueva tras el cambio.** Como el JWT lleva el email, cambiarlo invalida los
+  access tokens vigentes. Ambos cambios borran los refresh tokens (cierran las demás
+  sesiones) y devuelven un par de tokens nuevo.
+- **Nombre y avatar sin código.** No comprometen el acceso a la cuenta. El avatar usa
+  el almacenamiento de imágenes de ADR-016 y se borra el archivo anterior al cerrar la
+  transacción, igual que las portadas.
+
+**Consecuencias.**
+
+- Los access tokens emitidos en otros dispositivos siguen siendo válidos hasta
+  expirar tras un cambio de contraseña (JWT sin estado). Tras un cambio de email se
+  invalidan de inmediato porque el filtro busca al usuario por el email del token.
+- No hay límite de frecuencia al pedir códigos, igual que en el reenvío de
+  verificación: un usuario autenticado podría disparar muchos correos.
+- Dos subidas simultáneas de avatar del mismo usuario pueden dejar un archivo
+  huérfano (no se bloquea la fila del usuario como se hace con los eventos).
+
 ## Limitaciones conocidas
 
 1. **Desvinculación de MercadoPago con ventana de carrera.** `DELETE /mp/disconnect`
