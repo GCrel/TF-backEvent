@@ -1,5 +1,6 @@
 package org.gcrel.tfbackevent.integration;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -22,6 +23,7 @@ import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
 import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.auth.service.AccountService;
+import org.gcrel.tfbackevent.auth.service.AuthCookies;
 import org.gcrel.tfbackevent.auth.service.JwtService;
 import org.gcrel.tfbackevent.common.config.GlobalExceptionHandler;
 import org.gcrel.tfbackevent.common.config.SecurityConfig;
@@ -33,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -42,8 +45,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = AccountController.class)
-@Import({ GlobalExceptionHandler.class, SecurityConfig.class })
+@WebMvcTest(controllers = AccountController.class, properties = {
+        "cookie.secure=true", "cookie.same-site=Strict", "jwt.access-token.expiration=1800000", "jwt.refresh-token.expiration=604800000"})
+@Import({ GlobalExceptionHandler.class, SecurityConfig.class, AuthCookies.class })
 @AutoConfigureMockMvc
 class AccountControllerTest {
     private static final String BASE = "/api/v1/auth/me";
@@ -141,14 +145,14 @@ class AccountControllerTest {
     }
 
     @Test
-    void confirmEmailChange_ReturnsNewTokens() throws Exception {
+    void confirmEmailChange_Returns204AndSetsNewSessionCookies() throws Exception {
         when(accountService.confirmEmailChange(any(User.class), any()))
                 .thenReturn(new AuthResponse("access", "refresh"));
 
         mockMvc.perform(post(BASE + "/email/confirm").with(authentication(authentication))
                 .contentType(JSON).content("{\"code\":\"123456\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").value("access"));
+                .andExpect(status().isNoContent())
+                .andExpect(result -> assertEquals(2, result.getResponse().getHeaders(HttpHeaders.SET_COOKIE).size()));
     }
 
     @Test
@@ -169,14 +173,14 @@ class AccountControllerTest {
     }
 
     @Test
-    void confirmPasswordChange_ReturnsNewTokens() throws Exception {
+    void confirmPasswordChange_Returns204AndSetsNewSessionCookies() throws Exception {
         when(accountService.confirmPasswordChange(any(User.class), any()))
                 .thenReturn(new AuthResponse("access", "refresh"));
 
         mockMvc.perform(post(BASE + "/password/confirm").with(authentication(authentication))
                 .contentType(JSON).content("{\"code\":\"123456\",\"newPassword\":\"nueva-clave\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.refreshToken").value("refresh"));
+                .andExpect(status().isNoContent())
+                .andExpect(result -> assertEquals(2, result.getResponse().getHeaders(HttpHeaders.SET_COOKIE).size()));
     }
 
     @Test

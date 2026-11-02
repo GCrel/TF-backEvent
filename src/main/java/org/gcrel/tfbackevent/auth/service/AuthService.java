@@ -118,14 +118,11 @@ public class AuthService {
         return new AuthResponse(newAccessToken, refreshToken.getToken());
     }
 
-    public void logout(RefreshTokenRequest request, User user) {
-        RefreshToken refreshToken = refreshTokenRepository
-                .findByToken(request.refreshToken())
-                // Un token ajeno se trata como inexistente para no confirmar que es válido.
-                .filter(token -> token.getUser().getId().equals(user.getId()))
-                .orElseThrow(InvalidTokenException::new);
-
-        refreshTokenRepository.delete(refreshToken);
+    // Idempotente: si el token no existe o ya se borró, no hay nada que invalidar.
+    public void logout(String refreshToken) {
+        if (refreshToken != null) {
+            refreshTokenRepository.findByToken(refreshToken).ifPresent(refreshTokenRepository::delete);
+        }
     }
 
     // private methods

@@ -7,12 +7,15 @@ import org.gcrel.tfbackevent.auth.dto.request.ResendVerificationRequest;
 import org.gcrel.tfbackevent.auth.dto.request.VerifyEmailRequest;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
 import org.gcrel.tfbackevent.auth.dto.response.UserResponse;
+import org.gcrel.tfbackevent.auth.exception.InvalidTokenException;
+import org.gcrel.tfbackevent.auth.service.AuthCookies;
 import org.gcrel.tfbackevent.auth.service.AuthService;
 import org.gcrel.tfbackevent.model.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,9 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
     private final AuthService authService;
+    private final AuthCookies authCookies;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthCookies authCookies) {
         this.authService = authService;
+        this.authCookies = authCookies;
     }
 
     @PostMapping("/register")
@@ -38,9 +43,8 @@ public class AuthController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<AuthResponse> verifyEmail(@Validated @RequestBody VerifyEmailRequest request) {
-        AuthResponse response = authService.verifyEmail(request.email(), request.code());
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Void> verifyEmail(@Validated @RequestBody VerifyEmailRequest request) {
+        return sessionStarted(authService.verifyEmail(request.email(), request.code()));
     }
 
     @PostMapping("/resend-verification")
@@ -51,22 +55,25 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Validated @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request.email(), request.password());
-        return ResponseEntity.status(HttpStatus.OK).body(response);
+    public ResponseEntity<Void> login(@Validated @RequestBody LoginRequest request) {
+        return sessionStarted(authService.login(request.email(), request.password()));
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refreshToken(@Validated @RequestBody RefreshTokenRequest request) {
-        AuthResponse response = authService.refresh(request);
-        return ResponseEntity.status(HttpStatus.OK).body(response);
+    public ResponseEntity<Void> refreshToken(
+            @CookieValue(name = AuthCookies.REFRESH, required = false) String refreshToken) {
+        if (refreshToken == null) {
+            throw new InvalidTokenException();
+        }
+        AuthResponse response = authService.refresh(new RefreshTokenRequest(refreshToken));
+        return ResponseEntity.noContent().headers(authCookies.accessOnly(response.accessToken())).build();
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @Validated @RequestBody RefreshTokenRequest request, Authentication authentication) {
-        authService.logout(request, (User) authentication.getPrincipal());
-        return ResponseEntity.noContent().build();
+            @CookieValue(name = AuthCookies.REFRESH, required = false) String refreshToken) {
+        authService.logout(refreshToken);
+        return ResponseEntity.noContent().headers(authCookies.cleared()).build();
     }
 
     @GetMapping("/me")
@@ -74,5 +81,9 @@ public class AuthController {
         User user = (User) authentication.getPrincipal();
         assert user != null;
         return ResponseEntity.ok(new UserResponse(user));
+    }
+
+    private ResponseEntity<Void> sessionStarted(AuthResponse tokens) {
+        return ResponseEntity.noContent().headers(authCookies.session(tokens)).build();
     }
 }

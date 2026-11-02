@@ -54,6 +54,7 @@ public class SecurityConfig {
                                         "/api/v1/auth/login",
                                         "/api/v1/auth/register",
                                         "/api/v1/auth/refresh",
+                                        "/api/v1/auth/logout",
                                         "/api/v1/auth/verify",
                                         "/api/v1/auth/resend-verification")
                                 .permitAll()
@@ -74,7 +75,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // CORS configuration 
+    // CORS configuration
     private CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(allowedOrigins.stream()
@@ -82,7 +83,8 @@ public class SecurityConfig {
                 .filter(origin -> !origin.isEmpty())
                 .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowedHeaders(List.of("Content-Type"));
+        config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

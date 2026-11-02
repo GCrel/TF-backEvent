@@ -285,29 +285,30 @@ public class AuthServiceTest {
     // ==========================================
     @Test
     void logout_Success() {
-        RefreshTokenRequest request = new RefreshTokenRequest("valid_refresh_token");
         RefreshToken token = new RefreshToken("valid_refresh_token", LocalDateTime.now().plusDays(1), testUser);
 
         when(refreshTokenRepository.findByToken("valid_refresh_token"))
                 .thenReturn(Optional.of(token));
 
-        authService.logout(request, testUser);
+        authService.logout("valid_refresh_token");
 
         verify(refreshTokenRepository).delete(token);
     }
 
     @Test
-    void logout_WhenTokenBelongsToAnotherUser_ThrowsInvalidTokenAndKeepsIt() {
-        User otherUser = new User("Jane Doe", "jane@example.com", "encoded", LocalDate.of(1990, 1, 1));
-        otherUser.setId(UUID.randomUUID());
-        RefreshTokenRequest request = new RefreshTokenRequest("valid_refresh_token");
-        RefreshToken token = new RefreshToken("valid_refresh_token", LocalDateTime.now().plusDays(1), otherUser);
+    void logout_WhenTokenDoesNotExist_DoesNothing() {
+        when(refreshTokenRepository.findByToken("unknown")).thenReturn(Optional.empty());
 
-        when(refreshTokenRepository.findByToken("valid_refresh_token"))
-                .thenReturn(Optional.of(token));
+        authService.logout("unknown");
 
-        assertThrows(InvalidTokenException.class, () -> authService.logout(request, testUser));
         verify(refreshTokenRepository, never()).delete(any(RefreshToken.class));
+    }
+
+    @Test
+    void logout_WithoutToken_DoesNothing() {
+        authService.logout(null);
+
+        verify(refreshTokenRepository, never()).findByToken(anyString());
     }
 
     @Test

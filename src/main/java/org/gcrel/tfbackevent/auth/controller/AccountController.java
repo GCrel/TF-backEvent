@@ -8,6 +8,7 @@ import org.gcrel.tfbackevent.auth.dto.request.UpdateProfileRequest;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
 import org.gcrel.tfbackevent.auth.dto.response.UserResponse;
 import org.gcrel.tfbackevent.auth.service.AccountService;
+import org.gcrel.tfbackevent.auth.service.AuthCookies;
 import org.gcrel.tfbackevent.model.User;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -27,9 +28,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1/auth/me")
 public class AccountController {
     private final AccountService accountService;
+    private final AuthCookies authCookies;
 
-    public AccountController(AccountService accountService) {
+    public AccountController(AccountService accountService, AuthCookies authCookies) {
         this.accountService = accountService;
+        this.authCookies = authCookies;
     }
 
     @PatchMapping
@@ -46,9 +49,9 @@ public class AccountController {
     }
 
     @PostMapping("/email/confirm")
-    public ResponseEntity<AuthResponse> confirmEmailChange(
+    public ResponseEntity<Void> confirmEmailChange(
             @Validated @RequestBody ConfirmCodeRequest request, Authentication authentication) {
-        return ResponseEntity.ok(accountService.confirmEmailChange(user(authentication), request));
+        return sessionStarted(accountService.confirmEmailChange(user(authentication), request));
     }
 
     @PostMapping("/password/request")
@@ -59,9 +62,9 @@ public class AccountController {
     }
 
     @PostMapping("/password/confirm")
-    public ResponseEntity<AuthResponse> confirmPasswordChange(
+    public ResponseEntity<Void> confirmPasswordChange(
             @Validated @RequestBody ConfirmPasswordChangeRequest request, Authentication authentication) {
-        return ResponseEntity.ok(accountService.confirmPasswordChange(user(authentication), request));
+        return sessionStarted(accountService.confirmPasswordChange(user(authentication), request));
     }
 
     @PutMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -74,6 +77,10 @@ public class AccountController {
     public ResponseEntity<Void> deleteAvatar(Authentication authentication) {
         accountService.deleteAvatar(user(authentication));
         return ResponseEntity.noContent().build();
+    }
+
+    private ResponseEntity<Void> sessionStarted(AuthResponse tokens) {
+        return ResponseEntity.noContent().headers(authCookies.session(tokens)).build();
     }
 
     private static User user(Authentication authentication) {

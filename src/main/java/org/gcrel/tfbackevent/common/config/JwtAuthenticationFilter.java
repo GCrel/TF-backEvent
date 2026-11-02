@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.auth.service.AuthCookies;
 import org.gcrel.tfbackevent.auth.service.JwtService;
 import org.gcrel.tfbackevent.model.User;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -12,9 +13,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.WebUtils;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -33,14 +36,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        final String authHeader = request.getHeader("Authorization");
-
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        Cookie cookie = WebUtils.getCookie(request, AuthCookies.ACCESS);
+        if (cookie == null || cookie.getValue().isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String token = authHeader.substring(7);
+        final String token = cookie.getValue();
 
         try {
             String email = jwtService.extractEmail(token);
