@@ -4,22 +4,37 @@
 
 - **Base URL:** `http://localhost:8080` (Nginx, con Docker Compose). El backend también responde directo en `http://localhost:8085`, pero las imágenes (`/api/v1/images/...`) solo las sirve Nginx.
 - **Formato de datos:** JSON
-- **Autenticación:** Bearer Token (JWT)
+- **Autenticación:** cookies `HttpOnly` con JWT (ver [Autenticación](#autenticación))
 - **Documentación interactiva (perfil `dev`):** `http://localhost:8085/swagger-ui.html` (`/v3/api-docs` para el JSON OpenAPI)
 
 > En el perfil `prod` Swagger está deshabilitado (`springdoc.swagger-ui.enabled=false`).
 
 ### Autenticación
 
-La mayoría de los endpoints requieren un token de acceso en el header:
+La sesión viaja en **cookies `HttpOnly`** que el backend fija al iniciar sesión; el
+frontend nunca ve ni guarda los tokens (no usar `localStorage` ni `sessionStorage`).
 
-```
-Authorization: Bearer <access-token>
-```
+| Cookie | Contenido | Se envía a | Vida |
+|--------|-----------|------------|------|
+| `access_token` | JWT de acceso | `/api/**` | `JWT_ACCESS_TOKEN_EXPIRATION` (30 min) |
+| `refresh_token` | Token de refresco | solo `/api/v1/auth/**` | `JWT_REFRESH_TOKEN_EXPIRATION` (7 días) |
 
-El access token es un JWT de corta duración. Para renovar la sesión se debe enviar el `refreshToken` a `POST /api/v1/auth/refresh`.
+Las cookies son `HttpOnly`, `Secure` y `SameSite=Strict` (configurables, ver
+[`setup.md`](setup.md#variables-de-entorno)). El header `Authorization` **no** se acepta.
 
-Los endpoints protegidos devuelven `401 Unauthorized` si no se envía el token o este es inválido, y `403 Forbidden` si el token es válido pero no se tienen los permisos necesarios.
+**Qué debe hacer el frontend:**
+
+- Enviar **todas** las peticiones a la API con credenciales (`fetch(..., { credentials: 'include' })`,
+  o `withCredentials: true` en Angular `HttpClient`). Sin esto el navegador no manda las cookies
+  en peticiones entre orígenes.
+- Después de `login`, `verify` o un cambio de email/contraseña (todos responden `204` sin
+  cuerpo) pedir `GET /api/v1/auth/me` para obtener al usuario.
+- Ante un `401`, llamar una vez a `POST /api/v1/auth/refresh` y reintentar la petición; si
+  también da `401`, mandar al usuario al login.
+- Para saber si hay sesión al abrir la app, llamar a `GET /api/v1/auth/me`: `200` hay sesión,
+  `401` no la hay.
+
+Los endpoints protegidos devuelven `401 Unauthorized` si no hay cookie de acceso o es inválida, y `403 Forbidden` si el token es válido pero no se tienen los permisos necesarios. Las peticiones desde un origen no listado en `CORS_ALLOWED_ORIGINS` se rechazan con `403`, también las que no son preflight.
 
 ### Códigos de estado
 
@@ -147,7 +162,7 @@ Usuario registrado con éxito. Por favor revisa tu correo para verificar tu cuen
 
 `POST /api/v1/auth/verify`
 
-Verifica el correo del usuario con el código recibido por correo (Público). Al completarse devuelve el par de tokens, por lo que no hace falta iniciar sesión luego.
+Verifica el correo del usuario con el código recibido por correo (Público). Al completarse inicia la sesión (fija las cookies), por lo que no hace falta iniciar sesión luego.
 
 **Cuerpo de la petición:**
 
@@ -163,14 +178,7 @@ Verifica el correo del usuario con el código recibido por correo (Público). Al
 | `email` | string | Sí | email válido, máx. 254 caracteres | Correo electrónico del usuario |
 | `code` | string | Sí | exactamente 6 dígitos | Código de verificación recibido por correo |
 
-**Respuesta exitosa: `200 OK`**
-
-```json
-{
-  "accessToken": "<jwt-access-token>",
-  "refreshToken": "<refresh-token>"
-}
-```
+**Respuesta exitosa: `204 No Content`**, con las cookies `access_token` y `refresh_token` en `Set-Cookie`.
 
 **Errores:**
 
@@ -234,14 +242,7 @@ Inicia sesión con las credenciales (Público).
 | `email` | string | Sí | email válido, máx. 254 caracteres | Correo electrónico |
 | `password` | string | Sí | máx. 72 caracteres | Contraseña |
 
-**Respuesta exitosa: `200 OK`**
-
-```json
-{
-  "accessToken": "<jwt-access-token>",
-  "refreshToken": "<refresh-token>"
-}
-```
+**Respuesta exitosa: `204 No Content`**, con las cookies `access_token` y `refresh_token` en `Set-Cookie`. Para obtener al usuario, llamar a `GET /api/v1/auth/me`.
 
 **Errores:**
 
@@ -260,64 +261,28 @@ Inicia sesión con las credenciales (Público).
 
 `POST /api/v1/auth/refresh`
 
-Obtiene un nuevo access token usando el refresh token (Público).
+Renueva el access token usando la cookie `refresh_token` (Público). No lleva cuerpo: el
+navegador envía la cookie solo a `/api/v1/auth`.
 
-**Cuerpo de la petición:**
+**Respuesta exitosa: `204 No Content`**, con la cookie `access_token` nueva en `Set-Cookie`.
 
-```json
-{
-  "refreshToken": "<refresh-token>"
-}
-```
-
-| Campo | Tipo | Requerido | Restricciones | Descripción |
-|-------|------|-----------|---------------|-------------|
-| `refreshToken` | string | Sí | formato UUID | Token de refresco |
-
-**Respuesta exitosa: `200 OK`**
-
-```json
-{
-  "accessToken": "<jwt-access-token>",
-  "refreshToken": "<refresh-token>"
-}
-```
-
-> El refresh token no rota: se devuelve el mismo valor y solo se renueva el access token.
+> El refresh token no rota: la cookie `refresh_token` no cambia y solo se renueva el access token.
 
 **Errores:**
 
 | Código | Causa |
 |--------|-------|
-| `400 Bad Request` | El token no tiene formato UUID |
-| `401 Unauthorized` | El token no existe (por ejemplo, tras un logout o un nuevo login) o expiró |
+| `401 Unauthorized` | Falta la cookie, el token no existe (por ejemplo, tras un logout o un nuevo login) o expiró |
 
 ### Cerrar sesión
 
 `POST /api/v1/auth/logout`
 
-Elimina el refresh token indicado (Requiere autenticación). El token debe pertenecer
-al usuario autenticado.
+Elimina el refresh token de la cookie `refresh_token` y borra las dos cookies de sesión
+(Público, para poder cerrar sesión aunque el access token haya vencido). No lleva cuerpo.
 
-**Cuerpo de la petición:**
-
-```json
-{
-  "refreshToken": "<refresh-token>"
-}
-```
-
-| Campo | Tipo | Requerido | Restricciones | Descripción |
-|-------|------|-----------|---------------|-------------|
-| `refreshToken` | string | Sí | formato UUID | Token de refresco a invalidar |
-
-**Respuesta exitosa: `204 No Content`**
-
-**Errores:**
-
-| Código | Causa |
-|--------|-------|
-| `401 Unauthorized` | Falta autenticación, o el token no existe o pertenece a otro usuario |
+**Respuesta exitosa: `204 No Content`**, con las cookies vaciadas (`Max-Age=0`). Es
+idempotente: responde igual si no había sesión o el token ya no existía.
 
 ### Obtener usuario actual
 
@@ -391,9 +356,9 @@ email nuevo. Un pedido nuevo reemplaza al anterior.
 }
 ```
 
-Devuelve `200 OK` con un `AuthResponse` nuevo. **El front debe reemplazar los tokens
-guardados:** el access token lleva el email como identidad, así que los anteriores
-dejan de servir, y se cierran las demás sesiones (se borran los refresh tokens).
+Devuelve `204 No Content` y fija cookies de sesión nuevas: el access token lleva el email
+como identidad, así que el anterior deja de servir, y se cierran las demás sesiones (se
+borran los refresh tokens). El front solo debe volver a pedir `GET /auth/me`.
 
 | Código | Causa |
 |--------|-------|
@@ -430,8 +395,8 @@ incorrecta.
 | `code` | string | Código de 6 dígitos |
 | `newPassword` | string | Entre 8 y 72 caracteres, distinta de la actual |
 
-Devuelve `200 OK` con un `AuthResponse` nuevo y cierra las demás sesiones (se borran
-los refresh tokens). Responde `400 Bad Request` si no hay un cambio pendiente, el
+Devuelve `204 No Content`, fija cookies de sesión nuevas y cierra las demás sesiones (se
+borran los refresh tokens). Responde `400 Bad Request` si no hay un cambio pendiente, el
 código es incorrecto o venció, o la contraseña nueva es igual a la actual.
 
 Un código emitido para el cambio de email no sirve para confirmar el de contraseña,
@@ -804,7 +769,7 @@ recomienda redimensionar y comprimir (preferentemente a WebP) antes de subir.
 
 ```bash
 curl -X PUT http://localhost:8080/api/v1/events/{id}/image \
-  -H "Authorization: Bearer <access-token>" \
+  -b "access_token=<jwt>" \
   -F "file=@portada.webp"
 ```
 
@@ -1529,15 +1494,6 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 ---
 
 ## Esquemas de respuesta
-
-### AuthResponse
-
-```json
-{
-  "accessToken": "string",
-  "refreshToken": "string"
-}
-```
 
 ### UserResponse
 

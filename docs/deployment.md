@@ -64,7 +64,9 @@ En producción, además:
 |----------|---------------------|
 | `SPRING_PROFILES_ACTIVE` | `prod` |
 | `SPRING_DATASOURCE_URL` | URL JDBC de la base, si no se llama `db` (por ejemplo, una base administrada). |
-| `CORS_ALLOWED_ORIGINS` | Origen(es) reales del frontend con esquema, separados por coma (`https://app.dominio.com`). |
+| `CORS_ALLOWED_ORIGINS` | Origen(es) reales del frontend con esquema, separados por coma (`https://app.dominio.com`). Con cookies de sesión deben ser exactos. |
+| `COOKIE_SECURE` | `true` (el valor por defecto): las cookies de sesión solo viajan por HTTPS. |
+| `COOKIE_SAME_SITE` | `Strict` si el frontend y la API comparten sitio (mismo dominio o subdominios, por ejemplo `app.dominio.com` y `api.dominio.com`); `None` solo si están en dominios distintos. |
 | `JWT_SECRET_KEY` | Clave Base64 de al menos 32 bytes, única para producción (`openssl rand -base64 32`). |
 | `MERCADO_PAGO_REDIRECT_URI` | URL pública HTTPS de `/api/v1/mp/callback`. |
 | `MERCADO_PAGO_FRONTEND_RETURN_URL` | Ruta del frontend a la que vuelve el organizador tras vincular MercadoPago. |
@@ -216,6 +218,7 @@ Requisitos:
 - [ ] Esquema de base de datos provisionado y compatible (`validate`).
 - [ ] Base de datos sin acceso público y con backups.
 - [ ] `CORS_ALLOWED_ORIGINS` con el dominio real del frontend.
+- [ ] `COOKIE_SECURE=true` y `COOKIE_SAME_SITE` acorde a dónde se aloja el frontend.
 - [ ] `MERCADO_PAGO_REDIRECT_URI`, URL de webhooks y `MERCADO_PAGO_FRONTEND_RETURN_URL` por HTTPS.
 - [ ] Reloj sincronizado (NTP) para la validación de firma de webhooks.
 - [ ] TLS terminado en el proxy inverso o balanceador.

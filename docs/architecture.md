@@ -185,14 +185,16 @@ DeliveryStatus (por orden):
   se validan en cada servicio de negocio consultando `event_participations`
   (ver `EventAuthorizationService`).
 - CORS se configura en `SecurityConfig` a partir de `cors.allowed-origins`
-  (orígenes exactos con esquema, separados por coma) y aplica a `/api/**`.
+  (orígenes exactos con esquema, separados por coma) y aplica a `/api/**`. Permite
+  credenciales (cookies) y rechaza con `403` toda petición con `Origin` no listado, no solo
+  los preflight: esa validación, junto con `SameSite`, es la defensa contra CSRF (ADR-019).
 
 ### Reglas de autorización (`SecurityConfig`)
 
 | Ruta | Acceso |
 |------|--------|
 | `/swagger-ui/**`, `/v3/api-docs/**` | Público (deshabilitado en `prod`) |
-| `/api/v1/auth/{login,register,verify,refresh,resend-verification}` | Público |
+| `/api/v1/auth/{login,register,verify,refresh,logout,resend-verification}` | Público |
 | `/api/v1/webhooks/**` | Público (validado por firma HMAC) |
 | `/api/v1/mp/callback` | Público (lo invoca MercadoPago al redirigir al navegador) |
 | `GET /api/v1/events`, `GET /api/v1/events/{id}` | Público |
@@ -204,8 +206,12 @@ DeliveryStatus (por orden):
 
 | Token | Formato | Duración por defecto | Uso |
 |-------|---------|----------------------|-----|
-| Access token | JWT firmado con HMAC-SHA (HS256, HS384 o HS512 según el largo de la clave: 32, 48 o 64+ bytes) | 30 min | `Authorization: Bearer <token>` |
-| Refresh token | UUID persistido en `refresh_token` | 7 días | Renovar el access token |
+| Access token | JWT firmado con HMAC-SHA (HS256, HS384 o HS512 según el largo de la clave: 32, 48 o 64+ bytes) | 30 min | Cookie `access_token`, `HttpOnly`, ruta `/api` |
+| Refresh token | UUID persistido en `refresh_token` | 7 días | Cookie `refresh_token`, `HttpOnly`, ruta `/api/v1/auth`; renueva el access token |
+
+Las cookies las arma `AuthCookies` (`Secure` y `SameSite` configurables con `COOKIE_SECURE` y
+`COOKIE_SAME_SITE`); `JwtAuthenticationFilter` lee solo la cookie `access_token`, no el header
+`Authorization`.
 
 ## Manejo de errores
 
@@ -295,11 +301,11 @@ POST /auth/login      → valida la contraseña y luego que la cuenta esté veri
                         el estado de la cuenta; si el email no existe se compara
                         igual contra un hash ficticio para no delatarlo por el
                         tiempo de respuesta). Elimina los refresh tokens previos y
-                        emite un par nuevo.
-POST /auth/refresh    → valida el refresh token (existe y está vigente) y
-                        emite un nuevo access token. El refresh token NO rota.
-POST /auth/logout     → elimina el refresh token indicado si pertenece al usuario
-                        autenticado (si no, 401).
+                        fija las cookies de sesión (204, sin cuerpo).
+POST /auth/refresh    → valida el refresh token de la cookie (existe y está vigente) y
+                        renueva la cookie del access token. El refresh token NO rota.
+POST /auth/logout     → público: elimina el refresh token de la cookie (si existe) y
+                        vacía las dos cookies. Idempotente.
 ```
 
 ### 3. Creación y publicación de evento

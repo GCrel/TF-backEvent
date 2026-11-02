@@ -60,6 +60,8 @@ cp .env.template .env
 | `MERCADO_PAGO_CLIENT_SECRET` | Client Secret de la app OAuth. | — |
 | `MERCADO_PAGO_REDIRECT_URI` | URI de callback OAuth (solo `prod`; en `dev` es `http://localhost:8085/api/v1/mp/callback`). | `https://dominio/api/v1/mp/callback` |
 | `MERCADO_PAGO_FRONTEND_RETURN_URL` | Ruta del frontend a la que vuelve el organizador tras vincular MercadoPago (solo `prod`; en `dev` es `http://localhost:4200/organizer/mercadopago`). | `https://app.dominio.com/organizer/mercadopago` |
+| `COOKIE_SECURE` | Marca `Secure` en las cookies de sesión. Por defecto `true`: en desarrollo sobre `http` poné `false`. | `false` (dev), `true` (prod) |
+| `COOKIE_SAME_SITE` | `SameSite` de las cookies de sesión: `Strict` (por defecto) o `None` si frontend y API están en dominios distintos (exige `COOKIE_SECURE=true`). | `Strict` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo: `dev` o `prod`. | `dev` |
 | `CORS_ALLOWED_ORIGINS` | Orígenes permitidos, con esquema y separados por coma (solo `prod`; en `dev` se permite `http://localhost:4200`). | `https://app.dominio.com` |
 

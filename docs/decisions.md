@@ -34,6 +34,8 @@ Para el detalle funcional ver [`architecture.md`](architecture.md) y [`api.md`](
 | [015](#adr-015-oauth-de-mercadopago-adaptado-a-una-spa) | OAuth de MercadoPago adaptado a una SPA | Aceptada |
 | [016](#adr-016-imágenes-en-volumen-local-servidas-por-nginx) | Imágenes en volumen local servidas por Nginx | Aceptada |
 | [017](#adr-017-sectores-con-precio-y-cupo-propios-sobre-un-plano) | Sectores con precio y cupo propios sobre un plano | Aceptada |
+| [018](#adr-018-edición-de-datos-de-la-cuenta-con-código-de-verificación) | Edición de datos de la cuenta con código de verificación | Aceptada |
+| [019](#adr-019-tokens-de-sesión-en-cookies-httponly) | Tokens de sesión en cookies `HttpOnly` | Aceptada |
 
 ## ADR-001: API REST stateless con JWT
 
@@ -44,7 +46,7 @@ sesiones de servidor.
 
 **Decisión.** Autenticación sin estado mediante dos tokens:
 
-- **Access token** (JWT firmado con HMAC, 30 min) — se envía en el header `Authorization`.
+- **Access token** (JWT firmado con HMAC, 30 min) — viaja en una cookie `HttpOnly` (ADR-019).
 - **Refresh token** (UUID persistido, 7 días) — permite renovar sin volver a iniciar sesión.
 
 **Consecuencias.**
@@ -453,6 +455,44 @@ el email son la puerta de recuperación de la cuenta.
   verificación: un usuario autenticado podría disparar muchos correos.
 - Dos subidas simultáneas de avatar del mismo usuario pueden dejar un archivo
   huérfano (no se bloquea la fila del usuario como se hace con los eventos).
+
+## ADR-019: Tokens de sesión en cookies `HttpOnly`
+
+**Estado:** Aceptada. Reemplaza el header `Authorization` de ADR-001.
+
+**Contexto.** El frontend guardaba los tokens en `localStorage`, donde cualquier script
+inyectado (XSS) puede leerlos y llevárselos. Una cookie `HttpOnly` no es accesible desde
+JavaScript.
+
+**Decisión.**
+
+- **Dos cookies `HttpOnly`.** `access_token` (ruta `/api`) y `refresh_token` (ruta
+  `/api/v1/auth`, para que solo viaje a refresh y logout). Son `Secure` y `SameSite=Strict`
+  por defecto; `COOKIE_SECURE` y `COOKIE_SAME_SITE` permiten ajustarlas (`false` en
+  desarrollo sobre `http`; `None` solo si frontend y API están en sitios distintos).
+- **Los tokens ya no van en el cuerpo ni se leen del header.** `login`, `verify` y los
+  cambios de email/contraseña responden `204` y fijan las cookies; el front obtiene al
+  usuario con `GET /auth/me`. `refresh` lee la cookie y renueva solo el access token.
+  `logout` es público, borra el refresh token si existe y vacía las cookies.
+- **CSRF sin token adicional.** Con cookies el navegador adjunta la sesión automáticamente,
+  así que se agrega defensa en dos capas: `SameSite` evita que las cookies viajen en
+  peticiones iniciadas desde otro sitio, y CORS (con credenciales y orígenes exactos)
+  rechaza con `403` cualquier petición, preflight o no, cuyo `Origin` no esté en
+  `CORS_ALLOWED_ORIGINS`. Se descartó el token CSRF de Spring Security: exigiría que el
+  frontend lo reenvíe en cada mutación y excluir webhooks y callbacks, a cambio de poco
+  frente a esas dos capas.
+
+**Consecuencias.**
+
+- El frontend debe enviar todas las peticiones con credenciales (`withCredentials`) y
+  desde un origen listado en CORS. Un cliente que no sea un navegador (scripts, apps
+  móviles) ya no obtiene tokens utilizables.
+- Un XSS ya no puede robar los tokens, pero sigue pudiendo hacer peticiones como el
+  usuario mientras la página esté abierta; la defensa contra XSS sigue siendo del frontend.
+- Si frontend y API quedaran en dominios distintos habría que usar `SameSite=None`, que
+  deja el control de CSRF solo en la validación de `Origin`.
+- Los access tokens siguen sin poder revocarse (ADR-001); `logout` solo invalida el
+  refresh token.
 
 ## Limitaciones conocidas
 

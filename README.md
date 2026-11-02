@@ -110,10 +110,13 @@ Frontend (Angular)  ──HTTPS/JSON──▶  TF-backEvent (Spring Boot)
 
 **Autenticación:** el backend emite dos tokens:
 
-- `accessToken` (JWT, vida corta, por defecto 30 min) → se envía en cada request
-  como `Authorization: Bearer <token>`.
-- `refreshToken` (UUID, vida larga, por defecto 7 días) → se usa en
-  `POST /api/v1/auth/refresh` para obtener un nuevo access token sin re-loguear.
+- `access_token` (JWT, vida corta, por defecto 30 min) → cookie `HttpOnly` que el
+  navegador envía en cada request a `/api`.
+- `refresh_token` (UUID, vida larga, por defecto 7 días) → cookie `HttpOnly` que solo
+  viaja a `/api/v1/auth` y se usa en `POST /api/v1/auth/refresh` para obtener un nuevo
+  access token sin re-loguear.
+
+Los tokens nunca llegan al JavaScript del frontend (ver [ADR-019](docs/decisions.md)).
 
 ## Estructura del proyecto
 
