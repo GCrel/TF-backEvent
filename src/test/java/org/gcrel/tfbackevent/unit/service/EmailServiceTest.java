@@ -54,6 +54,32 @@ public class EmailServiceTest {
     }
 
     @Test
+    void sendEmailChangeCode_SendsCodeToTheNewEmail() {
+        emailService.sendEmailChangeCode("nuevo@ejemplo.com", "654321");
+
+        ArgumentCaptor<SimpleMailMessage> messageCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(messageCaptor.capture());
+        SimpleMailMessage message = messageCaptor.getValue();
+
+        assertEquals("nuevo@ejemplo.com", Objects.requireNonNull(message.getTo())[0]);
+        assertEquals("Confirma tu nuevo email", message.getSubject());
+        assertTrue(Objects.requireNonNull(message.getText()).contains("654321"));
+    }
+
+    @Test
+    void sendPasswordChangeCode_SendsCode() {
+        emailService.sendPasswordChangeCode("usuario@ejemplo.com", "654321");
+
+        ArgumentCaptor<SimpleMailMessage> messageCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(messageCaptor.capture());
+        SimpleMailMessage message = messageCaptor.getValue();
+
+        assertEquals("Confirma el cambio de contraseña", message.getSubject());
+        assertTrue(Objects.requireNonNull(message.getText()).contains("654321"));
+        assertTrue(message.getText().contains("expira en 15 minutos"));
+    }
+
+    @Test
     void sendTicketEmail_Success() throws Exception {
         String to = "comprador@ejemplo.com";
         jakarta.mail.internet.MimeMessage mimeMessage = mock(jakarta.mail.internet.MimeMessage.class);

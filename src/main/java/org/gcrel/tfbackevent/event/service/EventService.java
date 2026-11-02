@@ -48,8 +48,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -117,7 +115,8 @@ public class EventService {
         validateOwnership(event, organizer);
         validateModifiable(event);
         validateTypeSpecificFields(event, request);
-        // Con sectores, el precio y el cupo se derivan de ellos: se ignoran los del formulario.
+        // Con sectores, el precio y el cupo se derivan de ellos: se ignoran los del
+        // formulario.
         boolean derived = event instanceof InPersonEvent inPerson && sectorService.hasSectors(inPerson);
         BigDecimal basePrice = derived ? event.getBasePrice() : request.basePrice();
         Integer capacity = derived ? ((InPersonEvent) event).getCapacity() : request.capacity();
@@ -215,7 +214,8 @@ public class EventService {
         throw new BadRequestException("El plano y los sectores solo están disponibles para eventos presenciales.");
     }
 
-    // Un evento es pago si cobra algo en cualquiera de sus sectores, aunque el precio
+    // Un evento es pago si cobra algo en cualquiera de sus sectores, aunque el
+    // precio
     // "desde" (basePrice) sea 0.
     private BigDecimal highestPrice(Event event) {
         BigDecimal sectorPrice = Hibernate.unproxy(event) instanceof InPersonEvent inPerson
@@ -226,7 +226,7 @@ public class EventService {
 
     // El bloqueo evita que dos subidas simultáneas lean la misma imagen anterior y
     // dejen una huérfana.
-        private Event findModifiableEventForUpdate(UUID id, User organizer) {
+    private Event findModifiableEventForUpdate(UUID id, User organizer) {
         Event event = eventRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new EventNotFoundException(id));
         validateOwnership(event, organizer);
@@ -234,17 +234,8 @@ public class EventService {
         return event;
     }
 
-    // Los archivos se borran recién al cerrar la transacción: si se confirma sobra
-    // la imagen
-    // anterior, y si se revierte sobra la nueva. Así ningún evento apunta a un
-    // archivo inexistente.
     private void deleteImageAfterCompletion(String keyIfCommitted, String keyIfRolledBack) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                imageStorageService.delete(status == STATUS_COMMITTED ? keyIfCommitted : keyIfRolledBack);
-            }
-        });
+        DeferredImageDeletion.afterCompletion(imageStorageService, keyIfCommitted, keyIfRolledBack);
     }
 
     private void requireMpAccountIfPaid(BigDecimal price, User organizer) {

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.gcrel.tfbackevent.model.enums.CodePurpose;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -56,6 +57,16 @@ public class User implements UserDetails {
 
     @Column(name = "verification_code_failed_attempts", nullable = false)
     private int verificationCodeFailedAttempts;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "code_purpose")
+    private CodePurpose codePurpose;
+
+    @Column(name = "pending_email")
+    private String pendingEmail;
+
+    @Column(name = "avatar_key")
+    private String avatarKey;
 
     public User() {
     }
@@ -126,6 +137,38 @@ public class User implements UserDetails {
 
     public LocalDateTime getVerificationCodeExpiresAt() {
         return verificationCodeExpiresAt;
+    }
+
+    public CodePurpose getCodePurpose() {
+        return codePurpose;
+    }
+
+    public void setCodePurpose(CodePurpose codePurpose) {
+        this.codePurpose = codePurpose;
+    }
+
+    public String getPendingEmail() {
+        return pendingEmail;
+    }
+
+    public void setPendingEmail(String pendingEmail) {
+        this.pendingEmail = pendingEmail;
+    }
+
+    public String getAvatarKey() {
+        return avatarKey;
+    }
+
+    public void setAvatarKey(String avatarKey) {
+        this.avatarKey = avatarKey;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public void setId(UUID id) {

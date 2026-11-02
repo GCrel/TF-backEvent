@@ -1,8 +1,5 @@
 package org.gcrel.tfbackevent.auth.service;
 
-import java.security.SecureRandom;
-import java.time.LocalDateTime;
-
 import org.gcrel.tfbackevent.auth.dto.request.RefreshTokenRequest;
 import org.gcrel.tfbackevent.auth.dto.request.RegisterRequest;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
@@ -11,8 +8,6 @@ import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
 import org.gcrel.tfbackevent.auth.exception.EmailNotVerifiedException;
 import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
 import org.gcrel.tfbackevent.auth.exception.InvalidTokenException;
-import org.gcrel.tfbackevent.auth.exception.InvalidVerificationCodeException;
-import org.gcrel.tfbackevent.auth.exception.VerificationCodeExpiredException;
 import org.gcrel.tfbackevent.auth.repository.RefreshTokenRepository;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.model.RefreshToken;
@@ -22,16 +17,13 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
-    private static final int MAX_VERIFICATION_CODE_ATTEMPTS = 5;
-
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     // Hash de referencia para comparar cuando el email no existe, de modo que el
-    // login
-    // tarde lo mismo con o sin cuenta y no permita deducir qué emails están
+    // login tarde lo mismo con o sin cuenta y no permita deducir qué emails están
     // registrados.
     private final String dummyPasswordHash;
 
@@ -80,26 +72,10 @@ public class AuthService {
         if (user.isEnabled()) {
             throw new AccountAlreadyVerifiedException();
         }
-        if (user.getVerificationCode() == null
-                || user.getVerificationCodeExpiresAt() == null
-                || user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new VerificationCodeExpiredException();
-        }
-        if (!user.getVerificationCode().equals(code)) {
-            int failedAttempts = user.getVerificationCodeFailedAttempts() + 1;
-            user.setVerificationCodeFailedAttempts(failedAttempts);
-            if (failedAttempts >= MAX_VERIFICATION_CODE_ATTEMPTS) {
-                user.setVerificationCode(null);
-                user.setVerificationCodeExpiresAt(null);
-            }
-            userRepository.save(user);
-            throw new InvalidVerificationCodeException();
-        }
+        VerificationCode.check(user, code, userRepository);
 
         user.setEnabled(true);
-        user.setVerificationCode(null);
-        user.setVerificationCodeExpiresAt(null);
-        user.setVerificationCodeFailedAttempts(0);
+        VerificationCode.clear(user);
         userRepository.save(user);
         return generateTokenPair(user);
     }
@@ -119,6 +95,11 @@ public class AuthService {
             throw new EmailNotVerifiedException();
         }
 
+        return startSession(user);
+    }
+
+    // Cierra las sesiones anteriores del usuario y abre una nueva.
+    public AuthResponse startSession(User user) {
         refreshTokenRepository.deleteAllByUser(user);
         return generateTokenPair(user);
     }
@@ -160,13 +141,7 @@ public class AuthService {
     }
 
     private void sendVerificationEmail(User user) {
-        // Generate Code
-        String code = String.format("%06d", new SecureRandom().nextInt(900000) + 100000);
-
-        // assign code and expiration to user
-        user.setVerificationCode(code);
-        user.setVerificationCodeExpiresAt(LocalDateTime.now().plusMinutes(15));
-        user.setVerificationCodeFailedAttempts(0);
+        String code = VerificationCode.issue(user, null, null);
 
         userRepository.save(user);
 

@@ -41,12 +41,26 @@ public class EmailService {
 
     @Async
     public void sendVerificationEmail(String to, String code) {
+        sendCode(to, "Verifica tu cuenta", "Tu código de verificación es: ", code);
+    }
+
+    @Async
+    public void sendEmailChangeCode(String to, String code) {
+        sendCode(to, "Confirma tu nuevo email", "Tu código para confirmar el cambio de email es: ", code);
+    }
+
+    @Async
+    public void sendPasswordChangeCode(String to, String code) {
+        sendCode(to, "Confirma el cambio de contraseña",
+                "Tu código para confirmar el cambio de contraseña es: ", code);
+    }
+
+    private void sendCode(String to, String subject, String intro, String code) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromEmail);
         message.setTo(to);
-        message.setSubject("Verifica tu cuenta");
-        message.setText(
-                "Tu código de verificación es: " + code + "\nEste código expira en 15 minutos.");
+        message.setSubject(subject);
+        message.setText(intro + code + "\nEste código expira en 15 minutos.");
         try {
             mailSender.send(message);
         } catch (MailException e) {
