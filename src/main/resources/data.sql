@@ -23,6 +23,8 @@
 --                  de TechConf.
 --   Diego          cuenta sin verificar; código de verificación 482913
 --                  (vigente durante 1 día desde el arranque).
+--   Elena          cuenta bloqueada por un administrador (login responde 403).
+--   Bitácora       dos acciones de Ana sobre Elena (bloqueo y cierre de sesiones).
 --
 -- Nota: LOCALTIMESTAMP usa la zona horaria de PostgreSQL (UTC en el
 -- contenedor). Si difiere de la del backend, los horarios se corren unas
@@ -47,6 +49,14 @@ VALUES
     ('44444444-4444-4444-4444-444444444444', 'Diego Torres', 'diego.torres@example.com',
      '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '2000-11-05', FALSE,
      '482913', LOCALTIMESTAMP + INTERVAL '1 day', 0);
+
+-- Usuaria bloqueada por Ana (ver la bitácora al final).
+INSERT INTO users (id, name, email, password, system_role, date_birth, is_enabled,
+                   verification_code_failed_attempts, blocked, blocked_reason, blocked_at)
+VALUES
+    ('55555555-5555-5555-5555-555555555555', 'Elena Ruiz', 'elena.ruiz@example.com',
+     '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1993-03-17', TRUE,
+     0, TRUE, 'Publicidad no deseada en la descripción de eventos', LOCALTIMESTAMP - INTERVAL '2 days');
 
 -- ---------------------------------------------------------------------
 -- 2) EVENTS (tabla padre de la herencia JOINED)
@@ -200,3 +210,14 @@ VALUES
     -- Vencido: /auth/refresh responde 401
     ('eeeeeeee-0000-0000-0000-000000000003', '5f0c6a1e-2b7d-4c3a-9e8f-1a2b3c4d5e03',
      LOCALTIMESTAMP - INTERVAL '1 day', '33333333-3333-3333-3333-333333333333');
+
+-- ---------------------------------------------------------------------
+-- 10) AUDIT_LOGS (bitácora de acciones de administración)
+-- ---------------------------------------------------------------------
+INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, details, created_at)
+VALUES
+    ('ffffffff-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'USER_BLOCKED', 'USER',
+     '55555555-5555-5555-5555-555555555555', 'Publicidad no deseada en la descripción de eventos',
+     LOCALTIMESTAMP - INTERVAL '2 days'),
+    ('ffffffff-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'USER_SESSIONS_REVOKED', 'USER',
+     '55555555-5555-5555-5555-555555555555', NULL, LOCALTIMESTAMP - INTERVAL '2 days' + INTERVAL '1 minute');
