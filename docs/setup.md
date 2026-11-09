@@ -60,6 +60,9 @@ cp .env.template .env
 | `MERCADO_PAGO_CLIENT_SECRET` | Client Secret de la app OAuth. | — |
 | `MERCADO_PAGO_REDIRECT_URI` | URI de callback OAuth (solo `prod`; en `dev` es `http://localhost:8085/api/v1/mp/callback`). | `https://dominio/api/v1/mp/callback` |
 | `MERCADO_PAGO_FRONTEND_RETURN_URL` | Ruta del frontend a la que vuelve el organizador tras vincular MercadoPago (solo `prod`; en `dev` es `http://localhost:4200/organizer/mercadopago`). | `https://app.dominio.com/organizer/mercadopago` |
+| `INITIAL_ADMIN_EMAIL` | Email del primer superusuario. Se crea al arrancar **solo si no existe ningún `ADMIN`** (en `dev` ya hay uno en `data.sql`). Opcional. | `admin@dominio.com` |
+| `INITIAL_ADMIN_PASSWORD` | Contraseña del primer superusuario (8 a 72 caracteres). Quitala del entorno después del primer arranque. | — |
+| `INITIAL_ADMIN_NAME` | Nombre del primer superusuario. | `Administrador` |
 | `COOKIE_SECURE` | Marca `Secure` en las cookies de sesión. Por defecto `true`: en desarrollo sobre `http` poné `false`. | `false` (dev), `true` (prod) |
 | `COOKIE_SAME_SITE` | `SameSite` de las cookies de sesión: `Strict` (por defecto) o `None` si frontend y API están en dominios distintos (exige `COOKIE_SECURE=true`). | `Strict` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo: `dev` o `prod`. | `dev` |

@@ -132,6 +132,28 @@ En producción, además:
   ```
 
   Los avatares se guardan en el mismo volumen `uploads` que las portadas.
+- **Administración:** el bloqueo de cuentas agrega columnas a `users` y la bitácora
+  agrega una tabla. Sobre una base existente:
+
+  ```sql
+  ALTER TABLE users ADD COLUMN blocked boolean NOT NULL DEFAULT false;
+  ALTER TABLE users ADD COLUMN blocked_reason varchar(500);
+  ALTER TABLE users ADD COLUMN blocked_at timestamp;
+  CREATE TABLE audit_logs (
+      id uuid PRIMARY KEY,
+      actor_id uuid NOT NULL REFERENCES users (id),
+      action varchar(255) NOT NULL,
+      target_type varchar(255) NOT NULL,
+      target_id uuid NOT NULL,
+      details varchar(500),
+      created_at timestamp NOT NULL
+  );
+  ```
+
+  **Primer superusuario.** En producción no hay seed. Definí `INITIAL_ADMIN_EMAIL` e
+  `INITIAL_ADMIN_PASSWORD` en el primer arranque: se crea el superusuario solo si no
+  existe ninguno (y nunca promueve a un usuario existente). Después quitá la contraseña
+  del entorno y cambiala desde la cuenta (`/auth/me/password`).
 - **Red:** la base no debe ser accesible desde Internet; solo desde el backend.
 - **Respaldo:** configurar backups periódicos (los de la base administrada del
   proveedor o `pg_dump` programado).
@@ -224,6 +246,7 @@ Requisitos:
 - [ ] TLS terminado en el proxy inverso o balanceador.
 - [ ] Nginx con `deploy/nginx/`: `client_max_body_size 6m` y `/api/v1/images/` servido desde el volumen.
 - [ ] Columna `events.image_key` presente en el esquema.
+- [ ] Columnas `users.blocked*` y tabla `audit_logs` presentes; primer superusuario creado y `INITIAL_ADMIN_PASSWORD` retirada del entorno.
 - [ ] Tabla `event_sectors` y columnas `in_person_events.layout_image_key` y `ticket_orders.sector_id` presentes.
 - [ ] Respaldo periódico del volumen `uploads`, además del de la base.
 - [ ] Una sola instancia del backend (o coordinación de tareas programadas).

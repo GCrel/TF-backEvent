@@ -48,7 +48,7 @@ concretos en una sola plataforma:
 | Entradas digitales con código QR | Implementado |
 | Control de acceso presencial por escaneo de QR | Implementado |
 | Acceso virtual para titulares de entradas | Implementado |
-| Administración global (rol `ADMIN`) | Pendiente |
+| Administración global (rol `ADMIN`): usuarios, eventos, soporte y bitácora | Implementado |
 | Módulo de reportes y estadísticas para organizadores | Pendiente |
 
 ### Fuera del alcance

@@ -36,6 +36,7 @@ Para el detalle funcional ver [`architecture.md`](architecture.md) y [`api.md`](
 | [017](#adr-017-sectores-con-precio-y-cupo-propios-sobre-un-plano) | Sectores con precio y cupo propios sobre un plano | Aceptada |
 | [018](#adr-018-edición-de-datos-de-la-cuenta-con-código-de-verificación) | Edición de datos de la cuenta con código de verificación | Aceptada |
 | [019](#adr-019-tokens-de-sesión-en-cookies-httponly) | Tokens de sesión en cookies `HttpOnly` | Aceptada |
+| [020](#adr-020-administración-global-con-bitácora) | Administración global con bitácora | Aceptada |
 
 ## ADR-001: API REST stateless con JWT
 
@@ -495,6 +496,54 @@ JavaScript.
 - Los access tokens siguen sin poder revocarse (ADR-001); `logout` solo invalida el
   refresh token.
 
+## ADR-020: Administración global con bitácora
+
+**Estado:** Aceptada.
+
+**Contexto.** Hacía falta un panel de superusuario para gestionar usuarios, supervisar
+eventos y dar soporte de pagos y entregas. El rol `ADMIN` es la acción más peligrosa del
+sistema: quien lo tiene puede ascender a otros, bloquear cuentas y cancelar eventos.
+
+**Decisión.**
+
+- **Contraseña de quien actúa para cambiar roles.** Ascender o degradar exige la
+  contraseña del superusuario que lo hace: es la protección principal contra una sesión
+  robada, ya que el access token dura 30 minutos. Una contraseña incorrecta responde
+  `403` (no `401`, que el front interpreta como sesión vencida).
+- **Nunca sin superusuarios.** El cambio de rol bloquea todas las filas `ADMIN` en un
+  orden fijo y relee al actor dentro de ese conjunto. Así dos admins que se degradan entre
+  sí a la vez se serializan: el segundo ya no es admin y se rechaza. Nadie cambia su propio
+  rol, el destinatario de un ascenso debe estar verificado y no bloqueado, y el objetivo de
+  un cambio también se bloquea para que un bloqueo y un ascenso del mismo usuario no se
+  crucen. Hay un test de concurrencia que falla si se quita el bloqueo.
+- **Los superusuarios no se bloquean entre sí.** Primero se degrada y después se bloquea;
+  tampoco se puede bloquear a uno mismo.
+- **Efecto inmediato.** El filtro JWT ya leía el usuario y su rol de la base en cada
+  petición (el claim `role` del token no se usa), así que una degradación rige al instante.
+  Se agregó la lectura del bloqueo: un usuario bloqueado se trata como sin sesión. Cambiar
+  el rol o bloquear borra además sus refresh tokens.
+- **Bitácora atómica.** `audit_logs` registra quién hizo qué, sobre qué y cuándo, en la
+  misma transacción que la acción, y es de solo lectura. Solo se registran acciones
+  exitosas. Cada acción sobre otra persona le envía un email.
+- **Primer superusuario por entorno.** `data.sql` no se usa en producción y una
+  contraseña en el repositorio sería un riesgo. `InitialAdminRunner` lo crea desde
+  `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` solo si no existe ningún `ADMIN`, y nunca
+  promueve a un usuario existente.
+- **Reutilización.** Cancelar un evento usa la misma regla que el organizador (solo sin
+  tickets) y reconciliar un pago usa la misma lógica que la tarea automática
+  (`PaymentRecoveryService.reconcile`). La consulta a MercadoPago no retiene una
+  transacción de base.
+
+**Consecuencias.**
+
+- Cerrar sesiones solo borra refresh tokens: el access token vigente dura hasta 30 minutos.
+  El bloqueo sí corta de inmediato. Una marca `sessions_valid_after` comparada con `iat`
+  daría corte inmediato si hiciera falta.
+- Quien robe una sesión de admin puede probar contraseñas en `PUT /users/{id}/role` sin
+  límite de intentos (BCrypt encarece cada uno) y los intentos fallidos no quedan registrados.
+- Bloquear a un usuario no cancela sus eventos ni sus tickets.
+- Las estadísticas globales quedaron pendientes hasta que exista el módulo de reportes.
+
 ## Limitaciones conocidas
 
 1. **Desvinculación de MercadoPago con ventana de carrera.** `DELETE /mp/disconnect`
@@ -513,8 +562,9 @@ JavaScript.
    del backend, cada una ejecutaría los `@Scheduled` (ver [`deployment.md`](deployment.md#operación-y-escalado)).
 8. **Módulo de reportes y estadísticas no implementado** (figura en el alcance del
    sistema, pero aún no existe).
-9. **No hay endpoints de administración.** `SecurityConfig` reserva
-   `/api/v1/admin/**` para `ROLE_ADMIN`, pero todavía no existe ninguno.
+9. **Administración sin estadísticas ni límite de intentos.** `/admin/stats` quedó fuera
+   hasta que exista el módulo de reportes (ver 8), y la contraseña de las acciones de
+   rol no tiene límite de intentos fallidos (ver [ADR-020](#adr-020-administración-global-con-bitácora)).
 10. **Sin streaming en vivo:** los eventos virtuales usan un enlace externo (Zoom,
     Meet, etc.).
 11. **Imágenes huérfanas sin limpieza.** Si falla el borrado de un archivo de

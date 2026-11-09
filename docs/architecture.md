@@ -45,6 +45,7 @@ Componentes externos:
 ```text
 org.gcrel.tfbackevent
 ├── auth/       Registro, login, verificación de email, tokens JWT y envío de correos.
+├── admin/      Panel de superusuario: usuarios, eventos, soporte de pagos y bitácora.
 ├── event/      Ciclo de vida de eventos, ventana de acceso, imágenes y sectores sobre un plano.
 ├── payment/    Órdenes de compra, integración MercadoPago, webhooks, QR y entrega.
 ├── access/     Validación de QR presencial, acceso virtual y controladores.
@@ -112,6 +113,7 @@ se resuelve en runtime con `event.getType()` (`EventType.IN_PERSON` / `VIRTUAL`)
 | Enum | Valores |
 |------|---------|
 | `SystemRole` | `USER`, `ADMIN` |
+| `AuditAction` | `ROLE_GRANTED`, `ROLE_REVOKED`, `USER_BLOCKED`, `USER_UNBLOCKED`, `USER_SESSIONS_REVOKED`, `EVENT_CANCELLED`, `PAYMENT_RECONCILED`, `DELIVERY_REQUESTED` |
 | `EventRole` | `ORGANIZER`, `ATTENDEE`, `CONTROLLER` |
 | `EventType` | `IN_PERSON`, `VIRTUAL` |
 | `EventStatus` | `DRAFT`, `PUBLISHED`, `CANCELLED`, `FINISHED` |
@@ -199,7 +201,7 @@ DeliveryStatus (por orden):
 | `/api/v1/mp/callback` | Público (lo invoca MercadoPago al redirigir al navegador) |
 | `GET /api/v1/events`, `GET /api/v1/events/{id}` | Público |
 | `GET /api/v1/events/mine` | Autenticado |
-| `/api/v1/admin/**` | Rol `ADMIN` (reservado; aún no hay endpoints) |
+| `/api/v1/admin/**` | Rol `ADMIN` (ver [2.b Administración](#2b-administración)) |
 | Cualquier otra ruta | Autenticado |
 
 ### Tokens
@@ -307,6 +309,29 @@ POST /auth/refresh    → valida el refresh token de la cookie (existe y está v
 POST /auth/logout     → público: elimina el refresh token de la cookie (si existe) y
                         vacía las dos cookies. Idempotente.
 ```
+
+### 2.b Administración
+
+```text
+PUT /admin/users/{id}/role { role, password }
+  ├─ bloquea todas las filas ADMIN (orden fijo) y relee al actor dentro de ese conjunto:
+  │  si ya no es admin → 403; dos degradaciones simultáneas se serializan.
+  ├─ verifica la contraseña del actor (403 si es incorrecta), no admite auto-cambio y
+  │  exige destinatario verificado y no bloqueado para ascender.
+  └─ aplica el rol, borra los refresh tokens del afectado, registra en la bitácora y le
+     envía un email. El rol se lee de la base en cada request: una degradación rige al instante.
+
+PATCH /admin/users/{id}/block
+  └─ solo usuarios comunes (a un admin se lo degrada primero), nunca a uno mismo. El filtro
+     JWT trata al usuario bloqueado como sin sesión, así que corta de inmediato.
+
+POST /admin/payments/{id}/reconcile
+  └─ solo pagos PENDING; usa la misma lógica que la reconciliación automática
+     (PaymentRecoveryService.reconcile) y no retiene una transacción durante la llamada a MercadoPago.
+```
+
+Cada acción privilegiada queda en `audit_logs` (`AuditService.record`, en la misma transacción
+que la acción). El primer superusuario lo crea `InitialAdminRunner` desde variables de entorno.
 
 ### 3. Creación y publicación de evento
 

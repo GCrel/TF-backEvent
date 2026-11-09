@@ -249,7 +249,7 @@ Inicia sesión con las credenciales (Público).
 | Código | Causa |
 |--------|-------|
 | `401 Unauthorized` | Credenciales inválidas (email inexistente o contraseña incorrecta) |
-| `403 Forbidden` | La contraseña es correcta pero el correo no fue verificado |
+| `403 Forbidden` | La contraseña es correcta pero el correo no fue verificado, o la cuenta está bloqueada |
 
 > La contraseña se valida antes que el estado de la cuenta: con una contraseña
 > incorrecta siempre se responde `401`, sin revelar si la cuenta existe o está
@@ -1493,6 +1493,135 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 
 ---
 
+## Administración
+
+Prefijo: `/api/v1/admin`. Todos los endpoints exigen el rol `ADMIN` (`403 Forbidden` para un
+usuario común, `401` sin sesión). El rol se lee de la base en cada petición, así que una
+degradación o un bloqueo rige de inmediato.
+
+Los listados son paginados (`page`, `size`) y devuelven `content`, `totalElements`,
+`totalPages`, etc., igual que el resto de la API. Cada acción de cambio queda en la
+[bitácora](#bitácora) y, cuando afecta a otra persona, le llega un email.
+
+### Listar usuarios
+
+`GET /api/v1/admin/users?q=&role=&blocked=&page=0&size=20`
+
+| Parámetro | Descripción |
+|-----------|-------------|
+| `q` | Texto a buscar en el nombre o el email (sin distinguir mayúsculas; `%` y `_` se buscan literalmente) |
+| `role` | `USER` o `ADMIN`. `role=ADMIN` lista a los superusuarios |
+| `blocked` | `true` o `false` |
+
+Ordenados por nombre. Devuelve `200 OK` con una página de [`UserAdminResponse`](#useradminresponse).
+
+### Detalle de un usuario
+
+`GET /api/v1/admin/users/{id}` devuelve `200 OK` con el `UserAdminResponse`, o `404` si no existe.
+
+### Bloquear y desbloquear
+
+`PATCH /api/v1/admin/users/{id}/block`
+
+```json
+{
+  "reason": "Publicidad no deseada en la descripción de eventos"
+}
+```
+
+`reason` es obligatorio (máximo 500 caracteres). El usuario bloqueado no puede iniciar sesión
+(`403`), no renueva su token y su sesión actual deja de funcionar de inmediato; se le borran los
+refresh tokens y se le avisa por email. No se tocan sus eventos ni sus tickets.
+
+`PATCH /api/v1/admin/users/{id}/unblock` lo desbloquea (sin cuerpo).
+
+Ambos devuelven `200 OK` con el `UserAdminResponse`.
+
+| Código | Causa |
+|--------|-------|
+| `400 Bad Request` | Bloquearse a uno mismo, o falta el motivo |
+| `404 Not Found` | El usuario no existe |
+| `409 Conflict` | El objetivo es superusuario (primero se le quita el rol), ya está bloqueado / no está bloqueado |
+
+### Cerrar las sesiones de un usuario
+
+`POST /api/v1/admin/users/{id}/revoke-sessions` borra sus refresh tokens y devuelve `204`. Su
+access token actual sigue valiendo hasta 30 minutos; para cortarlo de inmediato, bloquear.
+
+### Ascender o degradar a un superusuario
+
+`PUT /api/v1/admin/users/{id}/role`
+
+```json
+{
+  "role": "ADMIN",
+  "password": "mi-contraseña"
+}
+```
+
+`password` es la contraseña **de quien hace el cambio**, no de la persona afectada. Devuelve
+`200 OK` con el `UserAdminResponse`. Se cierran las sesiones del afectado y se le avisa por email.
+
+| Código | Causa |
+|--------|-------|
+| `400 Bad Request` | Cambiar el propio rol, o faltan `role` o `password` |
+| `403 Forbidden` | La contraseña es incorrecta (no es `401`: la sesión sigue vigente), o quien lo pide ya dejó de ser superusuario |
+| `404 Not Found` | El usuario no existe |
+| `409 Conflict` | El usuario ya tiene ese rol; para ascender, no está verificado o está bloqueado; no puede quedar el sistema sin superusuarios |
+
+### Listar y cancelar eventos
+
+`GET /api/v1/admin/events?status=&eventType=&q=&page=0&size=20` devuelve todos los eventos, con
+borradores y cancelados, los más recientes primero, como [`EventResponse`](#eventresponse) (sin las
+credenciales de acceso virtual).
+
+`PATCH /api/v1/admin/events/{id}/cancel` cancela un evento sin exigir ser su organizador y le avisa
+por email. Rige la misma regla de siempre: solo si no tiene tickets pendientes, activos o usados
+(`409 Conflict`; también si ya está cancelado o finalizado). Devuelve `204`.
+
+### Pagos y tickets
+
+`GET /api/v1/admin/payments?userId=&eventId=&status=` (`userId` es el comprador; `status`:
+`PENDING`, `APPROVED` o `REJECTED`) devuelve los pagos, los más recientes primero, como
+[`PaymentAdminResponse`](#paymentadminresponse).
+
+`GET /api/v1/admin/tickets?userId=&eventId=&status=` (`userId` es el titular; `status`: `PENDING`,
+`ACTIVE`, `USED` o `CANCELLED`) devuelve los tickets como [`TicketAdminResponse`](#ticketadminresponse).
+
+`POST /api/v1/admin/payments/{id}/reconcile` consulta el pago en MercadoPago con el token del
+organizador y lo actualiza, con la misma lógica de la reconciliación automática. Devuelve `200 OK`
+con el pago actualizado.
+
+| Código | Causa |
+|--------|-------|
+| `404 Not Found` | El pago no existe |
+| `409 Conflict` | El pago no está `PENDING` |
+| `428 Precondition Required` | El organizador ya no tiene MercadoPago vinculado |
+| `502 Bad Gateway` | No se pudo consultar el pago en MercadoPago |
+
+`POST /api/v1/admin/tickets/{id}/resend-delivery` reencola el envío por email de la orden del
+ticket y devuelve `204`. Respeta el tiempo de espera entre envíos y no duplica uno en curso. Responde
+`404` si el ticket no existe y `409` si no está `ACTIVE`.
+
+### Bitácora
+
+`GET /api/v1/admin/audit-log?actorId=&action=&targetId=&from=&to=&page=0&size=20`
+
+`from` y `to` son fechas (`yyyy-MM-dd`), inclusivas. Los registros se devuelven del más reciente al
+más antiguo como [`AuditLogResponse`](#auditlogresponse). No se pueden editar ni borrar. Solo se
+registran acciones exitosas.
+
+| `action` | Cuándo |
+|----------|--------|
+| `ROLE_GRANTED`, `ROLE_REVOKED` | Ascenso o degradación (`details`: `Rol: ADMIN` o `Rol: USER`) |
+| `USER_BLOCKED`, `USER_UNBLOCKED` | Bloqueo (`details`: el motivo) o desbloqueo |
+| `USER_SESSIONS_REVOKED` | Cierre de sesiones |
+| `EVENT_CANCELLED` | Cancelación (`details`: el título) |
+| `PAYMENT_RECONCILED` | Reconciliación forzada (`details`: `PENDING -> APPROVED`) |
+| `DELIVERY_REQUESTED` | Reenvío de entrega (`details`: la orden) |
+
+---
+
 ## Esquemas de respuesta
 
 ### UserResponse
@@ -1619,6 +1748,82 @@ Los campos de ubicación (`address`, `latitude`, `longitude`, `capacity`) y `ava
 | `eventDateTime` | Fecha y hora de inicio del evento |
 | `sectorName` | Sector de la entrada, o `null` si el evento no tiene sectores |
 | `qrCodeBase64` | `null` si el ticket no está `ACTIVE` o el evento es virtual |
+
+### UserAdminResponse
+
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "email": "string",
+  "systemRole": "string",
+  "verified": true,
+  "blocked": false,
+  "blockedReason": "string",
+  "blockedAt": "datetime",
+  "dateBirth": "date",
+  "avatarUrl": "string"
+}
+```
+
+`blockedReason` y `blockedAt` son `null` si el usuario no está bloqueado.
+
+### PaymentAdminResponse
+
+```json
+{
+  "id": "uuid",
+  "transactionId": "string",
+  "status": "string",
+  "mercadoPagoStatus": "string",
+  "statusDetail": "string",
+  "totalAmount": 0,
+  "paymentDate": "datetime",
+  "nextReconcileAt": "datetime",
+  "orderId": "uuid",
+  "eventId": "uuid",
+  "eventTitle": "string",
+  "buyerId": "uuid",
+  "buyerName": "string"
+}
+```
+
+### TicketAdminResponse
+
+```json
+{
+  "id": "uuid",
+  "eventId": "uuid",
+  "eventTitle": "string",
+  "attendeeId": "uuid",
+  "attendeeName": "string",
+  "sectorName": "string",
+  "status": "string",
+  "boughtAt": "datetime",
+  "accessedAt": "datetime",
+  "orderId": "uuid",
+  "deliveryStatus": "string"
+}
+```
+
+`deliveryStatus`: `NOT_REQUIRED`, `PENDING`, `PROCESSING`, `SENT` o `FAILED`.
+
+### AuditLogResponse
+
+```json
+{
+  "id": "uuid",
+  "actorId": "uuid",
+  "actorName": "string",
+  "action": "string",
+  "targetType": "string",
+  "targetId": "uuid",
+  "details": "string",
+  "createdAt": "datetime"
+}
+```
+
+`targetType`: `USER`, `EVENT`, `PAYMENT` o `TICKET`.
 
 ### ControllerResponse
 
