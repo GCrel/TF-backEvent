@@ -6,12 +6,14 @@ import java.util.List;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.report.repository.dto.AttendeeRow;
 import org.gcrel.tfbackevent.report.repository.dto.ControllerValidations;
 import org.gcrel.tfbackevent.report.repository.dto.EventRevenue;
 import org.gcrel.tfbackevent.report.repository.dto.EventStatusCount;
 import org.gcrel.tfbackevent.report.repository.dto.PaymentStatusTotals;
 import org.gcrel.tfbackevent.report.repository.dto.SaleRow;
 import org.gcrel.tfbackevent.report.repository.dto.TicketStatusCount;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -48,6 +50,12 @@ public interface ReportRepository extends Repository<Ticket, UUID> {
     @Query("SELECT t.accessedAt FROM Ticket t WHERE t.event.id = :eventId AND t.status IN (" + SOLD + ") "
             + "AND t.accessedAt IS NOT NULL")
     List<LocalDateTime> accessTimes(@Param("eventId") UUID eventId);
+
+    @Query(value = "SELECT new org.gcrel.tfbackevent.report.repository.dto.AttendeeRow(u.name, t.status, t.boughtAt, t.accessedAt) "
+            + "FROM Ticket t JOIN t.attendee u WHERE t.event.id = :eventId AND t.status IN (" + SOLD + ") "
+            + "ORDER BY t.boughtAt, t.id",
+            countQuery = "SELECT COUNT(t) FROM Ticket t WHERE t.event.id = :eventId AND t.status IN (" + SOLD + ")")
+    Page<AttendeeRow> attendees(@Param("eventId") UUID eventId, Pageable page);
 
     @Query("SELECT new org.gcrel.tfbackevent.report.repository.dto.ControllerValidations(v.id, v.name, COUNT(t)) "
             + "FROM Ticket t JOIN t.validatedBy v WHERE t.event.id = :eventId "

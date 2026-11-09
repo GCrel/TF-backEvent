@@ -5,11 +5,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +26,9 @@ import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.report.controller.ReportController;
+import org.gcrel.tfbackevent.report.dto.response.AttendeeResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse.ControllerValidations;
 import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse.HourlyAccess;
@@ -41,6 +46,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -213,5 +220,48 @@ class ReportControllerTest {
     @Test
     void organizerSummary_WithoutSession_Returns401() throws Exception {
         mockMvc.perform(get(BASE + "/organizer/summary")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void attendees_WithoutFormat_ReturnsAPageOfJson() throws Exception {
+        when(reportService.attendees(eq(eventId), any(User.class), any())).thenReturn(new PageImpl<>(List.of(
+                new AttendeeResponse("Ana", TicketStatus.USED, LocalDateTime.of(2026, 3, 10, 9, 0),
+                        LocalDateTime.of(2026, 3, 20, 9, 15))),
+                PageRequest.of(0, 20), 1));
+
+        mockMvc.perform(get(BASE + "/events/{id}/attendees", eventId).with(authentication(auth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("Ana"))
+                .andExpect(jsonPath("$.content[0].status").value("USED"))
+                .andExpect(jsonPath("$.content[0].accessedAt").value("2026-03-20T09:15:00"))
+                .andExpect(jsonPath("$.content[0].email").doesNotExist());
+    }
+
+    @Test
+    void attendees_AsCsv_ReturnsADownloadableUtf8FileWithBom() throws Exception {
+        when(reportService.attendeesCsv(eq(eventId), any(User.class))).thenReturn("\uFEFFNombre\r\nAna\r\n");
+
+        mockMvc.perform(get(BASE + "/events/{id}/attendees", eventId).param("format", "csv").with(authentication(auth)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"asistentes-" + eventId + ".csv\""))
+                .andExpect(
+                        content().bytes("\uFEFFNombre\r\nAna\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void attendees_WithAnUnknownFormat_Returns400() throws Exception {
+        mockMvc.perform(get(BASE + "/events/{id}/attendees", eventId).param("format", "xml").with(authentication(auth)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void attendees_WithoutSession_Or_NotTheOrganizer_Returns401And403() throws Exception {
+        mockMvc.perform(get(BASE + "/events/{id}/attendees", eventId)).andExpect(status().isUnauthorized());
+
+        when(reportService.attendeesCsv(eq(eventId), any(User.class))).thenThrow(new ReportAccessDeniedException());
+        mockMvc.perform(get(BASE + "/events/{id}/attendees", eventId).param("format", "csv").with(authentication(auth)))
+                .andExpect(status().isForbidden());
     }
 }

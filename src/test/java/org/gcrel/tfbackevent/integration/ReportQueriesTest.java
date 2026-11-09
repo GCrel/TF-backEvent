@@ -33,6 +33,7 @@ import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
 import org.gcrel.tfbackevent.report.repository.ReportRepository;
+import org.gcrel.tfbackevent.report.repository.dto.AttendeeRow;
 import org.gcrel.tfbackevent.report.repository.dto.ControllerValidations;
 import org.gcrel.tfbackevent.report.repository.dto.EventRevenue;
 import org.gcrel.tfbackevent.report.repository.dto.PaymentStatusTotals;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -130,7 +132,8 @@ class ReportQueriesTest extends PostgresIntegrationTest {
 
         TicketOrder o4 = order(b4, e, 1, "50.00", LocalDateTime.of(2026, 3, 12, 15, 30));
         payment(o4, PaymentStatus.REJECTED, LocalDateTime.of(2026, 3, 12, 16, 0));
-        // Con acceso a propósito (dato inconsistente): demuestra que solo cuentan ACTIVE y USED.
+        // Con acceso a propósito (dato inconsistente): demuestra que solo cuentan
+        // ACTIVE y USED.
         ticket(o4, TicketStatus.CANCELLED, LocalDateTime.of(2026, 3, 20, 10, 0), null);
 
         TicketOrder o5 = order(b1, e, 2, "50.00", LocalDateTime.of(2026, 3, 12, 23, 50));
@@ -199,7 +202,8 @@ class ReportQueriesTest extends PostgresIntegrationTest {
 
     @Test
     void attendance_CountsSoldTicketsWithAccessAndIgnoresTheRest() {
-        // 4: USED (3) y una ACTIVE con acceso. No cuentan la CANCELLED con acceso ni las ACTIVE sin acceso.
+        // 4: USED (3) y una ACTIVE con acceso. No cuentan la CANCELLED con acceso ni
+        // las ACTIVE sin acceso.
         assertEquals(4, reports.attendance(e.getId()));
         assertEquals(1, reports.attendance(e2.getId()));
         assertEquals(0, reports.attendance(e3.getId()));
@@ -222,6 +226,26 @@ class ReportQueriesTest extends PostgresIntegrationTest {
 
         assertEquals(Map.of("Controlador 1", 2L, "Controlador 2", 1L), byName);
         assertEquals(List.of(), reports.validationsByController(e2.getId()));
+    }
+
+    @Test
+    void attendees_ListsOnlySoldTicketsOldestPurchaseFirstAndPaginates() {
+        Page<AttendeeRow> all = reports.attendees(e.getId(), PageRequest.of(0, 20));
+
+        // 8 vendidas (5 ACTIVE + 3 USED): quedan fuera las 2 PENDING y la CANCELLED.
+        assertEquals(8, all.getTotalElements());
+        assertEquals(List.of("Comprador 1", "Comprador 1", "Comprador 2", "Comprador 3", "Comprador 3",
+                "Comprador 3", "Comprador 2", "Comprador 2"),
+                all.map(AttendeeRow::name).getContent());
+        assertEquals(LocalDateTime.of(2026, 3, 10, 23, 0), all.getContent().get(0).boughtAt());
+        assertEquals(List.of(TicketStatus.ACTIVE, TicketStatus.USED), all.getContent().subList(0, 2).stream()
+                .map(AttendeeRow::status).sorted().toList());
+
+        Page<AttendeeRow> second = reports.attendees(e.getId(), PageRequest.of(1, 3));
+        assertEquals(3, second.getNumberOfElements());
+        assertEquals(3, second.getTotalPages());
+        assertEquals(List.of("Comprador 3", "Comprador 3", "Comprador 3"), second.map(AttendeeRow::name).getContent());
+        assertEquals(List.of(), reports.attendees(e3.getId(), PageRequest.of(0, 20)).getContent());
     }
 
     // ==========================================
@@ -260,7 +284,8 @@ class ReportQueriesTest extends PostgresIntegrationTest {
 
     @Test
     void organizedEventIds_ReturnsOnlyTheEventsTheUserOrganizes() {
-        assertEquals(Set.of(e.getId(), e2.getId(), e3.getId()), Set.copyOf(reports.organizedEventIds(organizer.getId())));
+        assertEquals(Set.of(e.getId(), e2.getId(), e3.getId()),
+                Set.copyOf(reports.organizedEventIds(organizer.getId())));
         assertEquals(List.of(e4.getId()), reports.organizedEventIds(organizer2.getId()));
         assertEquals(List.of(), reports.organizedEventIds(c1.getId()));
     }
@@ -273,7 +298,8 @@ class ReportQueriesTest extends PostgresIntegrationTest {
     void paymentsByStatusBetween_IncludesTheLowerBoundAndExcludesTheUpperOne() {
         List<PaymentStatusTotals> totals = reports.paymentsByStatusBetween(MAR_11, MAR_13);
 
-        // APROBADOS: O2 (11/3 00:00, límite inferior incluido), O3, O7, O8; no O1 (10/3 23:59:30).
+        // APROBADOS: O2 (11/3 00:00, límite inferior incluido), O3, O7, O8; no O1 (10/3
+        // 23:59:30).
         assertTotals(totals, PaymentStatus.APPROVED, 4, "265.00");
         assertTotals(totals, PaymentStatus.REJECTED, 1, "50.00");
         // El pendiente O5 cae justo en el límite superior (13/3 00:00): queda fuera.
@@ -310,7 +336,8 @@ class ReportQueriesTest extends PostgresIntegrationTest {
     @Test
     void countUsers_SeparatesNewUsersByCreationDate() {
         assertEquals(8, reports.countUsers());
-        // b2 (11/3 08:00) y b3 (12/3 23:59). b4 (13/3 00:00) queda fuera por el límite superior; b1 (10/3
+        // b2 (11/3 08:00) y b3 (12/3 23:59). b4 (13/3 00:00) queda fuera por el límite
+        // superior; b1 (10/3
         // 23:59) por el inferior; los usuarios sin fecha no cuentan.
         assertEquals(2, reports.countUsersCreatedBetween(MAR_11, MAR_13));
     }
@@ -319,11 +346,13 @@ class ReportQueriesTest extends PostgresIntegrationTest {
     // Auxiliares
     // ==========================================
 
-    private static Map<TicketStatus, Long> ticketCounts(List<org.gcrel.tfbackevent.report.repository.dto.TicketStatusCount> counts) {
+    private static Map<TicketStatus, Long> ticketCounts(
+            List<org.gcrel.tfbackevent.report.repository.dto.TicketStatusCount> counts) {
         return counts.stream().collect(Collectors.toMap(c -> c.status(), c -> c.count()));
     }
 
-    private static void assertTotals(List<PaymentStatusTotals> totals, PaymentStatus status, long count, String amount) {
+    private static void assertTotals(List<PaymentStatusTotals> totals, PaymentStatus status, long count,
+            String amount) {
         PaymentStatusTotals row = totals.stream().filter(t -> t.status() == status).findFirst().orElseThrow();
         assertEquals(count, row.count(), "cantidad de " + status);
         assertMoney(amount, row.total());
@@ -340,7 +369,8 @@ class ReportQueriesTest extends PostgresIntegrationTest {
     }
 
     private User user(String name, LocalDateTime createdAt) {
-        User user = new User(name, name.toLowerCase().replace(' ', '.') + "@example.com", "hash", LocalDate.of(1990, 1, 1));
+        User user = new User(name, name.toLowerCase().replace(' ', '.') + "@example.com", "hash",
+                LocalDate.of(1990, 1, 1));
         ReflectionTestUtils.setField(user, "createdAt", createdAt);
         return userRepository.save(user);
     }

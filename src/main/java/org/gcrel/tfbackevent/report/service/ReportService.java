@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -24,6 +25,7 @@ import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.report.dto.response.AttendeeResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse.HourlyAccess;
 import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
@@ -34,12 +36,15 @@ import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse;
 import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse.TopEvent;
 import org.gcrel.tfbackevent.report.exception.ReportAccessDeniedException;
 import org.gcrel.tfbackevent.report.repository.ReportRepository;
+import org.gcrel.tfbackevent.report.repository.dto.AttendeeRow;
 import org.gcrel.tfbackevent.report.repository.dto.ControllerValidations;
 import org.gcrel.tfbackevent.report.repository.dto.EventStatusCount;
 import org.gcrel.tfbackevent.report.repository.dto.PaymentStatusTotals;
 import org.gcrel.tfbackevent.report.repository.dto.SaleRow;
 import org.gcrel.tfbackevent.report.repository.dto.TicketStatusCount;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +54,8 @@ public class ReportService {
     private static final int RATE_SCALE = 4;
     private static final int HOURS_PER_DAY = 24;
     private static final int TOP_ORGANIZER_EVENTS = 5;
+    private static final int CSV_PAGE_SIZE = 500;
+    private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     // Más validaciones primero; el desempate es fijo para que el orden no dependa
     // de la base.
     private static final Comparator<ControllerValidations> CONTROLLER_ORDER = Comparator
@@ -157,6 +164,31 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
+    public Page<AttendeeResponse> attendees(UUID eventId, User viewer, Pageable pageable) {
+        authorizedEvent(eventId, viewer);
+        return reports.attendees(eventId, PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()))
+                .map(row -> new AttendeeResponse(row.name(), row.status(), row.boughtAt(), row.accessedAt()));
+    }
+
+    // shortcut: arma el archivo en memoria; pasar a streaming si un evento supera
+    // ~100.000 entradas.
+    @Transactional(readOnly = true)
+    public String attendeesCsv(UUID eventId, User viewer) {
+        authorizedEvent(eventId, viewer);
+        StringBuilder csv = new StringBuilder(Csv.BOM)
+                .append(Csv.row("Nombre", "Estado", "Fecha de compra", "Fecha de acceso"));
+        Page<AttendeeRow> page;
+        int number = 0;
+        do {
+            page = reports.attendees(eventId, PageRequest.of(number++, CSV_PAGE_SIZE));
+            page.forEach(row -> csv.append(Csv.row(row.name(), statusLabel(row.status()),
+                    CSV_DATE.format(row.boughtAt()),
+                    row.accessedAt() == null ? null : CSV_DATE.format(row.accessedAt()))));
+        } while (page.hasNext());
+        return csv.toString();
+    }
+
+    @Transactional(readOnly = true)
     public OrganizerSummaryResponse organizerSummary(User organizer) {
         List<UUID> eventIds = reports.organizedEventIds(organizer.getId());
         if (eventIds.isEmpty()) {
@@ -206,6 +238,10 @@ public class ReportService {
 
     static BigDecimal money(BigDecimal amount) {
         return amount.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private static String statusLabel(TicketStatus status) {
+        return status == TicketStatus.USED ? "Usada" : "Activa";
     }
 
     private static Map<EventStatus, Long> eventsByStatus(List<EventStatusCount> rows) {
