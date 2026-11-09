@@ -2,7 +2,9 @@ package org.gcrel.tfbackevent.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +13,29 @@ import org.gcrel.tfbackevent.admin.dto.response.UserAdminResponse;
 import org.gcrel.tfbackevent.admin.service.AdminUserService;
 import org.gcrel.tfbackevent.admin.service.AuditService;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.payment.service.PaymentRecoveryService;
+import org.gcrel.tfbackevent.payment.service.DeliveryService;
+import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
+import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.model.enums.PaymentStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
+import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.VirtualEvent;
+import org.gcrel.tfbackevent.model.TicketOrder;
+import org.gcrel.tfbackevent.model.Ticket;
+import org.gcrel.tfbackevent.model.Payment;
+import org.gcrel.tfbackevent.model.InPersonEvent;
+import org.gcrel.tfbackevent.event.service.SectorService;
+import org.gcrel.tfbackevent.event.service.ImageStorageService;
+import org.gcrel.tfbackevent.event.service.EventService;
+import org.gcrel.tfbackevent.event.repository.EventRepository;
+import org.gcrel.tfbackevent.event.dto.response.EventResponse;
+import org.gcrel.tfbackevent.event.config.EventWindowProperties;
+import org.gcrel.tfbackevent.admin.service.AdminSupportService;
+import org.gcrel.tfbackevent.admin.dto.response.TicketAdminResponse;
+import org.gcrel.tfbackevent.admin.dto.response.PaymentAdminResponse;
 import org.gcrel.tfbackevent.auth.service.EmailService;
 import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.AuditAction;
@@ -34,7 +59,7 @@ import jakarta.persistence.EntityManager;
 
 // Verifica contra PostgreSQL las búsquedas del panel de administración.
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
-@Import({ AdminUserService.class, AuditService.class })
+@Import({ AdminUserService.class, AuditService.class, AdminSupportService.class, EventService.class })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class AdminSearchTest {
@@ -51,10 +76,33 @@ class AdminSearchTest {
     @Autowired
     private AuditService auditService;
 
+    @Autowired
+    private AdminSupportService adminSupportService;
+    @Autowired
+    private EventService eventService;
+    @Autowired
+    private EventRepository eventRepository;
+    @Autowired
+    private TicketOrderRepository orderRepository;
+    @Autowired
+    private TicketRepository ticketRepository;
+    @Autowired
+    private PaymentRepository paymentRepository;
+
     @MockitoBean
     private PasswordEncoder passwordEncoder;
     @MockitoBean
     private EmailService emailService;
+    @MockitoBean
+    private PaymentRecoveryService paymentRecoveryService;
+    @MockitoBean
+    private DeliveryService deliveryService;
+    @MockitoBean
+    private EventWindowProperties eventWindowProperties;
+    @MockitoBean
+    private ImageStorageService imageStorageService;
+    @MockitoBean
+    private SectorService sectorService;
 
     private User ana;
     private User bruno;
@@ -134,5 +182,88 @@ class AdminSearchTest {
         assertEquals(3, auditService.search(null, null, null, LocalDate.now(), LocalDate.now(), page).getTotalElements());
         assertEquals(0, auditService.search(null, null, null, LocalDate.now().plusDays(1), null, page).getTotalElements());
         assertEquals("Ana García", auditService.search(null, null, null, null, null, page).getContent().get(0).actorName());
+    }
+
+    // ==========================================
+    // Eventos, pagos y tickets
+    // ==========================================
+
+    private InPersonEvent inPerson(String title, EventStatus status, int daysFromNow) {
+        InPersonEvent event = new InPersonEvent(title, "Descripción de " + title, LocalDateTime.now().plusDays(daysFromNow),
+                new BigDecimal("20.00"), "Address", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 100);
+        event.setStatus(status);
+        return eventRepository.save(event);
+    }
+
+    private VirtualEvent virtual(String title, EventStatus status, int daysFromNow) {
+        VirtualEvent event = new VirtualEvent(title, "Descripción de " + title, LocalDateTime.now().plusDays(daysFromNow),
+                new BigDecimal("20.00"), "https://meet.example.com", "Meet", null);
+        event.setStatus(status);
+        return eventRepository.save(event);
+    }
+
+    private List<String> titles(EventStatus status, EventType type, String q) {
+        return eventService.getAllEvents(status, type, q, PageRequest.of(0, 20)).map(EventResponse::title).getContent();
+    }
+
+    @Test
+    void getAllEvents_ReturnsEveryStatusNewestFirstAndFilters() {
+        inPerson("Conf draft", EventStatus.DRAFT, 1);
+        inPerson("Conf cancelled", EventStatus.CANCELLED, 5);
+        virtual("Webinar published", EventStatus.PUBLISHED, 3);
+        entityManager.flush();
+
+        assertEquals(List.of("Conf cancelled", "Webinar published", "Conf draft"), titles(null, null, null));
+        assertEquals(List.of("Conf draft"), titles(EventStatus.DRAFT, null, null));
+        assertEquals(List.of("Webinar published"), titles(null, EventType.VIRTUAL, null));
+        assertEquals(List.of("Conf cancelled", "Conf draft"), titles(null, EventType.IN_PERSON, "CONF"));
+        assertEquals(List.of(), titles(EventStatus.FINISHED, null, null));
+        assertEquals(List.of("Webinar published"), titles(null, null, "descripción de web"));
+    }
+
+    private TicketOrder orderWithTicket(User orderBuyer, InPersonEvent orderEvent, TicketStatus ticketStatus) {
+        TicketOrder order = orderRepository.save(
+                new TicketOrder(orderBuyer, orderEvent, 1, orderEvent.getBasePrice(), LocalDateTime.now()));
+        Ticket ticket = new Ticket(order);
+        ticket.setStatus(ticketStatus);
+        ticketRepository.save(ticket);
+        return order;
+    }
+
+    @Test
+    void searchPaymentsAndTickets_FilterByUserEventAndStatus() {
+        InPersonEvent first = inPerson("Primero", EventStatus.PUBLISHED, 1);
+        InPersonEvent second = inPerson("Segundo", EventStatus.PUBLISHED, 2);
+        TicketOrder brunoFirst = orderWithTicket(bruno, first, TicketStatus.ACTIVE);
+        TicketOrder brunoSecond = orderWithTicket(bruno, second, TicketStatus.PENDING);
+        TicketOrder carlaFirst = orderWithTicket(carla, first, TicketStatus.CANCELLED);
+        Payment approved = new Payment("tx-1", new BigDecimal("20.00"), LocalDateTime.now().minusHours(2), brunoFirst);
+        approved.setPaymentStatus(PaymentStatus.APPROVED);
+        paymentRepository.save(approved);
+        paymentRepository.save(new Payment("tx-2", new BigDecimal("20.00"), LocalDateTime.now().minusHours(1), brunoSecond));
+        paymentRepository.save(new Payment("tx-3", new BigDecimal("20.00"), LocalDateTime.now(), carlaFirst));
+        entityManager.flush();
+        entityManager.clear();
+        PageRequest page = PageRequest.of(0, 20);
+
+        assertEquals(List.of("tx-3", "tx-2", "tx-1"), adminSupportService.searchPayments(null, null, null, page)
+                .map(PaymentAdminResponse::transactionId).getContent());
+        assertEquals(List.of("tx-2", "tx-1"), adminSupportService.searchPayments(bruno.getId(), null, null, page)
+                .map(PaymentAdminResponse::transactionId).getContent());
+        assertEquals(List.of("tx-3", "tx-1"), adminSupportService.searchPayments(null, first.getId(), null, page)
+                .map(PaymentAdminResponse::transactionId).getContent());
+        assertEquals(List.of("tx-1"), adminSupportService.searchPayments(null, null, PaymentStatus.APPROVED, page)
+                .map(PaymentAdminResponse::transactionId).getContent());
+        PaymentAdminResponse row = adminSupportService.searchPayments(carla.getId(), null, null, page).getContent().get(0);
+        assertEquals("Primero", row.eventTitle());
+        assertEquals(carla.getName(), row.buyerName());
+
+        assertEquals(3, adminSupportService.searchTickets(null, null, null, page).getTotalElements());
+        assertEquals(2, adminSupportService.searchTickets(bruno.getId(), null, null, page).getTotalElements());
+        assertEquals(2, adminSupportService.searchTickets(null, first.getId(), null, page).getTotalElements());
+        List<TicketAdminResponse> pending = adminSupportService.searchTickets(null, null, TicketStatus.PENDING, page).getContent();
+        assertEquals(1, pending.size());
+        assertEquals("Segundo", pending.get(0).eventTitle());
+        assertEquals(bruno.getName(), pending.get(0).attendeeName());
     }
 }

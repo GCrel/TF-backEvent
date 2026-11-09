@@ -45,6 +45,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -276,19 +277,35 @@ public class EventService {
             case IN_PERSON -> InPersonEvent.class;
             case VIRTUAL -> VirtualEvent.class;
         };
-        // Se escapan los comodines de LIKE para que '%' y '_' se busquen literalmente.
-        String pattern = query == null || query.isBlank()
-                ? null
-                : "%" + query.strip().toLowerCase(Locale.ROOT)
-                        .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
         return toResponses(eventRepository.search(
                 EventStatus.PUBLISHED,
                 eventClass,
-                pattern,
+                likePattern(query),
                 from == null ? null : from.atStartOfDay(),
                 // `to` es inclusivo: abarca todo ese día.
                 to == null ? null : to.plusDays(1).atStartOfDay(),
                 withoutSort(pageable)));
+    }
+
+    // Para el panel de administración: todos los estados, los más recientes primero.
+    public Page<EventResponse> getAllEvents(
+            EventStatus status, EventType type, String query, Pageable pageable) {
+        Specification<Event> spec = Specification.unrestricted();
+        if (status != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("status"), status));
+        }
+        if (type != null) {
+            Class<? extends Event> eventClass = type == EventType.IN_PERSON ? InPersonEvent.class : VirtualEvent.class;
+            spec = spec.and((root, q, cb) -> cb.equal(root.type(), eventClass));
+        }
+        String pattern = likePattern(query);
+        if (pattern != null) {
+            spec = spec.and((root, q, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("title")), pattern, '\\'),
+                    cb.like(cb.lower(root.get("description")), pattern, '\\')));
+        }
+        return toResponses(eventRepository.findAll(spec, PageRequest.of(
+                pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "dateTime", "id"))));
     }
 
     // Los más recientes primero; `status` null devuelve todos los estados.
@@ -312,6 +329,14 @@ public class EventService {
         return toResponses(events);
     }
 
+    // Se escapan los comodines de LIKE para que '%' y '_' se busquen literalmente.
+    private static String likePattern(String query) {
+        return query == null || query.isBlank()
+                ? null
+                : "%" + query.strip().toLowerCase(Locale.ROOT)
+                        .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+    }
+
     private Pageable withoutSort(Pageable pageable) {
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }
@@ -332,6 +357,19 @@ public class EventService {
         Event event = eventRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new EventNotFoundException(id));
         validateOwnership(event, organizer);
+        cancel(event);
+    }
+
+    // Misma regla que para el organizador (solo sin tickets), sin exigir serlo.
+    @Transactional
+    public Event cancelEventAsAdmin(UUID id) {
+        Event event = eventRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EventNotFoundException(id));
+        cancel(event);
+        return event;
+    }
+
+    private void cancel(Event event) {
         validateModifiable(event);
         if (ticketRepository.countByEventAndStatusIn(event, RESERVED_STATUSES) > 0) {
             throw new EventHasTicketsException();

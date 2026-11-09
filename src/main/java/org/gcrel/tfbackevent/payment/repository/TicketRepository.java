@@ -14,8 +14,12 @@ import org.gcrel.tfbackevent.model.enums.EventRole;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.repository.dto.EventTicketCount;
 import org.gcrel.tfbackevent.payment.repository.dto.TicketAccessState;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,7 +27,11 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-public interface TicketRepository extends JpaRepository<Ticket, UUID> {
+public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecificationExecutor<Ticket> {
+    @Override
+    @EntityGraph(attributePaths = { "event", "attendee", "order", "order.sector" })
+    Page<Ticket> findAll(Specification<Ticket> spec, Pageable pageable);
+
     List<Ticket> findByAttendee(User attendee);
 
     long countByEventAndStatusIn(Event event, Collection<TicketStatus> statuses);

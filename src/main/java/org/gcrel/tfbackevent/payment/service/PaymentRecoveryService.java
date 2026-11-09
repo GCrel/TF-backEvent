@@ -64,12 +64,7 @@ public class PaymentRecoveryService {
                 PageRequest.of(0, 50));
         for (Payment payment : payments) {
             try {
-                var organizer = eventParticipationRepository
-                        .findByEventAndId_EventRole(payment.getOrder().getEvent(), EventRole.ORGANIZER)
-                        .orElseThrow();
-                String token = mpOAuthService.getValidAccessToken(organizer.getUser());
-                var mpPayment = mercadoPagoService.getPaymentById(payment.getTransactionId(), token);
-                paymentService.handleExistingPayment(payment, mpPayment);
+                reconcile(payment);
             } catch (ObjectOptimisticLockingFailureException e) {
                 log.debug("El pago {} ya fue reconciliado por otro proceso", payment.getTransactionId());
             } catch (RuntimeException e) {
@@ -79,6 +74,17 @@ public class PaymentRecoveryService {
                         payment.getTransactionId(), e.getMessage());
             }
         }
+    }
+
+    // Consulta el pago en MercadoPago con el token del organizador y lo actualiza. Lanza si
+    // falla: quien llama decide si reintentar luego (scheduler) o informar (administración).
+    public void reconcile(Payment payment) {
+        var organizer = eventParticipationRepository
+                .findByEventAndId_EventRole(payment.getOrder().getEvent(), EventRole.ORGANIZER)
+                .orElseThrow();
+        String token = mpOAuthService.getValidAccessToken(organizer.getUser());
+        var mpPayment = mercadoPagoService.getPaymentById(payment.getTransactionId(), token);
+        paymentService.handleExistingPayment(payment, mpPayment);
     }
 
     protected void cancelOrphanOrders() {

@@ -323,6 +323,57 @@ public class EventServiceTest {
     }
 
     @Test
+    void cancelEventAsAdmin_WithoutBeingOrganizer_CancelsTheEvent() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Event to cancel", "Description", eventDateTime.plusDays(5), new BigDecimal("90.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30);
+        existingEvent.setStatus(EventStatus.PUBLISHED);
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
+
+        Event cancelled = eventService.cancelEventAsAdmin(eventId);
+
+        assertEquals(EventStatus.CANCELLED, cancelled.getStatus());
+        verify(eventRepository).save(existingEvent);
+        verify(eventParticipationRepository, never()).existsByEventAndUserAndId_EventRole(any(), any(), any());
+    }
+
+    @Test
+    void cancelEventAsAdmin_WhenEventHasTickets_ThrowsAndKeepsStatus() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Event with sales", "Description", eventDateTime, new BigDecimal("90.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30);
+        existingEvent.setStatus(EventStatus.PUBLISHED);
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
+        when(ticketRepository.countByEventAndStatusIn(
+                existingEvent, List.of(TicketStatus.PENDING, TicketStatus.ACTIVE, TicketStatus.USED)))
+                .thenReturn(1L);
+
+        assertThrows(EventHasTicketsException.class, () -> eventService.cancelEventAsAdmin(eventId));
+        assertEquals(EventStatus.PUBLISHED, existingEvent.getStatus());
+    }
+
+    @Test
+    void cancelEventAsAdmin_WhenAlreadyCancelled_ThrowsNotModifiable() {
+        UUID eventId = UUID.randomUUID();
+        InPersonEvent existingEvent = new InPersonEvent(
+                "Cancelled", "Description", eventDateTime, new BigDecimal("90.00"),
+                "Venue", new BigDecimal("-34.60"), new BigDecimal("-58.38"), 30);
+        existingEvent.setStatus(EventStatus.CANCELLED);
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
+
+        assertThrows(EventNotModifiableException.class, () -> eventService.cancelEventAsAdmin(eventId));
+    }
+
+    @Test
+    void cancelEventAsAdmin_WhenMissing_ThrowsNotFound() {
+        UUID eventId = UUID.randomUUID();
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.empty());
+        assertThrows(EventNotFoundException.class, () -> eventService.cancelEventAsAdmin(eventId));
+    }
+
+    @Test
     void cancelEvent_WhenEventIsFinished_ShouldThrowEventNotModifiableException() {
         UUID eventId = UUID.randomUUID();
         InPersonEvent existingEvent = new InPersonEvent(

@@ -92,6 +92,10 @@ public class Payment {
         return id;
     }
 
+    public BigDecimal getTotalAmount() {
+        return totalAmount;
+    }
+
     public PaymentStatus getPaymentStatus() {
         return paymentStatus;
     }
