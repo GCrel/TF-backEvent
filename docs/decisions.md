@@ -37,6 +37,7 @@ Para el detalle funcional ver [`architecture.md`](architecture.md) y [`api.md`](
 | [018](#adr-018-edición-de-datos-de-la-cuenta-con-código-de-verificación) | Edición de datos de la cuenta con código de verificación | Aceptada |
 | [019](#adr-019-tokens-de-sesión-en-cookies-httponly) | Tokens de sesión en cookies `HttpOnly` | Aceptada |
 | [020](#adr-020-administración-global-con-bitácora) | Administración global con bitácora | Aceptada |
+| [021](#adr-021-esquema-de-producción-con-un-script-idempotente) | Esquema de producción con un script idempotente | Aceptada |
 
 ## ADR-001: API REST stateless con JWT
 
@@ -525,7 +526,7 @@ sistema: quien lo tiene puede ascender a otros, bloquear cuentas y cancelar even
 - **Bitácora atómica.** `audit_logs` registra quién hizo qué, sobre qué y cuándo, en la
   misma transacción que la acción, y es de solo lectura. Solo se registran acciones
   exitosas. Cada acción sobre otra persona le envía un email.
-- **Primer superusuario por entorno.** `data.sql` no se usa en producción y una
+- **Primer superusuario por entorno.** El seed de dev (`db/dev-seed.sql`) no se usa en producción y una
   contraseña en el repositorio sería un riesgo. `InitialAdminRunner` lo crea desde
   `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` solo si no existe ningún `ADMIN`, y nunca
   promueve a un usuario existente.
@@ -543,6 +544,44 @@ sistema: quien lo tiene puede ascender a otros, bloquear cuentas y cancelar even
   límite de intentos (BCrypt encarece cada uno) y los intentos fallidos no quedan registrados.
 - Bloquear a un usuario no cancela sus eventos ni sus tickets.
 - Las estadísticas globales quedaron pendientes hasta que exista el módulo de reportes.
+
+## ADR-021: Esquema de producción con un script idempotente
+
+**Estado:** Aceptada.
+
+**Contexto.** En `prod` Hibernate corre con `ddl-auto=validate`: comprueba el esquema pero no
+lo crea. Cada cambio de modelo exigía escribir y aplicar SQL a mano, y olvidarlo impedía que
+el backend arrancara (`missing table [audit_logs]`). En `dev` no pasaba porque `ddl-auto=create`
+genera todo. Se descartó una herramienta de migraciones (Flyway, Liquibase) para no sumar una
+dependencia que el equipo no puede validar.
+
+**Decisión.**
+
+- **`db/schema.sql` idempotente.** Se ejecuta en cada arranque de `prod`, antes de que
+  Hibernate valide (Spring ejecuta los scripts antes de crear el `EntityManagerFactory`).
+  La parte 1 es `CREATE TABLE IF NOT EXISTS` de todas las tablas; la parte 2,
+  `ADD COLUMN IF NOT EXISTS` de las columnas posteriores. Sirve para un volumen vacío y para
+  una base existente. Se generó a partir del DDL que produce el propio Hibernate.
+- **`validate` se mantiene.** El script prepara la base y Hibernate verifica que coincida con
+  las entidades: si alguien cambia una entidad y olvida el script, el arranque falla con un
+  mensaje claro, y `SchemaScriptTest` lo detecta antes de llegar a producción.
+- **Sin `CHECK` de enums en el script.** Hibernate las genera en `dev`, pero un valor de enum
+  nuevo en una base existente violaría la restricción; Java ya valida el enum.
+- **El seed de dev queda fuera de `prod`.** `data.sql` pasó a `db/dev-seed.sql` y solo lo
+  referencia `application-dev.properties`. Con `mode=always` en `prod`, Spring habría cargado un
+  `data.sql` de la raíz del classpath (con una contraseña de prueba y un administrador): ya no
+  existe ninguno, y un test lo comprueba.
+
+**Consecuencias.**
+
+- Sin pasos manuales ni dependencias nuevas, y el esquema queda versionado en el repositorio.
+- No es una herramienta de migraciones: no guarda historial y no cubre renombres, cambios de
+  tipo ni rellenos de datos, que requieren SQL específico.
+- El usuario de la base de la aplicación necesita permisos `CREATE` y `ALTER` (más del mínimo).
+- El test no detecta diferencias que Hibernate no valida (restricciones, índices).
+- Con varias instancias arrancando a la vez el script correría en paralelo (limitación 7).
+- Las vistas del módulo de estadísticas podrán vivir en un segundo script
+  (`DROP VIEW IF EXISTS` + `CREATE VIEW`); Hibernate no valida las vistas.
 
 ## Limitaciones conocidas
 

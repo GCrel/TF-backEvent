@@ -60,7 +60,7 @@ cp .env.template .env
 | `MERCADO_PAGO_CLIENT_SECRET` | Client Secret de la app OAuth. | — |
 | `MERCADO_PAGO_REDIRECT_URI` | URI de callback OAuth (solo `prod`; en `dev` es `http://localhost:8085/api/v1/mp/callback`). | `https://dominio/api/v1/mp/callback` |
 | `MERCADO_PAGO_FRONTEND_RETURN_URL` | Ruta del frontend a la que vuelve el organizador tras vincular MercadoPago (solo `prod`; en `dev` es `http://localhost:4200/organizer/mercadopago`). | `https://app.dominio.com/organizer/mercadopago` |
-| `INITIAL_ADMIN_EMAIL` | Email del primer superusuario. Se crea al arrancar **solo si no existe ningún `ADMIN`** (en `dev` ya hay uno en `data.sql`). Opcional. | `admin@dominio.com` |
+| `INITIAL_ADMIN_EMAIL` | Email del primer superusuario. Se crea al arrancar **solo si no existe ningún `ADMIN`** (en `dev` ya hay uno en `db/dev-seed.sql`). Opcional. | `admin@dominio.com` |
 | `INITIAL_ADMIN_PASSWORD` | Contraseña del primer superusuario (8 a 72 caracteres). Quitala del entorno después del primer arranque. | — |
 | `INITIAL_ADMIN_NAME` | Nombre del primer superusuario. | `Administrador` |
 | `COOKIE_SECURE` | Marca `Secure` en las cookies de sesión. Por defecto `true`: en desarrollo sobre `http` poné `false`. | `false` (dev), `true` (prod) |
@@ -73,8 +73,9 @@ cp .env.template .env
 > `openssl rand -base64 32` genera una válida (44 caracteres). La plantilla trae un
 > valor de relleno que hay que reemplazar.
 >
-> **Perfil.** La plantilla usa `dev`. Con `prod` la aplicación exige un esquema ya
-> creado y no arranca sobre una base vacía.
+> **Perfil.** La plantilla usa `dev`: recrea el esquema en cada arranque y carga datos de
+> prueba. Con `prod` el esquema lo prepara `db/schema.sql` (también sobre una base vacía) y
+> Hibernate lo valida; no se cargan datos de prueba.
 
 > **CORS.** Los orígenes deben incluir el esquema (`http://localhost:3000`, no
 > `localhost:3000`). Si el frontend local corre en otro puerto que `4200`, ajustá
@@ -153,7 +154,7 @@ arrancar.
 Con `SPRING_PROFILES_ACTIVE=dev`:
 
 - Hibernate recrea el esquema en cada arranque (`ddl-auto=create`).
-- Se carga `src/main/resources/data.sql` con usuarios, eventos, órdenes, tickets,
+- Se carga `src/main/resources/db/dev-seed.sql` con usuarios, eventos, órdenes, tickets,
   pagos y participaciones de ejemplo.
 - Las fechas son **relativas al momento del arranque**, así que los escenarios
   (evento próximo, evento en curso, evento finalizado) siempre están vigentes.
@@ -184,8 +185,8 @@ Identificadores útiles:
 > pueden comprar sin MercadoPago.
 
 > En el perfil `prod` Hibernate usa `ddl-auto=validate` y **no** se cargan datos de
-> prueba (`spring.sql.init.mode=never`). El esquema de producción se gestiona
-> externamente.
+> prueba: solo se ejecuta `db/schema.sql`, que crea o completa el esquema y es idempotente
+> (ver [`deployment.md`](deployment.md#base-de-datos)).
 
 ## Swagger UI
 

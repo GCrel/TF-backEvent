@@ -45,15 +45,16 @@ Producción usa el perfil **`prod`** (`SPRING_PROFILES_ACTIVE=prod`). Diferencia
 | Propiedad | `dev` | `prod` |
 |-----------|-------|--------|
 | `spring.jpa.hibernate.ddl-auto` | `create` (recrea el esquema) | `validate` |
-| `spring.sql.init.mode` | `always` (carga `data.sql`) | `never` |
+| `spring.sql.init.mode` | `always` (carga `db/dev-seed.sql`) | `always` (ejecuta `db/schema.sql`; no carga datos) |
 | `spring.jpa.show-sql` | `true` | `false` |
 | Swagger (`springdoc.*.enabled`) | `true` | `false` |
 | `cors.allowed-origins` | `http://localhost:4200` | `${CORS_ALLOWED_ORIGINS}` |
 | `mercadopago.redirect-uri` | `http://localhost:8085/api/v1/mp/callback` | `${MERCADO_PAGO_REDIRECT_URI}` |
 | `mercadopago.frontend-return-url` | `http://localhost:4200/organizer/mercadopago` | `${MERCADO_PAGO_FRONTEND_RETURN_URL}` |
 
-En `prod` el esquema **no** se crea ni se siembra: debe existir y coincidir con las
-entidades.
+En `prod` Hibernate **no** crea el esquema: lo prepara `db/schema.sql` al arrancar (ver
+[Base de datos](#base-de-datos)) y después Hibernate comprueba que coincida con las entidades.
+Nunca se cargan datos de prueba.
 
 ## Variables de entorno
 
@@ -79,77 +80,36 @@ En producción, además:
 ## Base de datos
 
 - **Motor:** PostgreSQL 15 o superior.
-- **Esquema:** con `validate`, Hibernate comprueba el esquema pero no lo crea. Antes
-  del primer despliegue hay que provisionarlo. Tablas esperadas:
+- **Esquema:** en `prod` Hibernate corre con `validate`: comprueba el esquema pero no lo
+  crea. Lo prepara el script `src/main/resources/db/schema.sql`, que se ejecuta en cada
+  arranque, **antes** de la validación, y es idempotente:
+  - **Parte 1:** `CREATE TABLE IF NOT EXISTS` de todas las tablas. Con un volumen vacío
+    crea el esquema completo; en una base existente solo agrega las tablas que falten
+    (por ejemplo `audit_logs`).
+  - **Parte 2:** `ADD COLUMN IF NOT EXISTS` de las columnas agregadas después de la primera
+    versión (bloqueo y datos de cuenta en `users`, `image_key`, `layout_image_key`,
+    `sector_id`) y la corrección de las coordenadas a `numeric(10,7)`. Completa bases
+    creadas con una versión anterior sin perder datos.
 
-  ```text
-  users, refresh_token, events, in_person_events, virtual_events,
-  event_sectors, ticket_orders, tickets, payments, event_participations,
-  organizer_mp_accounts, mp_oauth_states
-  ```
+  No hay pasos manuales ni dependencias de migración. Tampoco replica las restricciones
+  `CHECK` de los enums: Java ya valida el enum, y un valor nuevo no debe obligar a
+  modificar la base.
 
-  El proyecto no incluye migraciones versionadas (Flyway/Liquibase). Una opción
-  práctica es levantar una vez con perfil `dev` contra una base vacía para que
-  Hibernate genere el esquema, exportarlo (`pg_dump --schema-only`) y aplicarlo en
-  producción. Cada cambio del modelo requiere repetir este proceso.
-- **Coordenadas:** `in_person_events.latitude` y `longitude` son `numeric(10,7)`.
-  Un esquema generado antes de esta corrección las tiene como `numeric(10,0)` y
-  redondea a grados enteros; se corrige con:
+  **Al cambiar una entidad** (tabla o columna nueva), agregala a `db/schema.sql`: la tabla
+  en la parte 1 y, si la tabla ya existía en producción, la columna también en la parte 2.
+  `SchemaScriptTest` arranca PostgreSQL vacío, ejecuta el script y deja que Hibernate valide:
+  si falta algo, falla. `SchemaScriptUpgradeTest` comprueba que el script se puede repetir
+  y que completa un esquema viejo conservando los datos.
 
-  ```sql
-  ALTER TABLE in_person_events
-      ALTER COLUMN latitude TYPE numeric(10,7),
-      ALTER COLUMN longitude TYPE numeric(10,7);
-  ```
+  Los valores de coordenadas guardados cuando las columnas redondeaban a grados enteros
+  quedaron redondeados y hay que volver a cargarlos.
 
-  Los valores ya guardados quedaron redondeados y hay que volver a cargarlos.
-- **Sectores:** los sectores de eventos presenciales agregan una tabla y dos
-  columnas. Sobre una base existente:
-
-  ```sql
-  CREATE TABLE event_sectors (
-      id uuid PRIMARY KEY,
-      event_id uuid NOT NULL REFERENCES in_person_events (id),
-      name varchar(50) NOT NULL,
-      price numeric(10,2) NOT NULL,
-      capacity integer NOT NULL,
-      color varchar(7),
-      points jsonb
-  );
-  ALTER TABLE in_person_events ADD COLUMN layout_image_key varchar(255);
-  ALTER TABLE ticket_orders ADD COLUMN sector_id uuid REFERENCES event_sectors (id);
-  ```
-
-  Los planos de los recintos se guardan en el mismo volumen `uploads` que las
-  portadas (ver [Imágenes de eventos](#imágenes-de-eventos)).
-- **Datos de la cuenta:** la edición de email, contraseña y avatar agrega tres
-  columnas a `users`. Sobre una base existente:
-
-  ```sql
-  ALTER TABLE users ADD COLUMN code_purpose varchar(255);
-  ALTER TABLE users ADD COLUMN pending_email varchar(255);
-  ALTER TABLE users ADD COLUMN avatar_key varchar(255);
-  ```
-
-  Los avatares se guardan en el mismo volumen `uploads` que las portadas.
-- **Administración:** el bloqueo de cuentas agrega columnas a `users` y la bitácora
-  agrega una tabla. Sobre una base existente:
-
-  ```sql
-  ALTER TABLE users ADD COLUMN blocked boolean NOT NULL DEFAULT false;
-  ALTER TABLE users ADD COLUMN blocked_reason varchar(500);
-  ALTER TABLE users ADD COLUMN blocked_at timestamp;
-  CREATE TABLE audit_logs (
-      id uuid PRIMARY KEY,
-      actor_id uuid NOT NULL REFERENCES users (id),
-      action varchar(255) NOT NULL,
-      target_type varchar(255) NOT NULL,
-      target_id uuid NOT NULL,
-      details varchar(500),
-      created_at timestamp NOT NULL
-  );
-  ```
-
+  **Límites.** No es una herramienta de migraciones: no guarda historial y no resuelve
+  renombres de columnas, cambios de tipo ni rellenos de datos, que necesitan SQL específico.
+  El usuario de la base que usa la aplicación necesita permiso para `CREATE` y `ALTER`.
+  El test no detecta diferencias que Hibernate no valida (restricciones, índices).
+- **Imágenes:** las portadas, los planos y los avatares se guardan en el volumen `uploads`
+  (ver [Imágenes de eventos](#imágenes-de-eventos)).
   **Primer superusuario.** En producción no hay seed. Definí `INITIAL_ADMIN_EMAIL` e
   `INITIAL_ADMIN_PASSWORD` en el primer arranque: se crea el superusuario solo si no
   existe ninguno (y nunca promueve a un usuario existente). Después quitá la contraseña
@@ -215,11 +175,7 @@ Requisitos:
 
   El nombre real del volumen lleva el prefijo del proyecto de Compose (verificalo
   con `docker volume ls`).
-- **Esquema.** La columna `events.image_key` es nueva. Sobre una base existente:
-
-  ```sql
-  ALTER TABLE events ADD COLUMN image_key varchar(255);
-  ```
+- **Esquema.** La columna `events.image_key` la agrega `db/schema.sql` si falta.
 
 ## Operación y escalado
 
@@ -237,7 +193,7 @@ Requisitos:
 
 - [ ] Variables de entorno de producción completas, con secretos reales y fuertes.
 - [ ] `SPRING_PROFILES_ACTIVE=prod`.
-- [ ] Esquema de base de datos provisionado y compatible (`validate`).
+- [ ] El backend arranca con `prod`: `db/schema.sql` prepara el esquema y Hibernate lo valida.
 - [ ] Base de datos sin acceso público y con backups.
 - [ ] `CORS_ALLOWED_ORIGINS` con el dominio real del frontend.
 - [ ] `COOKIE_SECURE=true` y `COOKIE_SAME_SITE` acorde a dónde se aloja el frontend.
@@ -245,9 +201,7 @@ Requisitos:
 - [ ] Reloj sincronizado (NTP) para la validación de firma de webhooks.
 - [ ] TLS terminado en el proxy inverso o balanceador.
 - [ ] Nginx con `deploy/nginx/`: `client_max_body_size 6m` y `/api/v1/images/` servido desde el volumen.
-- [ ] Columna `events.image_key` presente en el esquema.
-- [ ] Columnas `users.blocked*` y tabla `audit_logs` presentes; primer superusuario creado y `INITIAL_ADMIN_PASSWORD` retirada del entorno.
-- [ ] Tabla `event_sectors` y columnas `in_person_events.layout_image_key` y `ticket_orders.sector_id` presentes.
+- [ ] Primer superusuario creado y `INITIAL_ADMIN_PASSWORD` retirada del entorno.
 - [ ] Respaldo periódico del volumen `uploads`, además del de la base.
 - [ ] Una sola instancia del backend (o coordinación de tareas programadas).
 
