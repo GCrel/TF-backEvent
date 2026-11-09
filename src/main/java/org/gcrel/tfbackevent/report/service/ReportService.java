@@ -20,6 +20,7 @@ import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
 import org.gcrel.tfbackevent.model.InPersonEvent;
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
@@ -29,12 +30,16 @@ import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse.DailySales;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse.PaymentCounts;
+import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse;
+import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse.TopEvent;
 import org.gcrel.tfbackevent.report.exception.ReportAccessDeniedException;
 import org.gcrel.tfbackevent.report.repository.ReportRepository;
 import org.gcrel.tfbackevent.report.repository.dto.ControllerValidations;
+import org.gcrel.tfbackevent.report.repository.dto.EventStatusCount;
 import org.gcrel.tfbackevent.report.repository.dto.PaymentStatusTotals;
 import org.gcrel.tfbackevent.report.repository.dto.SaleRow;
 import org.gcrel.tfbackevent.report.repository.dto.TicketStatusCount;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +48,7 @@ public class ReportService {
     private static final int MONEY_SCALE = 2;
     private static final int RATE_SCALE = 4;
     private static final int HOURS_PER_DAY = 24;
+    private static final int TOP_ORGANIZER_EVENTS = 5;
     // Más validaciones primero; el desempate es fijo para que el orden no dependa
     // de la base.
     private static final Comparator<ControllerValidations> CONTROLLER_ORDER = Comparator
@@ -150,6 +156,31 @@ public class ReportService {
         return new EventAttendanceResponse(eventId, byHour, byController);
     }
 
+    @Transactional(readOnly = true)
+    public OrganizerSummaryResponse organizerSummary(User organizer) {
+        List<UUID> eventIds = reports.organizedEventIds(organizer.getId());
+        if (eventIds.isEmpty()) {
+            return new OrganizerSummaryResponse(0, 0, money(BigDecimal.ZERO), new PaymentCounts(0, 0, 0),
+                    eventsByStatus(List.of()), List.of());
+        }
+
+        Map<TicketStatus, Long> tickets = ticketCounts(reports.ticketsByStatusIn(eventIds));
+        Map<PaymentStatus, PaymentStatusTotals> payments = paymentTotals(reports.paymentsByStatusIn(eventIds));
+        List<TopEvent> topEvents = reports.topEventsByRevenueIn(eventIds, PageRequest.of(0, TOP_ORGANIZER_EVENTS))
+                .stream()
+                .map(row -> new TopEvent(row.eventId(), row.title(), money(row.revenue()), row.tickets()))
+                .toList();
+
+        return new OrganizerSummaryResponse(
+                tickets.get(TicketStatus.ACTIVE) + tickets.get(TicketStatus.USED),
+                tickets.get(TicketStatus.PENDING),
+                money(payments.get(PaymentStatus.APPROVED).total()),
+                new PaymentCounts(payments.get(PaymentStatus.APPROVED).count(),
+                        payments.get(PaymentStatus.REJECTED).count(), payments.get(PaymentStatus.PENDING).count()),
+                eventsByStatus(reports.eventsByStatusIn(eventIds)),
+                topEvents);
+    }
+
     private Event authorizedEvent(UUID eventId, User viewer) {
         Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         if (viewer.getSystemRole() != SystemRole.ADMIN && !authorization.isOrganizer(event, viewer)) {
@@ -175,6 +206,15 @@ public class ReportService {
 
     static BigDecimal money(BigDecimal amount) {
         return amount.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private static Map<EventStatus, Long> eventsByStatus(List<EventStatusCount> rows) {
+        Map<EventStatus, Long> counts = new EnumMap<>(EventStatus.class);
+        for (EventStatus status : EventStatus.values()) {
+            counts.put(status, 0L);
+        }
+        rows.forEach(row -> counts.put(row.status(), row.count()));
+        return counts;
     }
 
     private static Map<TicketStatus, Long> ticketCounts(List<TicketStatusCount> rows) {

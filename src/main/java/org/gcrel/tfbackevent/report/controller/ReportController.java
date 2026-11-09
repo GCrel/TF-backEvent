@@ -6,6 +6,7 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
+import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse;
 import org.gcrel.tfbackevent.report.service.ReportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,6 +28,11 @@ public class ReportController {
     public ResponseEntity<EventSummaryResponse> eventSummary(
             @PathVariable UUID id, @AuthenticationPrincipal User viewer) {
         return ResponseEntity.ok(reportService.eventSummary(id, viewer));
+    }
+
+    @GetMapping("/organizer/summary")
+    public ResponseEntity<OrganizerSummaryResponse> organizerSummary(@AuthenticationPrincipal User organizer) {
+        return ResponseEntity.ok(reportService.organizerSummary(organizer));
     }
 
     @GetMapping("/events/{id}/sales")

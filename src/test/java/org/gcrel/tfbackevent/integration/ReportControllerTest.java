@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
@@ -30,6 +31,8 @@ import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse.DailySales;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse.PaymentCounts;
+import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse;
+import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse.TopEvent;
 import org.gcrel.tfbackevent.report.exception.ReportAccessDeniedException;
 import org.gcrel.tfbackevent.report.service.ReportService;
 import org.junit.jupiter.api.BeforeEach;
@@ -185,5 +188,30 @@ class ReportControllerTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get(BASE + "/events/{id}/attendance", eventId).with(authentication(auth)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void organizerSummary_Returns200WithTotalsStatusesAndTopEvents() throws Exception {
+        when(reportService.organizerSummary(any(User.class))).thenReturn(new OrganizerSummaryResponse(
+                9, 2, new BigDecimal("340.00"), new PaymentCounts(4, 1, 1),
+                Map.of(EventStatus.PUBLISHED, 2L, EventStatus.DRAFT, 1L, EventStatus.CANCELLED, 0L,
+                        EventStatus.FINISHED, 0L),
+                List.of(new TopEvent(eventId, "Conf", new BigDecimal("300.00"), 6))));
+
+        mockMvc.perform(get(BASE + "/organizer/summary").with(authentication(auth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ticketsSold").value(9))
+                .andExpect(jsonPath("$.ticketsPending").value(2))
+                .andExpect(jsonPath("$.revenue").value(340.00))
+                .andExpect(jsonPath("$.payments.approved").value(4))
+                .andExpect(jsonPath("$.eventsByStatus.PUBLISHED").value(2))
+                .andExpect(jsonPath("$.eventsByStatus.CANCELLED").value(0))
+                .andExpect(jsonPath("$.topEvents[0].title").value("Conf"))
+                .andExpect(jsonPath("$.topEvents[0].paidTickets").value(6));
+    }
+
+    @Test
+    void organizerSummary_WithoutSession_Returns401() throws Exception {
+        mockMvc.perform(get(BASE + "/organizer/summary")).andExpect(status().isUnauthorized());
     }
 }
