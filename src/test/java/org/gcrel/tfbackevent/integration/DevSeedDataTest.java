@@ -18,10 +18,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-// Carga data.sql sobre el esquema que genera Hibernate, como en el perfil dev: detecta columnas
+// Carga db/dev-seed.sql sobre el esquema que genera Hibernate, como en el perfil dev: detecta columnas
 // nuevas que el script no cubre.
 @DataJpaTest(properties = { "spring.jpa.hibernate.ddl-auto=create", "spring.sql.init.mode=always",
-        "spring.jpa.defer-datasource-initialization=true" })
+        "spring.jpa.defer-datasource-initialization=true",
+        "spring.sql.init.data-locations=classpath:db/dev-seed.sql" })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class DevSeedDataTest {
@@ -35,7 +36,7 @@ class DevSeedDataTest {
     private AuditLogRepository auditLogRepository;
 
     @Test
-    void dataSql_LoadsWithABlockedUserAndAuditEntries() {
+    void devSeed_LoadsWithABlockedUserAndAuditEntries() {
         User elena = userRepository.findById(UUID.fromString("55555555-5555-5555-5555-555555555555")).orElseThrow();
         assertTrue(elena.isBlocked());
         assertEquals(SystemRole.USER, elena.getSystemRole());

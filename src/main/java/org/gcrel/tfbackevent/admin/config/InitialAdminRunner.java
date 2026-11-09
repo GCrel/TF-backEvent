@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import lombok.extern.slf4j.Slf4j;
 
 // Crea el primer superusuario desde variables de entorno, solo si todavía no existe ninguno:
-// así no hay contraseñas en el repositorio ni en data.sql.
+// así no hay contraseñas en el repositorio ni en el seed de dev.
 @Slf4j
 @Component
 public class InitialAdminRunner implements ApplicationRunner {
@@ -49,7 +49,8 @@ public class InitialAdminRunner implements ApplicationRunner {
             return;
         }
         if (email.isBlank() || password.isBlank()) {
-            log.warn("No hay ningún superusuario. Definí INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD para crear el primero.");
+            log.warn(
+                    "No hay ningún superusuario. Definí INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD para crear el primero.");
             return;
         }
         if (password.length() < MIN_PASSWORD || password.length() > MAX_PASSWORD) {

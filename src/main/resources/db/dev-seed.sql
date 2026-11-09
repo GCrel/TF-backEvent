@@ -1,5 +1,5 @@
 -- =====================================================================
--- data.sql - Datos de prueba para el perfil dev
+-- db/dev-seed.sql - Datos de prueba para el perfil dev (solo se referencia desde application-dev)
 --
 -- * Contraseña de todos los usuarios: "password" (hash BCrypt).
 -- * Enums como STRING (@Enumerated(EnumType.STRING)).
