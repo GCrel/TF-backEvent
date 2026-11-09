@@ -20,6 +20,7 @@ import java.util.UUID;
 import org.gcrel.tfbackevent.auth.dto.request.RefreshTokenRequest;
 import org.gcrel.tfbackevent.auth.dto.request.RegisterRequest;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
+import org.gcrel.tfbackevent.auth.exception.AccountBlockedException;
 import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
 import org.gcrel.tfbackevent.auth.exception.EmailNotVerifiedException;
 import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
@@ -226,6 +227,29 @@ public class AuthServiceTest {
     }
 
     @Test
+    void login_WhenBlocked_ThrowsAccountBlockedAndStartsNoSession() {
+        testUser.setEnabled(true);
+        testUser.block("Spam", LocalDateTime.now());
+
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.matches(TEST_PASSWORD, testUser.getPassword())).thenReturn(true);
+
+        assertThrows(AccountBlockedException.class, () -> authService.login(TEST_EMAIL, TEST_PASSWORD));
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void login_BlockedAccountWithBadPassword_ThrowsInvalidCredentials() {
+        testUser.setEnabled(true);
+        testUser.block("Spam", LocalDateTime.now());
+
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.matches("wrong", testUser.getPassword())).thenReturn(false);
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.login(TEST_EMAIL, "wrong"));
+    }
+
+    @Test
     void login_UnverifiedAccountWithBadPassword_ThrowsInvalidCredentialsException() {
         testUser.setEnabled(false);
 
@@ -266,6 +290,17 @@ public class AuthServiceTest {
 
         assertEquals("new_access_token", response.accessToken());
         assertEquals("old_refresh_token", response.refreshToken());
+    }
+
+    @Test
+    void refresh_ThrowsInvalidTokenException_WhenUserIsBlocked() {
+        testUser.block("Spam", LocalDateTime.now());
+        RefreshToken token = new RefreshToken("old_refresh_token", LocalDateTime.now().plusDays(1), testUser);
+        when(refreshTokenRepository.findByToken("old_refresh_token")).thenReturn(Optional.of(token));
+
+        assertThrows(InvalidTokenException.class,
+                () -> authService.refresh(new RefreshTokenRequest("old_refresh_token")));
+        verify(jwtService, never()).generateAccessToken(any());
     }
 
     @Test

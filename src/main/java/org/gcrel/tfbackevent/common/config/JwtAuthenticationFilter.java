@@ -51,7 +51,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (jwtService.isAccessTokenValid(token)) {
                     User user = userRepository.findByEmail(email).orElse(null);
-                    if (user != null) {
+                    // Un usuario bloqueado se trata como sin sesión: el bloqueo corta de inmediato.
+                    if (user != null && !user.isBlocked()) {
                         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                                 user,
                                 null,

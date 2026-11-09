@@ -4,6 +4,7 @@ import org.gcrel.tfbackevent.auth.dto.request.RefreshTokenRequest;
 import org.gcrel.tfbackevent.auth.dto.request.RegisterRequest;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
 import org.gcrel.tfbackevent.auth.exception.AccountAlreadyVerifiedException;
+import org.gcrel.tfbackevent.auth.exception.AccountBlockedException;
 import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
 import org.gcrel.tfbackevent.auth.exception.EmailNotVerifiedException;
 import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
@@ -94,6 +95,9 @@ public class AuthService {
         if (!user.isEnabled()) {
             throw new EmailNotVerifiedException();
         }
+        if (user.isBlocked()) {
+            throw new AccountBlockedException();
+        }
 
         return startSession(user);
     }
@@ -109,7 +113,8 @@ public class AuthService {
                 .findByToken(request.refreshToken())
                 .orElseThrow(InvalidTokenException::new);
 
-        if (refreshToken.isExpired()) {
+        // Bloquear borra los refresh tokens; esto cubre una carrera con un refresh en curso.
+        if (refreshToken.isExpired() || refreshToken.getUser().isBlocked()) {
             throw new InvalidTokenException();
         }
 

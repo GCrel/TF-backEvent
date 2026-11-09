@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.gcrel.tfbackevent.model.enums.CodePurpose;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
+import org.hibernate.annotations.ColumnDefault;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -67,6 +68,16 @@ public class User implements UserDetails {
 
     @Column(name = "avatar_key")
     private String avatarKey;
+
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    private boolean blocked;
+
+    @Column(name = "blocked_reason", length = 500)
+    private String blockedReason;
+
+    @Column(name = "blocked_at")
+    private LocalDateTime blockedAt;
 
     public User() {
     }
@@ -161,6 +172,39 @@ public class User implements UserDetails {
 
     public void setAvatarKey(String avatarKey) {
         this.avatarKey = avatarKey;
+    }
+
+    public boolean isBlocked() {
+        return blocked;
+    }
+
+    public String getBlockedReason() {
+        return blockedReason;
+    }
+
+    public LocalDateTime getBlockedAt() {
+        return blockedAt;
+    }
+
+    public void block(String reason, LocalDateTime at) {
+        this.blocked = true;
+        this.blockedReason = reason;
+        this.blockedAt = at;
+    }
+
+    public void unblock() {
+        this.blocked = false;
+        this.blockedReason = null;
+        this.blockedAt = null;
+    }
+
+    public void setSystemRole(SystemRole systemRole) {
+        this.systemRole = systemRole;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return !blocked;
     }
 
     public void setName(String name) {

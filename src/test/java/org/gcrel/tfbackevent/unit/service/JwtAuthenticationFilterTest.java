@@ -56,6 +56,21 @@ class JwtAuthenticationFilterTest {
         assertEquals(user, SecurityContextHolder.getContext().getAuthentication().getPrincipal());
     }
 
+    @Test
+    void doesNotAuthenticateABlockedUser() throws Exception {
+        User user = new User("Ana", "ana@example.com", "encoded", LocalDate.of(1990, 1, 1));
+        user.block("Spam", java.time.LocalDateTime.now());
+        when(jwtService.extractEmail("jwt")).thenReturn("ana@example.com");
+        when(jwtService.isAccessTokenValid("jwt")).thenReturn(true);
+        when(userRepository.findByEmail("ana@example.com")).thenReturn(Optional.of(user));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie(AuthCookies.ACCESS, "jwt"));
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
     // Los tokens solo se aceptan por cookie: el header Authorization se ignora.
     @Test
     void ignoresTheAuthorizationHeader() throws Exception {
