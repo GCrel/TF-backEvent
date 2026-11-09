@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,6 +51,8 @@ class ReportServiceTest {
     private EventAuthorizationService authorization;
     @Mock
     private ReportRepository reports;
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private ReportService service;

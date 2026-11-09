@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
@@ -21,6 +23,11 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.EventStatus;
 import org.gcrel.tfbackevent.model.enums.EventType;
 import org.gcrel.tfbackevent.report.controller.ReportController;
+import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse;
+import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse.ControllerValidations;
+import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse.HourlyAccess;
+import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
+import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse.DailySales;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse.PaymentCounts;
 import org.gcrel.tfbackevent.report.exception.ReportAccessDeniedException;
@@ -115,5 +122,68 @@ class ReportControllerTest {
     void summary_WithAMalformedId_Returns400() throws Exception {
         mockMvc.perform(get(BASE + "/events/{id}/summary", "no-es-un-uuid").with(authentication(auth)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void sales_Returns200WithOneRowPerDay() throws Exception {
+        when(reportService.eventSales(eq(eventId), any(User.class))).thenReturn(new EventSalesResponse(eventId, List.of(
+                new DailySales(LocalDate.of(2026, 3, 10), 2, new BigDecimal("100.00")),
+                new DailySales(LocalDate.of(2026, 3, 11), 0, new BigDecimal("0.00")))));
+
+        mockMvc.perform(get(BASE + "/events/{id}/sales", eventId).with(authentication(auth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventId").value(eventId.toString()))
+                .andExpect(jsonPath("$.days.length()").value(2))
+                .andExpect(jsonPath("$.days[0].date").value("2026-03-10"))
+                .andExpect(jsonPath("$.days[0].tickets").value(2))
+                .andExpect(jsonPath("$.days[0].revenue").value(100.00))
+                .andExpect(jsonPath("$.days[1].tickets").value(0));
+    }
+
+    @Test
+    void attendance_ForAnInPersonEvent_ReturnsHoursAndControllers() throws Exception {
+        List<HourlyAccess> hours = new ArrayList<>();
+        for (int hour = 0; hour < 24; hour++) {
+            hours.add(new HourlyAccess(hour, hour == 9 ? 3 : 0));
+        }
+        UUID controllerId = UUID.randomUUID();
+        when(reportService.eventAttendance(eq(eventId), any(User.class))).thenReturn(new EventAttendanceResponse(
+                eventId, hours, List.of(new ControllerValidations(controllerId, "Ana", 2))));
+
+        mockMvc.perform(get(BASE + "/events/{id}/attendance", eventId).with(authentication(auth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.byHour.length()").value(24))
+                .andExpect(jsonPath("$.byHour[9].accesses").value(3))
+                .andExpect(jsonPath("$.byController[0].name").value("Ana"))
+                .andExpect(jsonPath("$.byController[0].validations").value(2));
+    }
+
+    @Test
+    void attendance_ForAVirtualEvent_OmitsTheControllersField() throws Exception {
+        when(reportService.eventAttendance(eq(eventId), any(User.class))).thenReturn(
+                new EventAttendanceResponse(eventId, List.of(new HourlyAccess(0, 0)), null));
+
+        mockMvc.perform(get(BASE + "/events/{id}/attendance", eventId).with(authentication(auth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.byHour").exists())
+                .andExpect(jsonPath("$.byController").doesNotExist());
+    }
+
+    @Test
+    void series_WithoutSession_Return401() throws Exception {
+        mockMvc.perform(get(BASE + "/events/{id}/sales", eventId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(BASE + "/events/{id}/attendance", eventId)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void series_WhenNotTheOrganizerOrTheEventIsMissing_Return403And404() throws Exception {
+        when(reportService.eventSales(eq(eventId), any(User.class))).thenThrow(new ReportAccessDeniedException());
+        when(reportService.eventAttendance(eq(eventId), any(User.class)))
+                .thenThrow(new EventNotFoundException(eventId));
+
+        mockMvc.perform(get(BASE + "/events/{id}/sales", eventId).with(authentication(auth)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(BASE + "/events/{id}/attendance", eventId).with(authentication(auth)))
+                .andExpect(status().isNotFound());
     }
 }

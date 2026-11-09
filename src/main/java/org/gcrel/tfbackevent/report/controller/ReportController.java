@@ -3,6 +3,8 @@ package org.gcrel.tfbackevent.report.controller;
 import java.util.UUID;
 
 import org.gcrel.tfbackevent.model.User;
+import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse;
+import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
 import org.gcrel.tfbackevent.report.service.ReportService;
 import org.springframework.http.ResponseEntity;
@@ -25,5 +27,17 @@ public class ReportController {
     public ResponseEntity<EventSummaryResponse> eventSummary(
             @PathVariable UUID id, @AuthenticationPrincipal User viewer) {
         return ResponseEntity.ok(reportService.eventSummary(id, viewer));
+    }
+
+    @GetMapping("/events/{id}/sales")
+    public ResponseEntity<EventSalesResponse> eventSales(
+            @PathVariable UUID id, @AuthenticationPrincipal User viewer) {
+        return ResponseEntity.ok(reportService.eventSales(id, viewer));
+    }
+
+    @GetMapping("/events/{id}/attendance")
+    public ResponseEntity<EventAttendanceResponse> eventAttendance(
+            @PathVariable UUID id, @AuthenticationPrincipal User viewer) {
+        return ResponseEntity.ok(reportService.eventAttendance(id, viewer));
     }
 }

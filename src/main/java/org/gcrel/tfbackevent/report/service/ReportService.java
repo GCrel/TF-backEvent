@@ -2,10 +2,17 @@ package org.gcrel.tfbackevent.report.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import org.gcrel.tfbackevent.access.service.EventAuthorizationService;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
@@ -16,11 +23,17 @@ import org.gcrel.tfbackevent.model.User;
 import org.gcrel.tfbackevent.model.enums.PaymentStatus;
 import org.gcrel.tfbackevent.model.enums.SystemRole;
 import org.gcrel.tfbackevent.model.enums.TicketStatus;
+import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse;
+import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse.HourlyAccess;
+import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
+import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse.DailySales;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse.PaymentCounts;
 import org.gcrel.tfbackevent.report.exception.ReportAccessDeniedException;
 import org.gcrel.tfbackevent.report.repository.ReportRepository;
+import org.gcrel.tfbackevent.report.repository.dto.ControllerValidations;
 import org.gcrel.tfbackevent.report.repository.dto.PaymentStatusTotals;
+import org.gcrel.tfbackevent.report.repository.dto.SaleRow;
 import org.gcrel.tfbackevent.report.repository.dto.TicketStatusCount;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,18 +42,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReportService {
     private static final int MONEY_SCALE = 2;
     private static final int RATE_SCALE = 4;
+    private static final int HOURS_PER_DAY = 24;
+    // Más validaciones primero; el desempate es fijo para que el orden no dependa
+    // de la base.
+    private static final Comparator<ControllerValidations> CONTROLLER_ORDER = Comparator
+            .comparingLong(ControllerValidations::count).reversed()
+            .thenComparing(ControllerValidations::name)
+            .thenComparing(ControllerValidations::controllerId);
 
     private final EventRepository eventRepository;
     private final EventAuthorizationService authorization;
     private final ReportRepository reports;
+    private final Clock clock;
 
     public ReportService(
             EventRepository eventRepository,
             EventAuthorizationService authorization,
-            ReportRepository reports) {
+            ReportRepository reports,
+            Clock clock) {
         this.eventRepository = eventRepository;
         this.authorization = authorization;
         this.reports = reports;
+        this.clock = clock;
     }
 
     // Transaccional para que todas las consultas lean la misma conexión.
@@ -77,6 +100,56 @@ public class ReportService {
                 rate(attendance, sold));
     }
 
+    // Ventas por día
+    @Transactional(readOnly = true)
+    public EventSalesResponse eventSales(UUID eventId, User viewer) {
+        Event event = authorizedEvent(eventId, viewer);
+
+        List<SaleRow> sales = new ArrayList<>(reports.approvedSales(eventId));
+        sales.addAll(reports.freeSales(eventId));
+        if (sales.isEmpty()) {
+            return new EventSalesResponse(eventId, List.of());
+        }
+
+        Map<LocalDate, Long> ticketsByDay = new HashMap<>();
+        Map<LocalDate, BigDecimal> revenueByDay = new HashMap<>();
+        for (SaleRow sale : sales) {
+            LocalDate day = sale.date().toLocalDate();
+            ticketsByDay.merge(day, (long) sale.tickets(), Long::sum);
+            revenueByDay.merge(day, sale.amount(), BigDecimal::add);
+        }
+        LocalDate first = Collections.min(ticketsByDay.keySet());
+        LocalDate lastSale = Collections.max(ticketsByDay.keySet());
+        LocalDate end = max(lastSale, min(LocalDate.now(clock), event.getDateTime().toLocalDate()));
+
+        List<DailySales> days = new ArrayList<>();
+        for (LocalDate day = first; !day.isAfter(end); day = day.plusDays(1)) {
+            days.add(new DailySales(day, ticketsByDay.getOrDefault(day, 0L),
+                    money(revenueByDay.getOrDefault(day, BigDecimal.ZERO))));
+        }
+        return new EventSalesResponse(eventId, days);
+    }
+
+    @Transactional(readOnly = true)
+    public EventAttendanceResponse eventAttendance(UUID eventId, User viewer) {
+        Event event = authorizedEvent(eventId, viewer);
+
+        long[] accessesByHour = new long[HOURS_PER_DAY];
+        reports.accessTimes(eventId).forEach(time -> accessesByHour[time.getHour()]++);
+        List<HourlyAccess> byHour = IntStream.range(0, HOURS_PER_DAY)
+                .mapToObj(hour -> new HourlyAccess(hour, accessesByHour[hour]))
+                .toList();
+
+        List<EventAttendanceResponse.ControllerValidations> byController = event instanceof InPersonEvent
+                ? reports.validationsByController(eventId).stream()
+                        .sorted(CONTROLLER_ORDER)
+                        .map(row -> new EventAttendanceResponse.ControllerValidations(
+                                row.controllerId(), row.name(), row.count()))
+                        .toList()
+                : null;
+        return new EventAttendanceResponse(eventId, byHour, byController);
+    }
+
     private Event authorizedEvent(UUID eventId, User viewer) {
         Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         if (viewer.getSystemRole() != SystemRole.ADMIN && !authorization.isOrganizer(event, viewer)) {
@@ -90,6 +163,14 @@ public class ReportService {
                 ? null
                 : BigDecimal.valueOf(numerator).divide(BigDecimal.valueOf(denominator), RATE_SCALE,
                         RoundingMode.HALF_UP);
+    }
+
+    private static LocalDate min(LocalDate a, LocalDate b) {
+        return a.isBefore(b) ? a : b;
+    }
+
+    private static LocalDate max(LocalDate a, LocalDate b) {
+        return a.isAfter(b) ? a : b;
     }
 
     static BigDecimal money(BigDecimal amount) {
