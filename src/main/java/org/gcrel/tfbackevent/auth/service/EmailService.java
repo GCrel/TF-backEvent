@@ -55,16 +55,26 @@ public class EmailService {
                 "Tu código para confirmar el cambio de contraseña es: ", code);
     }
 
+    // Aviso de una acción de administración sobre la cuenta o el evento del destinatario.
+    @Async
+    public void sendNotice(String to, String subject, String text) {
+        send(to, subject, text);
+    }
+
     private void sendCode(String to, String subject, String intro, String code) {
+        send(to, subject, intro + code + "\nEste código expira en 15 minutos.");
+    }
+
+    private void send(String to, String subject, String text) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromEmail);
         message.setTo(to);
         message.setSubject(subject);
-        message.setText(intro + code + "\nEste código expira en 15 minutos.");
+        message.setText(text);
         try {
             mailSender.send(message);
         } catch (MailException e) {
-            log.error("No se pudo enviar el email de verificación. to={}", to, e);
+            log.error("No se pudo enviar el email. to={}", to, e);
         }
     }
 

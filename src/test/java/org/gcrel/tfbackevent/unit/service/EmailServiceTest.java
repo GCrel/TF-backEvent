@@ -67,6 +67,19 @@ public class EmailServiceTest {
     }
 
     @Test
+    void sendNotice_SendsTheGivenSubjectAndText() {
+        emailService.sendNotice("usuario@ejemplo.com", "Tu cuenta fue bloqueada", "Motivo: spam");
+
+        ArgumentCaptor<SimpleMailMessage> messageCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(messageCaptor.capture());
+        SimpleMailMessage message = messageCaptor.getValue();
+
+        assertEquals("usuario@ejemplo.com", Objects.requireNonNull(message.getTo())[0]);
+        assertEquals("Tu cuenta fue bloqueada", message.getSubject());
+        assertEquals("Motivo: spam", message.getText());
+    }
+
+    @Test
     void sendPasswordChangeCode_SendsCode() {
         emailService.sendPasswordChangeCode("usuario@ejemplo.com", "654321");
 
