@@ -20,7 +20,7 @@ import org.gcrel.tfbackevent.auth.controller.AccountController;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
 import org.gcrel.tfbackevent.auth.dto.response.UserResponse;
 import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
-import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
+import org.gcrel.tfbackevent.auth.exception.IncorrectPasswordException;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.auth.service.AccountService;
 import org.gcrel.tfbackevent.auth.service.AuthCookies;
@@ -125,13 +125,13 @@ class AccountControllerTest {
     }
 
     @Test
-    void requestEmailChange_WhenWrongPassword_Returns401() throws Exception {
-        doThrow(new InvalidCredentialsException()).when(accountService)
+    void requestEmailChange_WhenWrongPassword_Returns403() throws Exception {
+        doThrow(new IncorrectPasswordException()).when(accountService)
                 .requestEmailChange(any(User.class), any());
 
         mockMvc.perform(post(BASE + "/email/request").with(authentication(authentication))
                 .contentType(JSON).content("{\"newEmail\":\"nuevo@example.com\",\"currentPassword\":\"bad\"}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test

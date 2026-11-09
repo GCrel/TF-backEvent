@@ -430,7 +430,8 @@ el email son la puerta de recuperación de la cuenta.
 
 **Decisión.**
 
-- **Contraseña actual + código.** Cambiar el email o la contraseña exige la contraseña
+- **Contraseña actual + código.** Una contraseña incorrecta responde `403` y no `401`: el usuario sigue
+  autenticado y el front interpreta un `401` como sesión vencida. Cambiar el email o la contraseña exige la contraseña
   actual y un código de 6 dígitos por correo. Con solo un access token robado no se
   puede tomar la cuenta. El código del cambio de email va al email **nuevo** (prueba
   que se tiene acceso a él); el de contraseña, al email actual.

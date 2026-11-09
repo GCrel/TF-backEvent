@@ -22,7 +22,7 @@ import org.gcrel.tfbackevent.auth.dto.request.RequestPasswordChangeRequest;
 import org.gcrel.tfbackevent.auth.dto.request.UpdateProfileRequest;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
 import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
-import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
+import org.gcrel.tfbackevent.auth.exception.IncorrectPasswordException;
 import org.gcrel.tfbackevent.auth.exception.InvalidVerificationCodeException;
 import org.gcrel.tfbackevent.auth.exception.VerificationCodeExpiredException;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
@@ -119,7 +119,7 @@ class AccountServiceTest {
     @Test
     void requestEmailChange_WhenPasswordIsWrong_ThrowsAndSendsNothing() {
         when(passwordEncoder.matches("bad", "encoded")).thenReturn(false);
-        assertThrows(InvalidCredentialsException.class, () -> accountService.requestEmailChange(
+        assertThrows(IncorrectPasswordException.class, () -> accountService.requestEmailChange(
                 user, new RequestEmailChangeRequest("nuevo@example.com", "bad")));
         verify(emailService, never()).sendEmailChangeCode(any(), any());
     }
@@ -231,7 +231,7 @@ class AccountServiceTest {
     @Test
     void requestPasswordChange_WhenPasswordIsWrong_Throws() {
         when(passwordEncoder.matches("bad", "encoded")).thenReturn(false);
-        assertThrows(InvalidCredentialsException.class,
+        assertThrows(IncorrectPasswordException.class,
                 () -> accountService.requestPasswordChange(user, new RequestPasswordChangeRequest("bad")));
         verify(emailService, never()).sendPasswordChangeCode(any(), any());
     }

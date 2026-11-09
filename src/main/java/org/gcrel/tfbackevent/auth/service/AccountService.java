@@ -8,7 +8,7 @@ import org.gcrel.tfbackevent.auth.dto.request.UpdateProfileRequest;
 import org.gcrel.tfbackevent.auth.dto.response.AuthResponse;
 import org.gcrel.tfbackevent.auth.dto.response.UserResponse;
 import org.gcrel.tfbackevent.auth.exception.EmailAlreadyExistsException;
-import org.gcrel.tfbackevent.auth.exception.InvalidCredentialsException;
+import org.gcrel.tfbackevent.auth.exception.IncorrectPasswordException;
 import org.gcrel.tfbackevent.auth.exception.InvalidTokenException;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
 import org.gcrel.tfbackevent.common.exception.BadRequestException;
@@ -142,7 +142,7 @@ public class AccountService {
 
     private void requirePassword(User user, String currentPassword) {
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            throw new InvalidCredentialsException();
+            throw new IncorrectPasswordException();
         }
     }
 

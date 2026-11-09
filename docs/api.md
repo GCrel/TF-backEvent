@@ -345,7 +345,7 @@ email nuevo. Un pedido nuevo reemplaza al anterior.
 | Código | Causa |
 |--------|-------|
 | `400 Bad Request` | El email es inválido o igual al actual |
-| `401 Unauthorized` | La contraseña actual es incorrecta |
+| `403 Forbidden` | La contraseña actual es incorrecta |
 | `409 Conflict` | Ya existe una cuenta con ese email |
 
 `POST /api/v1/auth/me/email/confirm`
@@ -378,7 +378,7 @@ Mismo esquema: contraseña actual más un código, que en este caso se envía al
 }
 ```
 
-Devuelve `204 No Content`. Responde `401 Unauthorized` si la contraseña actual es
+Devuelve `204 No Content`. Responde `403 Forbidden` si la contraseña actual es
 incorrecta.
 
 `POST /api/v1/auth/me/password/confirm`
