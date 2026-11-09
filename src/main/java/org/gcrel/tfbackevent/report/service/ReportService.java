@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -16,6 +18,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 import org.gcrel.tfbackevent.access.service.EventAuthorizationService;
+import org.gcrel.tfbackevent.common.exception.BadRequestException;
 import org.gcrel.tfbackevent.event.exception.EventNotFoundException;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.model.Event;
@@ -32,6 +35,8 @@ import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse.DailySales;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
 import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse.PaymentCounts;
+import org.gcrel.tfbackevent.report.dto.response.GlobalStatsResponse;
+import org.gcrel.tfbackevent.report.dto.response.GlobalStatsResponse.UserCounts;
 import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse;
 import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse.TopEvent;
 import org.gcrel.tfbackevent.report.exception.ReportAccessDeniedException;
@@ -54,6 +59,8 @@ public class ReportService {
     private static final int RATE_SCALE = 4;
     private static final int HOURS_PER_DAY = 24;
     private static final int TOP_ORGANIZER_EVENTS = 5;
+    private static final int TOP_GLOBAL_EVENTS = 10;
+    private static final int MAX_RANGE_DAYS = 366;
     private static final int CSV_PAGE_SIZE = 500;
     private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     // Más validaciones primero; el desempate es fijo para que el orden no dependa
@@ -186,6 +193,36 @@ public class ReportService {
                     row.accessedAt() == null ? null : CSV_DATE.format(row.accessedAt()))));
         } while (page.hasNext());
         return csv.toString();
+    }
+
+    // `from` y `to` inclusivos: el período es [from, to + 1 día).
+    @Transactional(readOnly = true)
+    public GlobalStatsResponse globalOverview(LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new BadRequestException("La fecha 'from' no puede ser posterior a 'to'.");
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > MAX_RANGE_DAYS) {
+            throw new BadRequestException("El rango no puede superar " + MAX_RANGE_DAYS + " días.");
+        }
+        LocalDateTime start = from.atStartOfDay();
+        LocalDateTime end = to.plusDays(1).atStartOfDay();
+
+        Map<PaymentStatus, PaymentStatusTotals> payments = paymentTotals(reports.paymentsByStatusBetween(start, end));
+        List<TopEvent> topEvents = reports.topEventsByRevenueBetween(start, end, PageRequest.of(0, TOP_GLOBAL_EVENTS))
+                .stream()
+                .map(row -> new TopEvent(row.eventId(), row.title(), money(row.revenue()), row.tickets()))
+                .toList();
+
+        return new GlobalStatsResponse(
+                from,
+                to,
+                reports.paidTicketsBetween(start, end) + reports.freeTicketsBetween(start, end),
+                money(payments.get(PaymentStatus.APPROVED).total()),
+                new PaymentCounts(payments.get(PaymentStatus.APPROVED).count(),
+                        payments.get(PaymentStatus.REJECTED).count(), payments.get(PaymentStatus.PENDING).count()),
+                eventsByStatus(reports.eventsByStatus()),
+                topEvents,
+                new UserCounts(reports.countUsers(), reports.countUsersCreatedBetween(start, end)));
     }
 
     @Transactional(readOnly = true)

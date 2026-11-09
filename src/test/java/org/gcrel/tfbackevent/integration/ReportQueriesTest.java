@@ -2,6 +2,9 @@ package org.gcrel.tfbackevent.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,7 +16,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.gcrel.tfbackevent.access.service.EventAuthorizationService;
 import org.gcrel.tfbackevent.auth.repository.UserRepository;
+import org.gcrel.tfbackevent.common.config.ClockConfig;
 import org.gcrel.tfbackevent.event.repository.EventParticipationRepository;
 import org.gcrel.tfbackevent.event.repository.EventRepository;
 import org.gcrel.tfbackevent.integration.support.PostgresIntegrationTest;
@@ -32,19 +37,27 @@ import org.gcrel.tfbackevent.model.enums.TicketStatus;
 import org.gcrel.tfbackevent.payment.repository.PaymentRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketOrderRepository;
 import org.gcrel.tfbackevent.payment.repository.TicketRepository;
+import org.gcrel.tfbackevent.report.dto.response.EventAttendanceResponse;
+import org.gcrel.tfbackevent.report.dto.response.EventSalesResponse.DailySales;
+import org.gcrel.tfbackevent.report.dto.response.EventSummaryResponse;
+import org.gcrel.tfbackevent.report.dto.response.GlobalStatsResponse;
+import org.gcrel.tfbackevent.report.dto.response.OrganizerSummaryResponse;
 import org.gcrel.tfbackevent.report.repository.ReportRepository;
 import org.gcrel.tfbackevent.report.repository.dto.AttendeeRow;
 import org.gcrel.tfbackevent.report.repository.dto.ControllerValidations;
 import org.gcrel.tfbackevent.report.repository.dto.EventRevenue;
 import org.gcrel.tfbackevent.report.repository.dto.PaymentStatusTotals;
 import org.gcrel.tfbackevent.report.repository.dto.SaleRow;
+import org.gcrel.tfbackevent.report.service.ReportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.data.domain.Page;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import jakarta.persistence.EntityManager;
@@ -65,6 +78,7 @@ import jakarta.persistence.EntityManager;
 //   E3 borrador de `organizer`, sin ventas
 //   E4 presencial de `organizer2`: O8 1 entrada (25) pago APROBADO 12/3 11:00, ACTIVE
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@Import({ ReportService.class, ClockConfig.class })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class ReportQueriesTest extends PostgresIntegrationTest {
     private static final LocalDateTime MAR_11 = LocalDateTime.of(2026, 3, 11, 0, 0);
@@ -86,6 +100,11 @@ class ReportQueriesTest extends PostgresIntegrationTest {
     private PaymentRepository paymentRepository;
     @Autowired
     private ReportRepository reports;
+    @Autowired
+    private ReportService reportService;
+
+    @MockitoBean
+    private EventAuthorizationService authorization;
 
     private User organizer;
     private User organizer2;
@@ -340,6 +359,94 @@ class ReportQueriesTest extends PostgresIntegrationTest {
         // superior; b1 (10/3
         // 23:59) por el inferior; los usuarios sin fecha no cuentan.
         assertEquals(2, reports.countUsersCreatedBetween(MAR_11, MAR_13));
+    }
+
+    // ==========================================
+    // El servicio sobre los mismos datos (de punta a punta)
+    // ==========================================
+
+    @Test
+    void globalOverview_OverTheRealData_MatchesTheHandComputedFigures() {
+        GlobalStatsResponse stats = reportService.globalOverview(LocalDate.of(2026, 3, 11), LocalDate.of(2026, 3, 12));
+
+        assertEquals(6, stats.ticketsSold());
+        assertMoney("265.00", stats.revenue());
+        assertEquals(4, stats.payments().approved());
+        assertEquals(1, stats.payments().rejected());
+        assertEquals(0, stats.payments().pending());
+        assertEquals(Map.of(EventStatus.PUBLISHED, 3L, EventStatus.DRAFT, 1L, EventStatus.CANCELLED, 0L,
+                EventStatus.FINISHED, 0L), stats.eventsByStatus());
+        assertEquals(List.of(e.getId(), e2.getId(), e4.getId()), stats.topEvents().stream().map(t -> t.eventId()).toList());
+        assertEquals(8, stats.users().total());
+        assertEquals(2, stats.users().newInPeriod());
+
+        GlobalStatsResponse freeDay = reportService.globalOverview(LocalDate.of(2026, 3, 14), LocalDate.of(2026, 3, 14));
+        assertEquals(2, freeDay.ticketsSold());
+        assertMoney("0.00", freeDay.revenue());
+    }
+
+    @Test
+    void eventSummary_OverTheRealData_MatchesTheHandComputedFigures() {
+        when(authorization.isOrganizer(any(Event.class), eq(organizer))).thenReturn(true);
+
+        EventSummaryResponse summary = reportService.eventSummary(e.getId(), organizer);
+
+        assertEquals(8, summary.ticketsSold());
+        assertEquals(2, summary.ticketsPending());
+        assertMoney("300.00", summary.revenue());
+        assertMoney("37.50", summary.averageTicketPrice());
+        assertEquals(3, summary.payments().approved());
+        assertEquals(1, summary.payments().rejected());
+        assertEquals(1, summary.payments().pending());
+        assertMoney("0.7500", summary.approvalRate());
+        assertMoney("0.0800", summary.occupancyRate());
+        assertEquals(4, summary.attendance());
+        assertMoney("0.5000", summary.attendanceRate());
+    }
+
+    @Test
+    void organizerSummary_OverTheRealData_OnlyCountsTheOrganizersEvents() {
+        OrganizerSummaryResponse summary = reportService.organizerSummary(organizer);
+
+        assertEquals(9, summary.ticketsSold());
+        assertEquals(2, summary.ticketsPending());
+        assertMoney("340.00", summary.revenue());
+        assertEquals(Map.of(EventStatus.PUBLISHED, 2L, EventStatus.DRAFT, 1L, EventStatus.CANCELLED, 0L,
+                EventStatus.FINISHED, 0L), summary.eventsByStatus());
+        assertEquals(List.of(e.getId(), e2.getId()), summary.topEvents().stream().map(t -> t.eventId()).toList());
+
+        OrganizerSummaryResponse noEvents = reportService.organizerSummary(c1);
+        assertEquals(0, noEvents.ticketsSold());
+        assertEquals(List.of(), noEvents.topEvents());
+    }
+
+    @Test
+    void eventSales_OverTheRealData_FillsTheDaysAndSeparatesMidnight() {
+        when(authorization.isOrganizer(any(Event.class), eq(organizer))).thenReturn(true);
+
+        List<DailySales> days = reportService.eventSales(e.getId(), organizer).days();
+
+        assertEquals(LocalDate.of(2026, 3, 10), days.get(0).date());
+        assertEquals(2, days.get(0).tickets());
+        assertEquals(1, days.get(1).tickets());
+        assertEquals(3, days.get(2).tickets());
+        assertEquals(0, days.get(3).tickets());
+        assertEquals(2, days.get(4).tickets());
+        assertMoney("0.00", days.get(4).revenue());
+        assertEquals(LocalDate.of(2026, 3, 20), days.get(days.size() - 1).date());
+    }
+
+    @Test
+    void eventAttendance_OverTheRealData_GroupsByHourAndByController() {
+        when(authorization.isOrganizer(any(Event.class), eq(organizer))).thenReturn(true);
+
+        EventAttendanceResponse attendance = reportService.eventAttendance(e.getId(), organizer);
+
+        assertEquals(3, attendance.byHour().get(9).accesses());
+        assertEquals(1, attendance.byHour().get(21).accesses());
+        assertEquals(List.of("Controlador 1", "Controlador 2"),
+                attendance.byController().stream().map(c -> c.name()).toList());
+        assertEquals(List.of(2L, 1L), attendance.byController().stream().map(c -> c.validations()).toList());
     }
 
     // ==========================================
