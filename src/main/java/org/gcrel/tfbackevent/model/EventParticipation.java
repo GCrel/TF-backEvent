@@ -1,9 +1,16 @@
 package org.gcrel.tfbackevent.model;
 
-import jakarta.persistence.*;
+import java.util.Objects;
+
 import org.gcrel.tfbackevent.model.enums.EventRole;
 
-import java.util.Objects;
+import jakarta.persistence.EmbeddedId;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MapsId;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "event_participations")
@@ -22,7 +29,8 @@ public class EventParticipation {
     @JoinColumn(name = "event_id")
     private Event event;
 
-    protected EventParticipation() {}
+    protected EventParticipation() {
+    }
 
     public EventParticipation(User user, Event event, EventRole eventRole) {
         this.id = new EventParticipationId(user.getId(), event.getId(), eventRole);
@@ -32,7 +40,8 @@ public class EventParticipation {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         EventParticipation that = (EventParticipation) o;
         return Objects.equals(id, that.id);
     }
@@ -40,5 +49,17 @@ public class EventParticipation {
     @Override
     public int hashCode() {
         return Objects.hashCode(id);
+    }
+
+    public User getUser() {
+        return this.user;
+    }
+
+    public Event getEvent() {
+        return this.event;
+    }
+
+    public EventParticipationId getId() {
+        return this.id;
     }
 }

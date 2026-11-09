@@ -1,14 +1,15 @@
 package org.gcrel.tfbackevent.model;
 
+import java.io.Serializable;
+import java.util.Objects;
+import java.util.UUID;
+
+import org.gcrel.tfbackevent.model.enums.EventRole;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import org.gcrel.tfbackevent.model.enums.EventRole;
-
-import java.io.Serializable;
-import java.util.Objects;
-import java.util.UUID;
 
 @Embeddable
 public class EventParticipationId implements Serializable {
@@ -23,7 +24,8 @@ public class EventParticipationId implements Serializable {
     @Column(name = "event_role")
     private EventRole eventRole;
 
-    protected EventParticipationId() {}
+    protected EventParticipationId() {
+    }
 
     public EventParticipationId(UUID userId, UUID eventId, EventRole eventRole) {
         this.userId = userId;
@@ -31,13 +33,18 @@ public class EventParticipationId implements Serializable {
         this.eventRole = eventRole;
     }
 
+    public EventRole getEventRole() {
+        return eventRole;
+    }
+
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         EventParticipationId that = (EventParticipationId) o;
-        return Objects.equals(userId, that.userId) &&
-                Objects.equals(eventId, that.eventId) &&
-                Objects.equals(eventRole, that.eventRole);
+        return Objects.equals(userId, that.userId)
+                && Objects.equals(eventId, that.eventId)
+                && Objects.equals(eventRole, that.eventRole);
     }
 
     @Override

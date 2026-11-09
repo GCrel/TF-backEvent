@@ -1,22 +1,33 @@
 package org.gcrel.tfbackevent.model;
 
-import jakarta.persistence.*;
-import org.gcrel.tfbackevent.model.enums.TicketStatus;
-
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.gcrel.tfbackevent.model.enums.TicketStatus;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+
 @Entity
-@Table(name = "tickets")
+@Table(name = "tickets", indexes = {
+        @Index(name = "idx_tickets_event_status", columnList = "event_id, status"),
+        @Index(name = "idx_tickets_event_accessed", columnList = "event_id, accessed_at") })
 public class Ticket {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(nullable = false, updatable = false)
     private UUID id;
-
-    @Column(name = "qr_code", nullable = false, unique = true)
-    private String qrCode;
 
     @Column(name = "bought_at", nullable = false)
     private LocalDateTime boughtAt;
@@ -26,6 +37,10 @@ public class Ticket {
     private TicketStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private TicketOrder order;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
@@ -33,25 +48,94 @@ public class Ticket {
     @JoinColumn(name = "attendee_id", nullable = false)
     private User attendee;
 
-    protected Ticket() {}
+    @Column(name = "accessed_at")
+    private LocalDateTime accessedAt;
 
-    public Ticket(String qrCode, LocalDateTime boughtAt, Event event, User attendee) {
-        this.qrCode = qrCode;
-        this.boughtAt = boughtAt;
-        this.status = TicketStatus.ACTIVE;
-        this.event = event;
-        this.attendee = attendee;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "validated_by_id")
+    private User validatedBy;
+
+    protected Ticket() {
+    }
+
+    public Ticket(TicketOrder order) {
+        this.order = order;
+        this.boughtAt = order.getCreatedAt();
+        this.status = TicketStatus.PENDING;
+        this.event = order.getEvent();
+        this.attendee = order.getBuyer();
     }
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Ticket ticket = (Ticket) o;
-        return Objects.equals(id, ticket.id) && Objects.equals(qrCode, ticket.qrCode);
+        return Objects.equals(id, ticket.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, qrCode);
+        return Objects.hash(id);
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public TicketStatus getStatus() {
+        return status;
+    }
+
+    public TicketOrder getOrder() {
+        return order;
+    }
+
+    public User getAttendee() {
+        return attendee;
+    }
+
+    public Event getEvent() {
+        return event;
+    }
+
+    public LocalDateTime getBoughtAt() {
+        return boughtAt;
+    }
+
+    public User getValidatedBy() {
+        return validatedBy;
+    }
+
+    public LocalDateTime getAccessedAt() {
+        return accessedAt;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public void setStatus(TicketStatus status) {
+        this.status = status;
+    }
+
+    public void setAttendee(User attendee) {
+        this.attendee = attendee;
+    }
+
+    public void setBoughtAt(LocalDateTime boughtAt) {
+        this.boughtAt = boughtAt;
+    }
+
+    public void setEvent(Event event) {
+        this.event = event;
+    }
+
+    public void setAccessedAt(LocalDateTime accessedAt) {
+        this.accessedAt = accessedAt;
+    }
+
+    public void setValidatedBy(User validatedBy) {
+        this.validatedBy = validatedBy;
     }
 }

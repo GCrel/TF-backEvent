@@ -1,11 +1,23 @@
 package org.gcrel.tfbackevent.model;
 
-import jakarta.persistence.*;
-import org.gcrel.tfbackevent.model.enums.EventStatus;
-
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
+
+import org.gcrel.tfbackevent.model.enums.EventStatus;
+import org.gcrel.tfbackevent.model.enums.EventType;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "events")
@@ -30,12 +42,17 @@ public abstract class Event {
     private EventStatus status;
 
     @Column(name = "base_price", nullable = false)
-    private Double basePrice;
+    private BigDecimal basePrice;
 
-    public Event() {}
+    @Column(name = "image_key")
+    private String imageKey;
 
-    public Event(String title, String description, LocalDateTime dateTime, Double basePrice) {
-        this.id = UUID.randomUUID();
+    public Event() {
+    }
+
+    public abstract EventType getType();
+
+    public Event(String title, String description, LocalDateTime dateTime, BigDecimal basePrice) {
         this.title = title;
         this.description = description;
         this.dateTime = dateTime;
@@ -45,7 +62,8 @@ public abstract class Event {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Event event = (Event) o;
         return Objects.equals(id, event.id);
     }
@@ -57,5 +75,57 @@ public abstract class Event {
 
     public UUID getId() {
         return id;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public LocalDateTime getDateTime() {
+        return dateTime;
+    }
+
+    public EventStatus getStatus() {
+        return status;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public BigDecimal getBasePrice() {
+        return basePrice;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setDateTime(LocalDateTime dateTime) {
+        this.dateTime = dateTime;
+    }
+
+    public void setBasePrice(BigDecimal basePrice) {
+        this.basePrice = basePrice;
+    }
+
+    public void setStatus(EventStatus status) {
+        this.status = status;
+    }
+
+    public String getImageKey() {
+        return imageKey;
+    }
+
+    public void setImageKey(String imageKey) {
+        this.imageKey = imageKey;
     }
 }

@@ -1,0 +1,32 @@
+package org.gcrel.tfbackevent.payment.controller;
+
+import org.gcrel.tfbackevent.payment.dto.request.WebhookPaymentRequest;
+import org.gcrel.tfbackevent.payment.service.WebhookService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/webhooks")
+public class WebhookController {
+    private final WebhookService webhookService;
+
+    public WebhookController(WebhookService webhookService) {
+        this.webhookService = webhookService;
+    }
+
+    @PostMapping("/payments")
+    public ResponseEntity<Void> receivePaymentNotification(
+            @Validated @RequestBody WebhookPaymentRequest request,
+            @RequestHeader("x-signature") String xSignature,
+            @RequestHeader("x-request-id") String xRequestId,
+            @RequestParam(name = "data.id", required = false) String dataId) {
+        webhookService.processPaymentNotification(request, xSignature, xRequestId, dataId);
+        return ResponseEntity.ok().build();
+    }
+}
