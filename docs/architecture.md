@@ -45,7 +45,8 @@ Componentes externos:
 ```text
 org.gcrel.tfbackevent
 ├── auth/       Registro, login, verificación de email, tokens JWT y envío de correos.
-├── admin/      Panel de superusuario: usuarios, eventos, soporte de pagos y bitácora.
+├── admin/      Panel de superusuario: usuarios, eventos, soporte de pagos, estadísticas y bitácora.
+├── report/     Reportes: resumen y series por evento, asistentes (JSON y CSV) y resumen del organizador.
 ├── event/      Ciclo de vida de eventos, ventana de acceso, imágenes y sectores sobre un plano.
 ├── payment/    Órdenes de compra, integración MercadoPago, webhooks, QR y entrega.
 ├── access/     Validación de QR presencial, acceso virtual y controladores.

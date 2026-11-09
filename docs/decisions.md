@@ -38,6 +38,7 @@ Para el detalle funcional ver [`architecture.md`](architecture.md) y [`api.md`](
 | [019](#adr-019-tokens-de-sesión-en-cookies-httponly) | Tokens de sesión en cookies `HttpOnly` | Aceptada |
 | [020](#adr-020-administración-global-con-bitácora) | Administración global con bitácora | Aceptada |
 | [021](#adr-021-esquema-de-producción-con-un-script-idempotente) | Esquema de producción con un script idempotente | Aceptada |
+| [022](#adr-022-contrato-de-cifras-de-los-reportes) | Contrato de cifras de los reportes | Aceptada |
 
 ## ADR-001: API REST stateless con JWT
 
@@ -543,7 +544,7 @@ sistema: quien lo tiene puede ascender a otros, bloquear cuentas y cancelar even
 - Quien robe una sesión de admin puede probar contraseñas en `PUT /users/{id}/role` sin
   límite de intentos (BCrypt encarece cada uno) y los intentos fallidos no quedan registrados.
 - Bloquear a un usuario no cancela sus eventos ni sus tickets.
-- Las estadísticas globales quedaron pendientes hasta que exista el módulo de reportes.
+- Las estadísticas globales se agregaron después, con el módulo de reportes ([ADR-022](#adr-022-contrato-de-cifras-de-los-reportes)).
 
 ## ADR-021: Esquema de producción con un script idempotente
 
@@ -583,6 +584,47 @@ dependencia que el equipo no puede validar.
 - Las vistas del módulo de estadísticas podrán vivir en un segundo script
   (`DROP VIEW IF EXISTS` + `CREATE VIEW`); Hibernate no valida las vistas.
 
+## ADR-022: Contrato de cifras de los reportes
+
+**Estado:** Aceptada.
+
+**Contexto.** Un reporte solo sirve si todos entienden igual cada cifra. Hacía falta fijar qué cuenta como
+"vendida", cómo se calculan los ingresos y qué fecha tiene una venta, antes de escribir las consultas.
+
+**Decisión.**
+
+- **Definiciones fijas** (tabla en [`api.md`](api.md#definiciones)): vendida = ticket `ACTIVE` o `USED`;
+  ingresos = suma de los pagos `APPROVED`, brutos; asistencia = ticket vendido con `accessedAt`; las tasas son
+  proporciones de 0 a 1 y valen `null` si el denominador es 0.
+- **Una venta es un pago aprobado o una orden gratuita.** Los eventos gratuitos no generan `Payment`
+  (`TicketService.issueFreeOrder`), así que sin considerar las órdenes su serie de ventas quedaría vacía. La
+  fecha de la venta es `Payment.paymentDate` (que `PaymentService.approve` reescribe al aprobar) o, en las
+  gratuitas, `TicketOrder.createdAt`. `Ticket.boughtAt` no sirve: es la hora de la reserva.
+- **Agregados en la base, sin cargar entidades.** `ReportRepository` agrupa con JPQL y proyecta a records. Una
+  consulta por alcance (un evento, un conjunto de eventos, global) y nunca `(:p IS NULL OR ...)`, que PostgreSQL no
+  puede tipar con Hibernate. Los órdenes de los "top N" son fijos; el `sort` del cliente se ignora.
+- **Series.** Las ventas por día traen una fila por venta y se agrupan en Java; el relleno con ceros va de la primera
+  venta a `min(hoy, día del evento)` sin cortar antes de la última venta. Los accesos se agrupan por hora del
+  día (24 franjas fijas) y no por fecha y hora: tienen tamaño acotado y sirven igual para un evento presencial
+  (una jornada) y uno virtual (semanas de accesos). "Hoy" sale de un `Clock` inyectable para poder fijarlo en las
+  pruebas.
+- **Estadísticas globales** (`/admin/stats/overview`): el mismo servicio con alcance global y un rango obligatorio de
+  hasta 366 días, inclusivo y convertido a `[from, to + 1 día)`. No agrupa en Java (solo totales y top 10), para no
+  cargar un año de pagos. `users.newInPeriod` exige `users.created_at`, una columna nueva: los usuarios anteriores
+  no tienen fecha y no cuentan como nuevos.
+- **Lista de asistentes y CSV.** Es el único reporte con nombres: sin emails, y solo para el organizador o un
+  superusuario. El CSV recorre las páginas de la consulta en memoria, y neutraliza las celdas que Excel ejecutaría
+  como fórmula (los nombres los escribe el usuario).
+- **Permisos como la edición de eventos:** el organizador o un superusuario; `404` si el evento no existe, `403` si es
+  ajeno.
+- **Probado contra PostgreSQL real con datos exactos** (`ReportQueriesTest`): los mocks no validan agregados.
+
+**Consecuencias.**
+
+- Los ingresos son brutos: no hay comisiones ni reembolsos (limitación 5).
+- Los límites de día usan el reloj de la JVM (normalmente UTC), no la zona horaria del organizador.
+- `paymentDate` de un pago aprobado por reconciliación es el momento de la aprobación, no el de la compra.
+
 ## Limitaciones conocidas
 
 1. **Desvinculación de MercadoPago con ventana de carrera.** `DELETE /mp/disconnect`
@@ -599,11 +641,11 @@ dependencia que el equipo no puede validar.
    reciben el mismo enlace; no hay credenciales individuales ni control de reventa.
 7. **Tareas programadas sin coordinación entre instancias.** Con varias instancias
    del backend, cada una ejecutaría los `@Scheduled` (ver [`deployment.md`](deployment.md#operación-y-escalado)).
-8. **Módulo de reportes y estadísticas no implementado** (figura en el alcance del
-   sistema, pero aún no existe).
-9. **Administración sin estadísticas ni límite de intentos.** `/admin/stats` quedó fuera
-   hasta que exista el módulo de reportes (ver 8), y la contraseña de las acciones de
-   rol no tiene límite de intentos fallidos (ver [ADR-020](#adr-020-administración-global-con-bitácora)).
+8. **Reportes con el reloj del servidor.** Los días de las series y de las estadísticas siguen la zona
+   horaria de la JVM (normalmente UTC), no la del organizador, y los ingresos son brutos (ver
+   [ADR-022](#adr-022-contrato-de-cifras-de-los-reportes)).
+9. **Sin límite de intentos de contraseña en las acciones de rol de administración** (ver
+   [ADR-020](#adr-020-administración-global-con-bitácora)).
 10. **Sin streaming en vivo:** los eventos virtuales usan un enlace externo (Zoom,
     Meet, etc.).
 11. **Imágenes huérfanas sin limpieza.** Si falla el borrado de un archivo de

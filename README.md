@@ -49,7 +49,7 @@ concretos en una sola plataforma:
 | Control de acceso presencial por escaneo de QR | Implementado |
 | Acceso virtual para titulares de entradas | Implementado |
 | Administración global (rol `ADMIN`): usuarios, eventos, soporte y bitácora | Implementado |
-| Módulo de reportes y estadísticas para organizadores | Pendiente |
+| Módulo de reportes y estadísticas (organizador y administración) | Implementado |
 
 ### Fuera del alcance
 

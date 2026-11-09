@@ -1493,6 +1493,188 @@ Cuerpo vacío. Las notificaciones que no corresponden a pagos, o de pagos ya res
 
 ---
 
+## Reportes
+
+Prefijo: `/api/v1/reports`. Requieren sesión. Los puede consultar el **organizador del evento** o un
+**superusuario** sobre cualquier evento. Responde `404 Not Found` si el evento no existe y `403 Forbidden` si
+quien consulta no es su organizador ni superusuario. Devuelven solo agregados.
+
+### Definiciones
+
+Todas las cifras de los reportes se calculan así:
+
+| Cifra | Definición |
+|-------|------------|
+| Entradas vendidas | Tickets `ACTIVE` o `USED` |
+| Entradas pendientes | Tickets `PENDING` (reservadas, a la espera del pago) |
+| Ingresos | Suma de los pagos `APPROVED`, brutos: sin descontar comisiones de MercadoPago ni reembolsos, en una sola moneda, con 2 decimales |
+| Precio promedio | Ingresos / entradas vendidas, con 2 decimales (las entradas gratuitas cuentan como vendidas) |
+| Pagos | Cantidad de aprobados, rechazados y pendientes |
+| Tasa de aprobación | Aprobados / (aprobados + rechazados) |
+| Ocupación | Vendidas / capacidad, solo en eventos presenciales |
+| Asistencia | Tickets vendidos con fecha de acceso. Se completa al escanear el QR (presencial) o en la primera consulta de credenciales (virtual) |
+| Tasa de asistencia | Asistencia / vendidas |
+
+Las tasas son proporciones de **0 a 1** con 4 decimales y valen `null` si el denominador es 0 (por ejemplo, la
+tasa de aprobación de un evento sin pagos resueltos). Los eventos gratuitos no generan pagos: su ingreso es 0.
+
+### Resumen de un evento
+
+`GET /api/v1/reports/events/{id}/summary`
+
+**Respuesta exitosa: `200 OK`**
+
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "TechConf 2026",
+  "eventType": "IN_PERSON",
+  "status": "PUBLISHED",
+  "ticketsSold": 8,
+  "ticketsPending": 2,
+  "revenue": 300.00,
+  "averageTicketPrice": 37.50,
+  "payments": { "approved": 3, "rejected": 1, "pending": 1 },
+  "approvalRate": 0.7500,
+  "capacity": 100,
+  "occupancyRate": 0.0800,
+  "attendance": 4,
+  "attendanceRate": 0.5000
+}
+```
+
+| Campo | Notas |
+|-------|-------|
+| `capacity`, `occupancyRate` | `null` en eventos virtuales (y la ocupación también si la capacidad es 0) |
+| `averageTicketPrice`, `attendanceRate` | `null` si no hay entradas vendidas |
+| `approvalRate` | `null` si no hay pagos aprobados ni rechazados |
+
+Un evento sin ventas devuelve ceros en los conteos y en los ingresos. Su ocupación es `0` si tiene capacidad
+(el denominador no es 0) y el resto de las tasas son `null`.
+
+| Código | Causa |
+|--------|-------|
+| `401 Unauthorized` | Falta autenticación |
+| `403 Forbidden` | No es el organizador del evento ni superusuario |
+| `404 Not Found` | El evento no existe |
+
+### Ventas por día
+
+`GET /api/v1/reports/events/{id}/sales`
+
+Una fila por día, con las entradas vendidas y los ingresos de ese día. Una **venta** es un pago aprobado (cuenta en
+la fecha del pago) o, en los eventos gratuitos, una orden emitida (cuenta en la fecha de la orden, con ingreso 0).
+
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "days": [
+    { "date": "2026-03-10", "tickets": 2, "revenue": 100.00 },
+    { "date": "2026-03-11", "tickets": 0, "revenue": 0.00 },
+    { "date": "2026-03-12", "tickets": 3, "revenue": 150.00 }
+  ]
+}
+```
+
+- La serie empieza el día de la primera venta y los días sin ventas aparecen con `0`.
+- Termina en `min(hoy, día del evento)`, pero nunca antes del día de la última venta (las compras se aceptan hasta
+  unas horas después de empezar el evento). Un evento pasado no arrastra ceros hasta hoy.
+- Sin ventas, `days` es una lista vacía.
+- Los días siguen el reloj del servidor (normalmente UTC): un pago a las 23:59 y otro a las 00:00 caen en días
+  distintos.
+
+### Asistencia por hora y por controlador
+
+`GET /api/v1/reports/events/{id}/attendance`
+
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "byHour": [
+    { "hour": 0, "accesses": 0 },
+    { "hour": 9, "accesses": 3 },
+    { "hour": 23, "accesses": 0 }
+  ],
+  "byController": [
+    { "controllerId": "550e8400-e29b-41d4-a716-446655440001", "name": "Ana Control", "validations": 2 }
+  ]
+}
+```
+
+- `byHour` tiene **siempre 24 filas** (hora 0 a 23), con 0 donde no hubo accesos. Suma los accesos de todos los
+  días: el dato dice a qué horas suele entrar la gente. En eventos virtuales cuenta la primera consulta de las
+  credenciales de cada ticket.
+- `byController` solo aparece en eventos **presenciales**: las validaciones (QR escaneados) de cada controlador,
+  de más a menos y, a igual cantidad, por nombre. Solo figuran los que validaron al menos una entrada. En eventos
+  virtuales el campo no se incluye.
+
+Ambos devuelven `401`, `403` y `404` como el resumen.
+
+### Lista de asistentes
+
+`GET /api/v1/reports/events/{id}/attendees?page=0&size=20`
+
+Los titulares de las entradas vendidas (`ACTIVE` o `USED`), de la compra más antigua a la más reciente. Es el único
+reporte con datos personales: solo el nombre, sin email ni otro dato de contacto. El orden es fijo (`sort` se
+ignora).
+
+```json
+{
+  "content": [
+    { "name": "Ana García", "status": "USED", "boughtAt": "2026-03-10T09:00:00", "accessedAt": "2026-03-20T09:15:00" }
+  ],
+  "totalElements": 8,
+  "totalPages": 1
+}
+```
+
+`accessedAt` es `null` si la entrada todavía no se usó. `boughtAt` es la fecha de la reserva.
+
+**Exportar a CSV:** con `?format=csv` devuelve **todos** los asistentes, sin paginar, como descarga
+(`Content-Disposition: attachment; filename="asistentes-{id}.csv"`).
+
+```text
+Nombre,Estado,Fecha de compra,Fecha de acceso
+Ana García,Usada,2026-03-10 09:00:00,2026-03-20 09:15:00
+Beto,Activa,2026-03-10 09:30:00,
+```
+
+- UTF-8 con BOM (Excel muestra bien las tildes) y líneas CRLF. El `Estado` es `Activa` o `Usada`.
+- Los nombres los escribe el usuario, así que una celda que empieza con `=`, `+`, `-`, `@`, tabulador o retorno de
+  carro se escribe con un apóstrofo delante (`'=1+1`): Excel no la ejecuta como fórmula.
+- Las celdas con comas, comillas o saltos de línea van entre comillas, con las comillas duplicadas.
+- Un valor de `format` distinto de `csv` responde `400 Bad Request`.
+
+Responde `401`, `403` y `404` como el resto de los reportes.
+
+### Resumen del organizador
+
+`GET /api/v1/reports/organizer/summary`
+
+Los totales de **todos los eventos que organiza** quien consulta (también si es superusuario: para ver cifras
+globales está [`/admin/stats/overview`](#estadísticas-globales)). No lleva parámetros ni devuelve `403`.
+
+```json
+{
+  "ticketsSold": 9,
+  "ticketsPending": 2,
+  "revenue": 340.00,
+  "payments": { "approved": 4, "rejected": 1, "pending": 1 },
+  "eventsByStatus": { "DRAFT": 1, "PUBLISHED": 2, "CANCELLED": 0, "FINISHED": 0 },
+  "topEvents": [
+    { "eventId": "550e8400-e29b-41d4-a716-446655440000", "title": "TechConf 2026", "revenue": 300.00, "paidTickets": 6 }
+  ]
+}
+```
+
+- Las cifras usan las mismas [definiciones](#definiciones) que el resumen de un evento.
+- `eventsByStatus` trae siempre los cuatro estados, con `0` donde no hay eventos.
+- `topEvents`: hasta 5 eventos, de más a menos ingresos. Solo aparecen los que tienen pagos aprobados (un evento
+  gratuito no figura). `paidTickets` cuenta las entradas de esos pagos y no incluye las gratuitas.
+- Quien no organiza ningún evento recibe ceros, `eventsByStatus` con ceros y `topEvents` vacío.
+
+---
+
 ## Administración
 
 Prefijo: `/api/v1/admin`. Todos los endpoints exigen el rol `ADMIN` (`403 Forbidden` para un
@@ -1602,6 +1784,43 @@ con el pago actualizado.
 `POST /api/v1/admin/tickets/{id}/resend-delivery` reencola el envío por email de la orden del
 ticket y devuelve `204`. Respeta el tiempo de espera entre envíos y no duplica uno en curso. Responde
 `404` si el ticket no existe y `409` si no está `ACTIVE`.
+
+### Estadísticas globales
+
+`GET /api/v1/admin/stats/overview?from=2026-03-01&to=2026-03-31`
+
+Cifras de **toda la plataforma** en un período. `from` y `to` son obligatorios (`yyyy-MM-dd`), inclusivos, y el
+período no puede superar **366 días**. Se aplican las mismas [definiciones](#definiciones) de los reportes.
+
+```json
+{
+  "from": "2026-03-01",
+  "to": "2026-03-31",
+  "ticketsSold": 8,
+  "revenue": 265.00,
+  "payments": { "approved": 4, "rejected": 1, "pending": 0 },
+  "eventsByStatus": { "DRAFT": 1, "PUBLISHED": 3, "CANCELLED": 0, "FINISHED": 0 },
+  "topEvents": [
+    { "eventId": "550e8400-e29b-41d4-a716-446655440000", "title": "TechConf 2026", "revenue": 200.00, "paidTickets": 4 }
+  ],
+  "users": { "total": 8, "newInPeriod": 2 }
+}
+```
+
+| Campo | Qué mide |
+|-------|----------|
+| `ticketsSold` | Entradas de los pagos aprobados en el período, más las órdenes gratuitas emitidas en el período |
+| `revenue` | Suma de los pagos aprobados con fecha de pago en el período |
+| `payments` | Pagos del período por estado, según la fecha del pago: en un rechazo es la del rechazo y en un pendiente la de su creación |
+| `eventsByStatus` | Foto **de hoy**, no del período; siempre los cuatro estados |
+| `topEvents` | Hasta 10 eventos, de más a menos ingresos del período (solo los que tuvieron pagos aprobados) |
+| `users.total` | Usuarios de hoy |
+| `users.newInPeriod` | Usuarios creados en el período. Los anteriores a la columna `created_at` no tienen fecha y no cuentan |
+
+| Código | Causa |
+|--------|-------|
+| `400 Bad Request` | Falta `from` o `to`, tienen formato inválido, `from` es posterior a `to` o el rango supera 366 días |
+| `403 Forbidden` | El usuario no es superusuario |
 
 ### Bitácora
 
