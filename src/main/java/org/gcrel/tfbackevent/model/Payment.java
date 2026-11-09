@@ -15,13 +15,14 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 @Entity
-@Table(name = "payments")
+@Table(name = "payments", indexes = @Index(name = "idx_payments_status_date", columnList = "payment_status, payment_date"))
 public class Payment {
 
     @Id
@@ -132,10 +133,6 @@ public class Payment {
         return statusDetail;
     }
 
-
-
-
-
     public LocalDateTime getNextReconcileAt() {
         return nextReconcileAt;
     }
@@ -147,10 +144,6 @@ public class Payment {
     public void setStatusDetail(String statusDetail) {
         this.statusDetail = statusDetail;
     }
-
-
-
-
 
     public void setNextReconcileAt(LocalDateTime nextReconcileAt) {
         this.nextReconcileAt = nextReconcileAt;

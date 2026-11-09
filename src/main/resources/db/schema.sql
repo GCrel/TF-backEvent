@@ -9,6 +9,7 @@
 --            nuevas en una base existente).
 --   Parte 2: ADD COLUMN IF NOT EXISTS de las columnas que se agregaron después
 --            (bases creadas con una versión anterior).
+--   Parte 3: índices (CREATE INDEX IF NOT EXISTS).
 --
 -- Cómo mantenerlo: al agregar una tabla o columna a una entidad, agregala acá
 -- (tabla en la parte 1, columna en la parte 2). SchemaScriptTest falla si falta.
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
     blocked boolean DEFAULT false NOT NULL,
     blocked_reason varchar(500),
     blocked_at timestamp(6),
+    created_at timestamp(6),
     PRIMARY KEY (id)
 );
 
@@ -180,6 +182,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_key varchar(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked boolean DEFAULT false NOT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason varchar(500);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at timestamp(6);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamp(6);
 
 -- Imágenes de eventos y planos de recintos.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS image_key varchar(255);
@@ -192,3 +195,11 @@ ALTER TABLE ticket_orders ADD COLUMN IF NOT EXISTS sector_id uuid REFERENCES eve
 -- enteros. Repetirlo sobre columnas ya corregidas no cambia nada.
 ALTER TABLE in_person_events ALTER COLUMN latitude TYPE numeric(10,7);
 ALTER TABLE in_person_events ALTER COLUMN longitude TYPE numeric(10,7);
+
+-- ---------------------------------------------------------------------
+-- Parte 3: índices (reportes y estadísticas). Hibernate no los valida.
+-- ---------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_payments_status_date ON payments (payment_status, payment_date);
+CREATE INDEX IF NOT EXISTS idx_tickets_event_status ON tickets (event_id, status);
+CREATE INDEX IF NOT EXISTS idx_tickets_event_accessed ON tickets (event_id, accessed_at);
+CREATE INDEX IF NOT EXISTS idx_ticket_orders_event ON ticket_orders (event_id);

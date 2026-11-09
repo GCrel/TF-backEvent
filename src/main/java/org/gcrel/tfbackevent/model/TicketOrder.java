@@ -15,6 +15,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -23,7 +24,7 @@ import jakarta.persistence.Version;
 // Orden de compra: agrupa las entradas adquiridas juntas por un comprador y
 // concentra el estado de entrega por email.
 @Entity
-@Table(name = "ticket_orders")
+@Table(name = "ticket_orders", indexes = @Index(name = "idx_ticket_orders_event", columnList = "event_id"))
 public class TicketOrder {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

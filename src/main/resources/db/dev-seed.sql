@@ -35,28 +35,29 @@
 -- 1) USERS
 -- ---------------------------------------------------------------------
 INSERT INTO users (id, name, email, password, system_role, date_birth, is_enabled,
-                   verification_code, verification_code_expires_at, verification_code_failed_attempts)
+                   verification_code, verification_code_expires_at, verification_code_failed_attempts, created_at)
 VALUES
     ('11111111-1111-1111-1111-111111111111', 'Ana García', 'ana.garcia@example.com',
      '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'ADMIN', DATE '1990-05-12', TRUE,
-     NULL, NULL, 0),
+     NULL, NULL, 0, LOCALTIMESTAMP - INTERVAL '90 days'),
     ('22222222-2222-2222-2222-222222222222', 'Bruno López', 'bruno.lopez@example.com',
      '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1995-09-23', TRUE,
-     NULL, NULL, 0),
+     NULL, NULL, 0, LOCALTIMESTAMP - INTERVAL '45 days'),
     ('33333333-3333-3333-3333-333333333333', 'Carla Méndez', 'carla.mendez@example.com',
      '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1998-01-30', TRUE,
-     NULL, NULL, 0),
+     NULL, NULL, 0, LOCALTIMESTAMP - INTERVAL '12 days'),
     ('44444444-4444-4444-4444-444444444444', 'Diego Torres', 'diego.torres@example.com',
      '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '2000-11-05', FALSE,
-     '482913', LOCALTIMESTAMP + INTERVAL '1 day', 0);
+     '482913', LOCALTIMESTAMP + INTERVAL '1 day', 0, LOCALTIMESTAMP - INTERVAL '2 days');
 
 -- Usuaria bloqueada por Ana (ver la bitácora al final).
 INSERT INTO users (id, name, email, password, system_role, date_birth, is_enabled,
-                   verification_code_failed_attempts, blocked, blocked_reason, blocked_at)
+                   verification_code_failed_attempts, blocked, blocked_reason, blocked_at, created_at)
 VALUES
     ('55555555-5555-5555-5555-555555555555', 'Elena Ruiz', 'elena.ruiz@example.com',
      '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', 'USER', DATE '1993-03-17', TRUE,
-     0, TRUE, 'Publicidad no deseada en la descripción de eventos', LOCALTIMESTAMP - INTERVAL '2 days');
+     0, TRUE, 'Publicidad no deseada en la descripción de eventos', LOCALTIMESTAMP - INTERVAL '2 days',
+     LOCALTIMESTAMP - INTERVAL '20 days');
 
 -- ---------------------------------------------------------------------
 -- 2) EVENTS (tabla padre de la herencia JOINED)

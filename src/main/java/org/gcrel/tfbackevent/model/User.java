@@ -79,6 +79,9 @@ public class User implements UserDetails {
     @Column(name = "blocked_at")
     private LocalDateTime blockedAt;
 
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
     public User() {
     }
 
@@ -89,6 +92,7 @@ public class User implements UserDetails {
         this.systemRole = SystemRole.USER; // default role
         this.dateBirth = dateBirth;
         this.isEnabled = false; // default to not enabled until verified
+        this.createdAt = LocalDateTime.now();
     }
 
     @Override
@@ -172,6 +176,10 @@ public class User implements UserDetails {
 
     public void setAvatarKey(String avatarKey) {
         this.avatarKey = avatarKey;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     public boolean isBlocked() {

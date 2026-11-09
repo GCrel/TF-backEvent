@@ -14,12 +14,15 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "tickets")
+@Table(name = "tickets", indexes = {
+        @Index(name = "idx_tickets_event_status", columnList = "event_id, status"),
+        @Index(name = "idx_tickets_event_accessed", columnList = "event_id, accessed_at") })
 public class Ticket {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
